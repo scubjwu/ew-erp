@@ -85,14 +85,17 @@ type EditableField =
   | "customer"
   | "price"
   | "depotName"
-  | "depotAddr"
-  | "depotTel"
+  | "actual_depot_id"
   | "remark1"
   | "remark2";
 type NavigableField = keyof InventoryRow;
 type DirtyCellMap = Record<string, string>;
 type EditingCell = { rowId: string; field: EditableField };
-type OptionsCache = { salesReps: string[]; customers: string[] };
+type OptionsCache = {
+  salesReps: string[];
+  customers: string[];
+  depots: { id: string; name: string }[];
+};
 type SelectionRect = {
   startR: number;
   startC: number;
@@ -111,8 +114,6 @@ export const EDITABLE_GRID_ORDER: EditableField[] = [
   "price",
   "customerOrderNum",
   "depotName",
-  "depotAddr",
-  "depotTel",
   "gateInRef",
   "remark2",
   "remark1",
@@ -138,8 +139,6 @@ export const ALL_GRID_COLUMNS: (keyof InventoryRow)[] = [
   "price",
   "customerOrderNum",
   "depotName",
-  "depotAddr",
-  "depotTel",
   "gateInRef",
   "transitCompany",
   "pol",
@@ -271,17 +270,9 @@ function appendRemark(existing: string, remark: string): string {
   return existing ? `${existing}\n${prefixed}` : prefixed;
 }
 
-function inferDepotFromCustomer(customer: string): {
-  depotName: string;
-  depotAddr: string;
-  depotTel: string;
-} {
+function inferDepotFromCustomer(customer: string): string {
   const base = customer.trim() || "Customer";
-  return {
-    depotName: `${base} Default Depot`,
-    depotAddr: `${base} Logistics Park, Zone A`,
-    depotTel: "+1-555-0000",
-  };
+  return `${base} Default Depot`;
 }
 
 function dirtyKey(rowId: string, field: EditableField): string {
@@ -509,6 +500,7 @@ type DataRowProps = {
   onStageEdit: (rowId: string, field: EditableField, value: string) => void;
   onCancelEdit: () => void;
   onFocusCell: (rowId: string, field: NavigableField) => void;
+  onSelectDepot: (rowId: string, depotId: string | null, depotName: string) => void;
   onCellPaste: (
     e: React.ClipboardEvent<HTMLElement>,
     rowId: string,
@@ -538,12 +530,14 @@ type GridCellProps = {
   onStageEdit: (rowId: string, field: EditableField, value: string) => void;
   onCancelEdit: () => void;
   onFocusCell: (rowId: string, field: NavigableField) => void;
+  onSelectDepot?: (rowId: string, depotId: string | null, depotName: string) => void;
   onCellPaste: (
     e: React.ClipboardEvent<HTMLElement>,
     rowId: string,
     field: NavigableField
   ) => void;
   titleValue?: string;
+  tooltipContent?: React.ReactNode;
   optionsCache?: OptionsCache;
 };
 
@@ -568,8 +562,10 @@ function GridCell({
   onStageEdit,
   onCancelEdit,
   onFocusCell,
+  onSelectDepot,
   onCellPaste,
   titleValue,
+  tooltipContent,
   optionsCache,
 }: GridCellProps) {
   const active =
@@ -596,15 +592,22 @@ function GridCell({
     rowIndex === selection.endR &&
     colIndex === selection.endC;
   const effectiveValue = hasDirty ? dirtyValue : value;
-  const isSearchableLookupField = field === "salesRep" || field === "customer";
+  const isSearchableLookupField =
+    field === "salesRep" || field === "customer" || field === "depotName";
+  const depotLookupOptions = useMemo(
+    () => (field === "depotName" ? optionsCache?.depots ?? [] : []),
+    [field, optionsCache]
+  );
   const lookupOptions = useMemo(
     () =>
       field === "salesRep"
         ? optionsCache?.salesReps ?? []
         : field === "customer"
           ? optionsCache?.customers ?? []
+          : field === "depotName"
+            ? depotLookupOptions.map((d) => d.name)
           : [],
-    [field, optionsCache]
+    [depotLookupOptions, field, optionsCache]
   );
   const filteredLookupOptions = useMemo(() => {
     const q = editValue.trim().toLowerCase();
@@ -627,6 +630,20 @@ function GridCell({
     }
   }, [highlightedLookupIndex, filteredLookupOptions.length]);
   const inputType = "text";
+  const commitLookupSelection = useCallback(
+    (selectedName: string) => {
+      if (field === "depotName" && onSelectDepot) {
+        const normalized = selectedName.trim().toLowerCase();
+        const matchedDepot =
+          depotLookupOptions.find((d) => d.name.trim().toLowerCase() === normalized) ?? null;
+        onSelectDepot(rowId, matchedDepot?.id ?? null, selectedName);
+      } else {
+        onStageEdit(rowId, field as EditableField, selectedName);
+      }
+      onCancelEdit();
+    },
+    [depotLookupOptions, field, onCancelEdit, onSelectDepot, onStageEdit, rowId]
+  );
 
   return (
     <td
@@ -699,8 +716,7 @@ function GridCell({
                   onChange={(e) => onEditValueChange(e.target.value)}
                   onBlur={(e) => {
                     if (!e.relatedTarget) {
-                      onStageEdit(rowId, field as EditableField, editValue);
-                      onCancelEdit();
+                      commitLookupSelection(editValue);
                     }
                   }}
                   onKeyDown={(e) => {
@@ -723,8 +739,7 @@ function GridCell({
                       e.stopPropagation();
                       const selected =
                         filteredLookupOptions[highlightedLookupIndex] ?? editValue;
-                      onStageEdit(rowId, field as EditableField, selected);
-                      onCancelEdit();
+                      commitLookupSelection(selected);
                       return;
                     }
                     if (e.key === "Escape") {
@@ -762,8 +777,7 @@ function GridCell({
                           onMouseEnter={() => setHighlightedLookupIndex(idx)}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
-                            onStageEdit(rowId, field as EditableField, option);
-                            onCancelEdit();
+                            commitLookupSelection(option);
                           }}
                         >
                           <Check
@@ -803,6 +817,22 @@ function GridCell({
             />
           </div>
         )
+      ) : tooltipContent ? (
+        <TooltipProvider delayDuration={120}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={cn("group relative min-h-[24px] overflow-hidden pr-4 text-sm", displayClassName)}
+              >
+                <span>{displayValue ?? (effectiveValue || "—")}</span>
+                <Pencil className="pointer-events-none absolute right-0 top-1/2 size-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-50" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
+              {tooltipContent}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ) : (
         <div className={cn("group relative min-h-[24px] overflow-hidden pr-4 text-sm", displayClassName)}>
           <span>{displayValue ?? (effectiveValue || "—")}</span>
@@ -830,9 +860,15 @@ const InventoryDataRow = React.memo(function InventoryDataRow({
   onStageEdit,
   onCancelEdit,
   onFocusCell,
+  onSelectDepot,
   onCellPaste,
   optionsCache,
 }: DataRowProps) {
+  const depotNameDisplay = row.actual_depot?.depot_name || row.planned_depot_name || "";
+  const depotAddressDisplay = row.actual_depot?.depot_address || "-";
+  const depotTelDisplay = row.actual_depot?.depot_tel || "-";
+  const podDisplay = row.pod_city?.city_name || row.pod || "";
+
   return (
     <tr className="border-b border-border bg-background hover:bg-muted/30">
       <td
@@ -872,6 +908,7 @@ const InventoryDataRow = React.memo(function InventoryDataRow({
         onStageEdit={onStageEdit}
         onCancelEdit={onCancelEdit}
         onFocusCell={onFocusCell}
+        onSelectDepot={onSelectDepot}
         onCellPaste={onCellPaste}
       />
       <GridCell
@@ -1017,7 +1054,7 @@ const InventoryDataRow = React.memo(function InventoryDataRow({
         rowIndex={rowIndex}
         colIndex={activeColumns.indexOf("pod")}
         isEditable={true}
-        value={row.pod}
+        value={podDisplay}
         editingCell={editingCell}
         editValue={editValue}
         dirtyCells={dirtyCells}
@@ -1219,52 +1256,22 @@ const InventoryDataRow = React.memo(function InventoryDataRow({
         colIndex={activeColumns.indexOf("depotName")}
         field="depotName"
         isEditable={true}
-        value={row.depotName}
+        value={depotNameDisplay}
         editingCell={editingCell}
         editValue={editValue}
         dirtyCells={dirtyCells}
         invalidCells={invalidCells}
         selection={selection}
-        onStartEdit={onStartEdit}
-        onEditValueChange={onEditValueChange}
-        onStageEdit={onStageEdit}
-        onCancelEdit={onCancelEdit}
-        onFocusCell={onFocusCell}
-        onCellPaste={onCellPaste}
-      />
-      <GridCell
-        rowId={row.id}
-        rowIndex={rowIndex}
-        colIndex={activeColumns.indexOf("depotAddr")}
-        field="depotAddr"
-        isEditable={true}
-        value={row.depotAddr}
-        editingCell={editingCell}
-        editValue={editValue}
-        dirtyCells={dirtyCells}
-        invalidCells={invalidCells}
-        selection={selection}
-        tdClassName="text-muted-foreground"
-        onStartEdit={onStartEdit}
-        onEditValueChange={onEditValueChange}
-        onStageEdit={onStageEdit}
-        onCancelEdit={onCancelEdit}
-        onFocusCell={onFocusCell}
-        onCellPaste={onCellPaste}
-      />
-      <GridCell
-        rowId={row.id}
-        rowIndex={rowIndex}
-        colIndex={activeColumns.indexOf("depotTel")}
-        field="depotTel"
-        isEditable={true}
-        value={row.depotTel}
-        editingCell={editingCell}
-        editValue={editValue}
-        dirtyCells={dirtyCells}
-        invalidCells={invalidCells}
-        selection={selection}
-        tdClassName="font-mono text-muted-foreground"
+        tooltipContent={
+          <div className="space-y-1 text-xs">
+            <p>
+              <span className="font-medium">Address:</span> {depotAddressDisplay}
+            </p>
+            <p>
+              <span className="font-medium">Tel:</span> {depotTelDisplay}
+            </p>
+          </div>
+        }
         onStartEdit={onStartEdit}
         onEditValueChange={onEditValueChange}
         onStageEdit={onStageEdit}
@@ -1451,6 +1458,7 @@ export function InventoryCommandCenter() {
   const [optionsCache, setOptionsCache] = useState<OptionsCache>({
     salesReps: [],
     customers: [],
+    depots: [],
   });
 
   const [smartPaste, setSmartPaste] = useState("");
@@ -1501,7 +1509,7 @@ export function InventoryCommandCenter() {
 
     async function preloadLookupOptions() {
       try {
-        const [{ data: users }, { data: customers }] = await Promise.all([
+        const [{ data: users }, { data: customers }, { data: depots }] = await Promise.all([
           supabase
             .from("users")
             .select("full_name")
@@ -1510,6 +1518,10 @@ export function InventoryCommandCenter() {
             .from("customers")
             .select("company_name")
             .not("company_name", "is", null),
+          supabase
+            .from("depots")
+            .select("id, depot_name")
+            .not("depot_name", "is", null),
         ]);
         if (!active) return;
         const salesReps = Array.from(
@@ -1522,9 +1534,16 @@ export function InventoryCommandCenter() {
               .filter(Boolean)
           )
         ).sort((a, b) => a.localeCompare(b));
-        setOptionsCache({ salesReps, customers: customerNames });
+        const depotOptions = (depots ?? [])
+          .map((d) => ({
+            id: String((d as { id?: string | null }).id ?? "").trim(),
+            name: String((d as { depot_name?: string | null }).depot_name ?? "").trim(),
+          }))
+          .filter((d) => d.id.length > 0 && d.name.length > 0)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setOptionsCache({ salesReps, customers: customerNames, depots: depotOptions });
       } catch (error) {
-        console.error("Failed to preload SalesRep/Customer options:", error);
+        console.error("Failed to preload SalesRep/Customer/Depot options:", error);
       }
     }
 
@@ -1784,17 +1803,19 @@ export function InventoryCommandCenter() {
         });
       }
 
-      // Customer -> auto-fill depot fields from profile interface.
+      // Customer -> infer a default planned depot name; keep relation fields read-only.
       if (field === "customer" && !err) {
-        const depot = inferDepotFromCustomer(nextValue);
-        (["depotName", "depotAddr", "depotTel"] as const).forEach((k) => {
-          const depotKey = dirtyKey(rowId, k);
-          const baseDepot = rowFieldToString(row, k);
-          const nextDepot = depot[k];
-          if (nextDepot === baseDepot) delete dirty[depotKey];
-          else dirty[depotKey] = nextDepot;
-          delete errors[depotKey];
-        });
+        const nextDepotName = inferDepotFromCustomer(nextValue);
+        const depotNameKey = dirtyKey(rowId, "depotName");
+        const baseDepotName = rowFieldToString(row, "depotName");
+        if (nextDepotName === baseDepotName) delete dirty[depotNameKey];
+        else dirty[depotNameKey] = nextDepotName;
+        delete errors[depotNameKey];
+
+        // Inferred customer depot is only a planned hint; clear linked actual depot relation.
+        const depotIdKey = dirtyKey(rowId, "actual_depot_id");
+        delete dirty[depotIdKey];
+        delete errors[depotIdKey];
       }
 
       return { dirty, errors };
@@ -1821,6 +1842,34 @@ export function InventoryCommandCenter() {
     setDirtyCells(next.dirty);
     setInvalidCells(next.errors);
   }, [editingCell, stageCellValue, dirtyCells, invalidCells, pushHistory]);
+
+  const stageDepotSelection = useCallback(
+    (rowId: string, depotId: string | null, depotName: string) => {
+      let nextDirty = { ...dirtyCells };
+      let nextErrors = { ...invalidCells };
+
+      const stagedName = stageCellValue(rowId, "depotName", depotName, nextDirty, nextErrors);
+      nextDirty = stagedName.dirty;
+      nextErrors = stagedName.errors;
+
+      const stagedDepotId = stageCellValue(
+        rowId,
+        "actual_depot_id",
+        depotId ?? "",
+        nextDirty,
+        nextErrors
+      );
+      nextDirty = stagedDepotId.dirty;
+      nextErrors = stagedDepotId.errors;
+
+      if (!shallowMapEqual(nextDirty, dirtyCells) || !shallowMapEqual(nextErrors, invalidCells)) {
+        pushHistory();
+      }
+      setDirtyCells(nextDirty);
+      setInvalidCells(nextErrors);
+    },
+    [dirtyCells, invalidCells, pushHistory, stageCellValue]
+  );
 
   const cancelCellEdit = useCallback(() => {
     setEditingCell(null);
@@ -2631,24 +2680,6 @@ export function InventoryCommandCenter() {
                   className="w-28"
                 />
                 <SortHeader
-                  label="DepotAddr"
-                  colKey="depotAddr"
-                  sortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={onSort}
-                  headerSticky={headerSticky}
-                  className="w-40"
-                />
-                <SortHeader
-                  label="DepotTel"
-                  colKey="depotTel"
-                  sortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={onSort}
-                  headerSticky={headerSticky}
-                  className="w-28"
-                />
-                <SortHeader
                   label="Gate-in Ref"
                   colKey="gateInRef"
                   sortKey={sortKey}
@@ -2744,6 +2775,7 @@ export function InventoryCommandCenter() {
                   onStageEdit={stageCellEdit}
                   onCancelEdit={cancelCellEdit}
                   onFocusCell={focusCell}
+                  onSelectDepot={stageDepotSelection}
                   onCellPaste={handleCellPaste}
                   optionsCache={optionsCache}
                 />
