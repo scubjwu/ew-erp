@@ -4,6 +4,7 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Building2,
   ChevronLeft,
   ChevronRight,
   Package,
@@ -21,7 +22,26 @@ export type ErpTab = {
   href: string;
 };
 
+const BASIC_INFO_TITLES: Record<string, string> = {
+  companies: "Company Information Management",
+  regions: "Region Codes",
+  cities: "City Logistics",
+  depots: "Depot Codes",
+  "cost-codes": "Cost Codes",
+  "revenue-codes": "Revenue Codes",
+  "condition-codes": "Condition Codes",
+  "type-codes": "Container Types",
+  "operation-prices": "Operation Price Configs",
+  "container-number-rules": "Container Number Rules",
+};
+
 const NAV = [
+  {
+    id: "basic-info",
+    label: "Basic Info",
+    href: "/basic-info",
+    icon: Building2,
+  },
   {
     id: "inventory",
     label: "Inventory",
@@ -38,6 +58,17 @@ const NAV = [
 ] as const;
 
 function titleForPath(pathname: string): { id: string; title: string; href: string } | null {
+  if (pathname.startsWith("/basic-info")) {
+    if (pathname.match(/^\/basic-info\/[^/]+$/)) {
+      const slug = pathname.split("/")[2] ?? "";
+      return {
+        id: "basic-info-section",
+        title: BASIC_INFO_TITLES[slug] ?? "Basic Info Detail",
+        href: pathname,
+      };
+    }
+    return { id: "basic-info", title: "Basic Info", href: "/basic-info" };
+  }
   if (pathname.startsWith("/inventory")) {
     return {
       id: "inventory",
@@ -66,9 +97,9 @@ export function ErpAppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [tabs, setTabs] = useState<ErpTab[]>([
     {
-      id: "inventory",
-      title: "Inventory Command Center",
-      href: "/inventory/center",
+      id: "basic-info",
+      title: "Basic Info",
+      href: "/basic-info",
     },
   ]);
 
