@@ -52,10 +52,10 @@ export function CompanyProfileViewDialog({
 
         {!company ? null : (
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Company Name" value={company.company_name_cn} />
-            <Field label="English Name" value={company.company_name_en} />
-            <Field label="Address" value={company.address_cn} />
-            <Field label="English Address" value={company.address_en} />
+            <Field label="Company Name" value={company.company_name_en} />
+            <Field label="Company Name in Chinese" value={company.company_name_cn} />
+            <Field label="Address" value={company.address_en} />
+            <Field label="Chinese Address" value={company.address_cn} />
             <Field label="Phone" value={company.phone} />
             <Field label="Fax" value={company.fax} />
             <Field label="Email" value={company.email} />

@@ -1,0 +1,2 @@
+-- Base local seed entrypoint.
+-- Keep shared seed bootstrap SQL here.

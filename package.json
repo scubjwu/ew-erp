@@ -6,10 +6,17 @@
     "node": ">=18.0.0"
   },
   "scripts": {
+    "env:local": "cp env/local-supabase.env .env.local",
+    "env:remote": "cp env/remote-supabase.env .env.local",
     "dev": "next dev",
+    "dev:local": "npm run env:local && next dev",
+    "dev:remote": "npm run env:remote && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "db:start": "cd db/supabase && supabase start",
+    "db:reset": "cd db/supabase && supabase db reset",
+    "db:seed:export-basic-info": "python3 scripts/export_basic_info_seeds.py",
     "test": "npx -y node@20.18.0 ./node_modules/vitest/vitest.mjs run",
     "test:watch": "npx -y node@20.18.0 ./node_modules/vitest/vitest.mjs",
     "test:crm": "npx -y node@20.18.0 ./node_modules/vitest/vitest.mjs run __tests__/customer-form.test.tsx"

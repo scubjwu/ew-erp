@@ -58,7 +58,7 @@ export async function getCompanyProfiles(
   let query = supabase
     .from("company_profiles")
     .select("*", { count: "exact" })
-    .order("created_at", { ascending: false });
+    .order("company_name_en", { ascending: true, nullsFirst: false });
 
   const companyNameCn = normalizeLike(filters.companyNameCn);
   const companyNameEn = normalizeLike(filters.companyNameEn);
@@ -123,7 +123,7 @@ export async function getCompanyProfileSuggestions(params: {
       .from("company_profiles")
       .select("company_name_cn")
       .ilike("company_name_cn", pattern)
-      .order("created_at", { ascending: false })
+      .order("company_name_cn", { ascending: true, nullsFirst: false })
       .limit(limit);
     if (error) throw new Error(error.message);
     return Array.from(
@@ -140,7 +140,7 @@ export async function getCompanyProfileSuggestions(params: {
       .from("company_profiles")
       .select("company_name_en")
       .ilike("company_name_en", pattern)
-      .order("created_at", { ascending: false })
+      .order("company_name_en", { ascending: true, nullsFirst: false })
       .limit(limit);
     if (error) throw new Error(error.message);
     return Array.from(
@@ -157,7 +157,7 @@ export async function getCompanyProfileSuggestions(params: {
       .from("company_profiles")
       .select("phone")
       .ilike("phone", pattern)
-      .order("created_at", { ascending: false })
+      .order("phone", { ascending: true, nullsFirst: false })
       .limit(limit);
     if (error) throw new Error(error.message);
     return Array.from(
@@ -174,7 +174,7 @@ export async function getCompanyProfileSuggestions(params: {
       .from("company_profiles")
       .select("email")
       .ilike("email", pattern)
-      .order("created_at", { ascending: false })
+      .order("email", { ascending: true, nullsFirst: false })
       .limit(limit);
     if (error) throw new Error(error.message);
     return Array.from(
@@ -190,7 +190,7 @@ export async function getCompanyProfileSuggestions(params: {
     .from("company_profiles")
     .select("address_cn, address_en")
     .or(`address_cn.ilike.${pattern},address_en.ilike.${pattern}`)
-    .order("created_at", { ascending: false })
+    .order("address_en", { ascending: true, nullsFirst: false })
     .limit(limit);
 
   if (error) throw new Error(error.message);

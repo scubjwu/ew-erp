@@ -39,11 +39,11 @@ import { createBrowserClient } from "@/lib/supabase/client";
 import type { CompanyProfile } from "@/types/company-profile";
 
 const companyProfileFormSchema = z.object({
-  company_name_cn: z
+  company_name_cn: z.string().trim(),
+  company_name_en: z
     .string()
     .trim()
     .min(1, "Company name is required"),
-  company_name_en: z.string().trim(),
   address_cn: z.string().trim(),
   address_en: z.string().trim(),
   phone: z.string().trim(),
@@ -208,8 +208,8 @@ export function CompanyProfileFormDialog({
             {mode === "create" ? "New Company" : "Edit Company"}
           </DialogTitle>
           <DialogDescription>
-            Maintain company master data in English UI while keeping both Chinese
-            and English profile fields.
+            Maintain company master data with English as the default display
+            language while keeping Chinese fields alongside it.
           </DialogDescription>
         </DialogHeader>
 
@@ -220,7 +220,7 @@ export function CompanyProfileFormDialog({
           >
             <FormField
               control={form.control}
-              name="company_name_cn"
+              name="company_name_en"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Company Name</FormLabel>
@@ -233,12 +233,12 @@ export function CompanyProfileFormDialog({
             />
             <FormField
               control={form.control}
-              name="company_name_en"
+              name="company_name_cn"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>English Name</FormLabel>
+                  <FormLabel>Company Name in Chinese</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Enter English name" />
+                    <Input {...field} placeholder="Enter company name in Chinese" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -260,7 +260,7 @@ export function CompanyProfileFormDialog({
             />
             <FormField
               control={form.control}
-              name="address_cn"
+              name="address_en"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Address</FormLabel>
@@ -286,12 +286,12 @@ export function CompanyProfileFormDialog({
             />
             <FormField
               control={form.control}
-              name="address_en"
+              name="address_cn"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>English Address</FormLabel>
+                  <FormLabel>Chinese Address</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Enter English address" />
+                    <Input {...field} placeholder="Enter Chinese address" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

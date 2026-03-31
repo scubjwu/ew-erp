@@ -6,6 +6,7 @@ export type BasicInfoSectionSlug =
   | "cost-codes"
   | "revenue-codes"
   | "condition-codes"
+  | "size-codes"
   | "type-codes"
   | "operation-prices"
   | "container-number-rules";
@@ -61,13 +62,15 @@ export const BASIC_INFO_SECTIONS: readonly BasicInfoSectionMeta[] = [
     description: "堆场主档，统一城市、地区、类别和状态。",
     tableName: "depots",
     fields: [
+      "city_id",
       "depot_code",
       "depot_name",
-      "city_id",
-      "region_id",
+      "depot_name_cn",
       "depot_type",
       "depot_address",
+      "depot_address_cn",
       "contact_person",
+      "contact_email",
       "depot_tel",
       "status",
     ],
@@ -92,6 +95,13 @@ export const BASIC_INFO_SECTIONS: readonly BasicInfoSectionMeta[] = [
     description: "页面中的状态代码管理按箱况代码实现。",
     tableName: "container_condition_codes",
     fields: ["condition_code", "condition_name", "description", "status"],
+  },
+  {
+    slug: "size-codes",
+    title: "尺寸代码管理",
+    description: "按尺寸代码维护尺寸名称主数据。",
+    tableName: "container_size_codes",
+    fields: ["size_code", "size_name", "status"],
   },
   {
     slug: "type-codes",

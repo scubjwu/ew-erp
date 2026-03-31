@@ -81,9 +81,9 @@ function formatDateTime(value: string) {
 function downloadCsv(filename: string, rows: CompanyProfile[]) {
   const columns = [
     "Company Name",
-    "English Name",
+    "Company Name in Chinese",
     "Address",
-    "English Address",
+    "Chinese Address",
     "Phone",
     "Email",
     "Location",
@@ -101,10 +101,10 @@ function downloadCsv(filename: string, rows: CompanyProfile[]) {
     columns.join(","),
     ...rows.map((row) =>
       [
-        row.company_name_cn,
         row.company_name_en,
-        row.address_cn,
+        row.company_name_cn,
         row.address_en,
+        row.address_cn,
         row.phone,
         row.email,
         row.location_code,
@@ -203,7 +203,7 @@ function SearchAutocompleteField({
   }, []);
 
   return (
-    <div ref={wrapperRef} className="relative space-y-1.5">
+    <div ref={wrapperRef} className="relative z-40 space-y-1.5">
       <label className="text-xs font-medium">{label}</label>
       <Input
         value={value}
@@ -256,7 +256,7 @@ function SearchAutocompleteField({
         className="h-9 text-sm"
       />
       {open && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+        <div className="absolute left-0 right-0 top-full z-[80] mt-1 overflow-hidden rounded-md border border-border bg-popover shadow-md">
           {loadingSuggestions ? (
             <div className="px-3 py-2 text-sm text-muted-foreground">
               Matching records...
@@ -304,8 +304,8 @@ export function CompanyProfilesDashboard({
   const [appliedFilters, setAppliedFilters] = useState<SearchFilters>(
     initial.filters ?? EMPTY_FILTERS
   );
-  const [sortBy, setSortBy] = useState<SortableColumn["key"]>("created_at");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sortBy, setSortBy] = useState<SortableColumn["key"]>("company_name_en");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(initial.page);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -382,10 +382,10 @@ export function CompanyProfilesDashboard({
   }
 
   const columns: SortableColumn[] = [
-    { key: "company_name_cn", label: "Company Name", className: "min-w-[170px]" },
-    { key: "company_name_en", label: "English Name", className: "min-w-[180px]" },
-    { key: "address_cn", label: "Address", className: "min-w-[180px]" },
-    { key: "address_en", label: "English Address", className: "min-w-[180px]" },
+    { key: "company_name_en", label: "Company Name", className: "min-w-[180px]" },
+    { key: "company_name_cn", label: "Company Name in Chinese", className: "min-w-[180px]" },
+    { key: "address_en", label: "Address", className: "min-w-[180px]" },
+    { key: "address_cn", label: "Chinese Address", className: "min-w-[180px]" },
     { key: "phone", label: "Phone", className: "min-w-[120px]" },
     { key: "email", label: "Email", className: "min-w-[170px]" },
     { key: "location_code", label: "Location", className: "min-w-[90px]" },
@@ -464,7 +464,7 @@ export function CompanyProfilesDashboard({
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5">
-      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
@@ -497,39 +497,39 @@ export function CompanyProfilesDashboard({
             <div className="min-w-0">
               <SearchAutocompleteField
                 label="Company Name"
-                field="companyNameCn"
-                value={draftFilters.companyNameCn}
+                field="companyNameEn"
+                value={draftFilters.companyNameEn}
                 placeholder="Fuzzy match company name"
                 onChange={(value) =>
                   setDraftFilters((current) => ({
                     ...current,
-                    companyNameCn: value,
+                    companyNameEn: value,
                   }))
                 }
                 onSelectSuggestion={(value) =>
                   setDraftFilters((current) => ({
                     ...current,
-                    companyNameCn: value,
+                    companyNameEn: value,
                   }))
                 }
               />
             </div>
             <div className="min-w-0">
               <SearchAutocompleteField
-                label="English Name"
-                field="companyNameEn"
-                value={draftFilters.companyNameEn}
-                placeholder="Fuzzy match English name"
+                label="Company Name in Chinese"
+                field="companyNameCn"
+                value={draftFilters.companyNameCn}
+                placeholder="Fuzzy match Chinese company name"
                 onChange={(value) =>
                   setDraftFilters((current) => ({
                     ...current,
-                    companyNameEn: value,
+                    companyNameCn: value,
                   }))
                 }
                 onSelectSuggestion={(value) =>
                   setDraftFilters((current) => ({
                     ...current,
-                    companyNameEn: value,
+                    companyNameCn: value,
                   }))
                 }
               />
@@ -612,16 +612,15 @@ export function CompanyProfilesDashboard({
         </form>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="relative z-0 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <div className="max-h-[calc(100dvh-270px)] overflow-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
-              <TableHead className="sticky left-0 top-0 z-30 w-14 bg-card py-2 text-xs uppercase tracking-wide">No.</TableHead>
               {columns.map((column) => (
                 <TableHead
                   key={column.key}
-                  className={`sticky top-0 z-20 bg-card py-2 text-xs uppercase tracking-wide ${column.key === "company_name_cn" ? "left-14 z-30" : ""} ${column.className ?? ""}`}
+                  className={`sticky top-0 z-20 bg-card py-2 text-xs uppercase tracking-wide ${column.key === "company_name_en" ? "left-0 z-30" : ""} ${column.className ?? ""}`}
                 >
                   <button
                     type="button"
@@ -639,31 +638,30 @@ export function CompanyProfilesDashboard({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                   Loading companies...
                 </TableCell>
               </TableRow>
             ) : result.rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                   No company records found.
                 </TableCell>
               </TableRow>
             ) : (
-              sortedRows.map((row, index) => (
+              sortedRows.map((row) => (
                 <TableRow key={row.id} className="align-middle">
-                  <TableCell className="sticky left-0 z-20 bg-card py-2">{(page - 1) * pageSize + index + 1}</TableCell>
-                  <TableCell className="sticky left-14 z-20 max-w-[180px] bg-card py-2 font-medium">
-                    <div className="line-clamp-2">{row.company_name_cn}</div>
-                  </TableCell>
-                  <TableCell className="max-w-[220px] py-2">
+                  <TableCell className="sticky left-0 z-20 max-w-[180px] bg-card py-2 font-medium">
                     <div className="line-clamp-2">{row.company_name_en ?? "-"}</div>
                   </TableCell>
                   <TableCell className="max-w-[220px] py-2">
-                    <div className="line-clamp-2">{row.address_cn ?? "-"}</div>
+                    <div className="line-clamp-2">{row.company_name_cn}</div>
                   </TableCell>
                   <TableCell className="max-w-[220px] py-2">
                     <div className="line-clamp-2">{row.address_en ?? "-"}</div>
+                  </TableCell>
+                  <TableCell className="max-w-[220px] py-2">
+                    <div className="line-clamp-2">{row.address_cn ?? "-"}</div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap py-2">{row.phone ?? "-"}</TableCell>
                   <TableCell className="max-w-[180px] py-2">
