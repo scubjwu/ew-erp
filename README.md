@@ -55,6 +55,14 @@ Replay all local migrations into the local database:
 npm run db:reset
 ```
 
+This command first snapshots current local basic-info data into seed files, then resets the local database.
+
+If you want a clean reset without overwriting seed files:
+
+```bash
+npm run db:reset:fresh
+```
+
 Start Next.js against local Supabase:
 
 ```bash
