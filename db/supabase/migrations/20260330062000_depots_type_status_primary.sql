@@ -1,6 +1,12 @@
 ALTER TABLE public.depots
     ADD COLUMN IF NOT EXISTS is_primary_depot boolean DEFAULT false NOT NULL;
 
+ALTER TABLE public.depots
+    DROP CONSTRAINT IF EXISTS depots_status_check;
+
+ALTER TABLE public.depots
+    DROP CONSTRAINT IF EXISTS depots_depot_type_check;
+
 UPDATE public.depots
 SET depot_type = CASE
     WHEN depot_type IS NULL OR trim(depot_type) = '' THEN 'OTHER'
@@ -28,14 +34,8 @@ SET status = CASE
 END;
 
 ALTER TABLE public.depots
-    DROP CONSTRAINT IF EXISTS depots_status_check;
-
-ALTER TABLE public.depots
     ADD CONSTRAINT depots_status_check
     CHECK (status = ANY (ARRAY['NORMAL'::text, 'SUSPEND'::text]));
-
-ALTER TABLE public.depots
-    DROP CONSTRAINT IF EXISTS depots_depot_type_check;
 
 ALTER TABLE public.depots
     ADD CONSTRAINT depots_depot_type_check
