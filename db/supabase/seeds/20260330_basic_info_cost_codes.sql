@@ -14,6 +14,7 @@ INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order
 INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('8a63dea6-8d10-450f-9877-57651c43c875', 'XXF', 'Frontier Drop-off', '下线费：在边境口岸（如阿拉山口）办理下线作业的费用。', 999, 'ACTIVE', NULL, '2026-03-30T23:18:40.642368+00:00', '2026-03-30T23:18:40.642368+00:00');
 INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('8bd4422f-92d1-416c-b7a6-35075441a9cf', 'YXF', 'Inspection Fee', '验箱费（验柜费）：对箱体状况进行检查、评估的费用。', 999, 'ACTIVE', NULL, '2026-03-30T23:18:40.642368+00:00', '2026-03-30T23:18:40.642368+00:00');
 INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('906e580a-ed4f-4b0b-869e-f8a5f8c1bb58', 'TRU', 'Trucking Fee', '拖车费：集装箱的陆路拖运运输费用。', 999, 'ACTIVE', NULL, '2026-03-30T23:18:40.642368+00:00', '2026-03-30T23:18:40.642368+00:00');
+INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('92bf9044-04b7-46f4-b598-a3ed0fad253a', 'TEST', 'TEST', 'TEST', 999, 'ACTIVE', NULL, '2026-03-31T06:10:21.405306+00:00', '2026-03-31T06:10:21.405306+00:00');
 INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('96a10f1b-6306-4b47-8a59-a94c765baff3', 'ZDF', 'Delivery Order Fee', '转单费：换取提货单（D/O）或单据背书转让的费用。', 999, 'ACTIVE', NULL, '2026-03-30T23:18:40.642368+00:00', '2026-03-30T23:18:40.642368+00:00');
 INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('9721a62e-db05-4c85-bb93-963539a51d40', 'BGF', 'Customs Declaration', '报关费：向海关申报货物及集装箱进出境的手续费。', 999, 'ACTIVE', NULL, '2026-03-30T23:18:40.642368+00:00', '2026-03-30T23:18:40.642368+00:00');
 INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('9876d7ed-ed0a-45af-856d-deef3902dba3', 'YGF', 'Shifting Charge', '游柜费（移位费）：在场站内非必要的箱位移动费用。', 999, 'ACTIVE', NULL, '2026-03-30T23:18:40.642368+00:00', '2026-03-30T23:18:40.642368+00:00');
@@ -32,4 +33,4 @@ INSERT INTO public.cost_codes (id, cost_code, cost_name, description, sort_order
 
 COMMIT;
 
--- rows exported: 29
+-- rows exported: 30

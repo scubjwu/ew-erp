@@ -2,6 +2,7 @@ BEGIN;
 
 INSERT INTO public.revenue_codes (id, revenue_code, revenue_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('184dabb7-8d7e-4a3a-b0bf-fa2f2718e5b7', 'OCE', 'Ocean Freight', '海运费：集装箱国际或沿海海上运输的运费收入。', 999, 'ACTIVE', NULL, '2026-03-30T23:35:10.956425+00:00', '2026-03-30T23:35:10.956425+00:00');
 INSERT INTO public.revenue_codes (id, revenue_code, revenue_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('1c7e9991-e914-445c-ab9e-5b09a01f97d6', 'TRK', 'Trucking Revenue', '拖车收入：为客户提供陆路拖运服务所收取的运费收入。', 999, 'ACTIVE', NULL, '2026-03-30T23:35:10.956425+00:00', '2026-03-30T23:35:10.956425+00:00');
+INSERT INTO public.revenue_codes (id, revenue_code, revenue_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('25d9df1a-8c76-4243-ba38-eb6565123bf0', 'TEST', 'TEST', 'TEST', 999, 'ACTIVE', NULL, '2026-03-31T06:10:31.9299+00:00', '2026-03-31T06:10:31.9299+00:00');
 INSERT INTO public.revenue_codes (id, revenue_code, revenue_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('31da5816-ce90-4557-95e4-a4e4f48c0d79', 'OTH', 'Miscellaneous / Others', '其他收入：无法归类到特定科目的杂项收入。', 999, 'ACTIVE', NULL, '2026-03-30T23:35:10.956425+00:00', '2026-03-30T23:35:10.956425+00:00');
 INSERT INTO public.revenue_codes (id, revenue_code, revenue_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('8be125f1-0b8d-4c9f-b019-3b2b44d7e302', 'REN', 'Rental Income', '租柜费：出租集装箱收取的租金收入。', 999, 'ACTIVE', NULL, '2026-03-30T23:35:10.956425+00:00', '2026-03-30T23:35:10.956425+00:00');
 INSERT INTO public.revenue_codes (id, revenue_code, revenue_name, description, sort_order, status, created_by, created_at, updated_at) VALUES ('9aeb8f8e-b180-4de1-8d44-49742e69c3d4', 'PUC', 'Pick-up Charge', '调运收入：客户提柜时支付的调拨、提取服务费。', 999, 'ACTIVE', NULL, '2026-03-30T23:35:10.956425+00:00', '2026-03-30T23:35:10.956425+00:00');
@@ -10,4 +11,4 @@ INSERT INTO public.revenue_codes (id, revenue_code, revenue_name, description, s
 
 COMMIT;
 
--- rows exported: 7
+-- rows exported: 8

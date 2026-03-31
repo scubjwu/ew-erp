@@ -15,9 +15,10 @@
     "start": "next start",
     "lint": "next lint",
     "db:start": "cd db/supabase && supabase start",
-    "db:reset": "npm run db:seed:export-basic-info && cd db/supabase && supabase db reset",
+    "db:reset": "npm run db:seed:export-basic-info && npm run db:seed:verify-basic-info && cd db/supabase && supabase db reset",
     "db:reset:fresh": "cd db/supabase && supabase db reset",
     "db:seed:export-basic-info": "python3 scripts/export_basic_info_seeds.py",
+    "db:seed:verify-basic-info": "python3 scripts/verify_basic_info_seeds.py",
     "test": "npx -y node@20.18.0 ./node_modules/vitest/vitest.mjs run",
     "test:watch": "npx -y node@20.18.0 ./node_modules/vitest/vitest.mjs",
     "test:crm": "npx -y node@20.18.0 ./node_modules/vitest/vitest.mjs run __tests__/customer-form.test.tsx"
