@@ -38,7 +38,10 @@ Current landing route:
 Current delivery reality:
 
 - `System Codes` is the most complete and stable module in the repository
+- `Container Number Rules` is now a first-class delivered `System Codes` page with dedicated list/search/form/view wiring
+- `Partners Center` now exists at `/partners` as the canonical partner entry
 - `Customers` is the most complete implementation under `Partners`
+- legacy `/customers`, `/customers/new`, and `/customers/[id]` routes now redirect to `/partners/customers...`
 - other partner modules are scaffolded in navigation and route structure, but most are not yet full CRUD pages
 - inventory database design is materially ahead of inventory frontend delivery
 
@@ -76,14 +79,24 @@ Delivered `System Codes` areas include:
 - Operation Price Configs
 - Container Number Rules
 
+Current system-level truth added on `2026-03-31`:
+
+- `types/basic-info.ts` is now the main business-facing naming map for `System Codes`
+- core `System Codes` tables have a unified public-write/RLS baseline in migrations
+- `Container Number Rules` now follows the standard `route -> actions -> dashboard -> dialogs -> migrations -> seeds` pattern
+
 #### Partners
 
 `Partners` has the correct high-level IA and route structure, but implementation maturity is uneven.
 
 Current reality:
 
+- `Partners Center` is delivered at `/partners` with card navigation and count lookups
 - `Customers`: delivered and usable
+- `Customers` now lives canonically under `/partners/customers`
+- `Customers` schema now includes region linkage, secondary-language company name, contact person, assigned sales, and certificate links
 - `Vendors`: schema is advancing, UI is still scaffold-level
+- `suppliers` now has region and bank-account-oriented extension fields for future vendor delivery
 - `Lessee`, `Lessor`, `Material Vendors`, `Container Owners`: route structure exists, but pages are not full CRUD implementations yet
 
 `Customers` is the current reference implementation for partner-style CRUD.
@@ -125,6 +138,10 @@ Current system interaction is mostly built on this pattern:
 5. schema and persistence support
 - migrations define schema and permissions
 - seeds protect local reset persistence for selected master-data tables
+
+6. canonical module routing
+- legacy routes may redirect into the current module-owned route family
+- current example: customer routes resolve under `/partners/customers`
 
 ## UI Standards
 
@@ -351,6 +368,7 @@ Current naming that may confuse new engineers:
 
 - `Basic Info` is presented in the UI as `System Codes`
 - `Customers` belongs under `Partners`
+- `/customers*` is now a legacy route surface that redirects to `/partners/customers*`
 - `City Logistics Information Management` was renamed to `City Codes`
 - `Container Types` was renamed to `Type Codes`
 - `Expense Code` and `Revenue Code` pages use business-facing plural naming in the UI
@@ -480,6 +498,7 @@ A page is not done until:
 Current stable baseline:
 
 - `System Codes` is the main delivered master-data center
+- `Container Number Rules` is part of the delivered `System Codes` baseline
 - `Partners Center` exists and `Customers` is active
 - local reset and seed workflow are part of normal development
 - inventory schema work is ahead of inventory frontend delivery

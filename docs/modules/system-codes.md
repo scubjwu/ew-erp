@@ -85,6 +85,12 @@ These areas are treated as current delivered master-data flows or current refere
 
 When in doubt, use the company, region, city, and related active dashboards and actions as the concrete truth.
 
+Important `2026-03-31` update:
+
+- business-facing English labels are now centralized in [`types/basic-info.ts`](/Users/palayapan/Documents/ew-erp/types/basic-info.ts)
+- `Container Number Rules` is no longer metadata-only; it now has its own delivered route, actions, dashboard, form dialog, and view dialog
+- basic-info public-write coverage was normalized again in `20260331083000`, `20260331091000`, and `20260331094500`
+
 ## Data and Schema Surface
 
 Current active `System Codes` tables include:
@@ -103,6 +109,17 @@ Current active `System Codes` tables include:
 - `container_type_codes`
 - `operation_price_configs`
 - `container_number_rules`
+
+Current permission truth:
+
+- browser/public write flows are expected to work for the main delivered basic-info tables through migration-managed grants and RLS policies
+- `depot_attachment_links` and `depot_additional_costs` remain child-table exceptions that also require delete coverage
+
+Important migration references for this baseline:
+
+- [`db/supabase/migrations/20260331083000_container_size_codes_public_write_fix.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331083000_container_size_codes_public_write_fix.sql)
+- [`db/supabase/migrations/20260331091000_container_number_rules_public_write.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331091000_container_number_rules_public_write.sql)
+- [`db/supabase/migrations/20260331094500_basic_info_public_write_unified_fix.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331094500_basic_info_public_write_unified_fix.sql)
 
 Related schema sources:
 
@@ -139,6 +156,11 @@ Seed workflow references:
 
 Engineers must update seed coverage when introducing a new `System Codes` table or when adding reset-sensitive child data to an existing table.
 
+Recent seed-sync note:
+
+- `container_number_rules`, `cities`, `condition_codes`, `operation_price_configs`, and `size_codes` seed artifacts were refreshed on `2026-03-31`
+- seed script behavior, not UI behavior alone, remains the reset-survival truth
+
 ## UI and Interaction Standards for This Module
 
 `System Codes` is the current UI standard-setter for master-data pages.
@@ -171,6 +193,12 @@ Use these as first-open references:
   - [`app/basic-info/companies/page.tsx`](/Users/palayapan/Documents/ew-erp/app/basic-info/companies/page.tsx)
   - [`app/basic-info/companies/actions.ts`](/Users/palayapan/Documents/ew-erp/app/basic-info/companies/actions.ts)
   - [`components/basic-info/company-profiles-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/company-profiles-dashboard.tsx)
+- container number rules:
+  - [`app/basic-info/container-number-rules/page.tsx`](/Users/palayapan/Documents/ew-erp/app/basic-info/container-number-rules/page.tsx)
+  - [`app/basic-info/container-number-rules/actions.ts`](/Users/palayapan/Documents/ew-erp/app/basic-info/container-number-rules/actions.ts)
+  - [`components/basic-info/container-number-rules-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/container-number-rules-dashboard.tsx)
+  - [`components/basic-info/container-number-rule-form-dialog.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/container-number-rule-form-dialog.tsx)
+  - [`components/basic-info/container-number-rule-view-dialog.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/container-number-rule-view-dialog.tsx)
 
 ## Common Failure Modes
 

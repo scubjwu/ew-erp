@@ -41,7 +41,9 @@ The current module is not uniformly delivered.
 
 Current state:
 
+- `Partners Center` is now delivered as the module entry page
 - `Customers` is the main active and usable partner CRUD flow
+- legacy `/customers*` routes now redirect into `/partners/customers*`
 - `Vendors` has advancing schema support through `suppliers`, but the route is still placeholder-level
 - `Lessee`, `Lessor`, `Material Vendors`, and `Container Owners` currently use placeholder pages
 
@@ -71,6 +73,7 @@ Important implementation note:
 
 - some partner categories do not yet have a backing table configured in `types/partners.ts`
 - the center page therefore mixes real counts and scaffold-only categories
+- current real count-backed cards are `Customers` and `Vendors`
 
 ## Section Status
 
@@ -106,6 +109,12 @@ Current delivered customer behavior includes:
 - customer detail fetch
 - region join support
 - customer certificate link support
+- canonical `View` and `Edit` flows under `/partners/customers/[id]` and `/partners/customers/[id]/edit`
+
+Current search behavior note:
+
+- simple search still targets company name
+- advanced syntax now also accepts `customer_id:` and `customerid:` aliases for `customer_custom_id`
 
 ### Current schema surface
 
@@ -115,8 +124,17 @@ Main customer tables:
 - `customer_certificate_links`
 - related lookup table: `region_codes`
 
+Current customer field truth added on `2026-03-31`:
+
+- `customers.contact_person`
+- `customers.assigned_sales`
+- `customers.company_name_other_language`
+- `customers.region_id`
+- `customer_certificate_links.link_url`
+
 Important migrations include:
 
+- [`db/supabase/migrations/20260331123000_customers_ui_fields.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331123000_customers_ui_fields.sql)
 - [`db/supabase/migrations/20260331124500_customers_fields_and_public_write.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331124500_customers_fields_and_public_write.sql)
 - [`db/supabase/migrations/20260331140000_customers_region_and_certificates.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331140000_customers_region_and_certificates.sql)
 
@@ -133,6 +151,18 @@ Current route:
 Current schema base:
 
 - `suppliers`
+
+Current supplier extension fields added for future `Vendors` delivery:
+
+- `region_id`
+- `country`
+- `category`
+- `account_name`
+- `account_number`
+- `bank_name`
+- `bank_code`
+- `bank_address`
+- `swift_code`
 
 Important migration:
 
@@ -189,6 +219,7 @@ Current seed workflow references:
 Important note:
 
 - partner seed coverage is currently customer-focused
+- `suppliers` is not yet documented as reset-safe
 - new partner tables should not be assumed reset-safe unless seed coverage is explicitly added
 
 ## UI and Interaction Standards for This Module
@@ -211,6 +242,9 @@ Open these first:
   - [`components/partners/partners-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/partners/partners-dashboard.tsx)
 - customer CRUD:
   - [`app/partners/customers/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/customers/page.tsx)
+  - [`app/partners/customers/new/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/customers/new/page.tsx)
+  - [`app/partners/customers/[id]/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/customers/[id]/page.tsx)
+  - [`app/partners/customers/[id]/edit/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/customers/[id]/edit/page.tsx)
   - [`app/customers/actions.ts`](/Users/palayapan/Documents/ew-erp/app/customers/actions.ts)
   - [`components/customers/customers-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/customers/customers-dashboard.tsx)
   - [`types/customer.ts`](/Users/palayapan/Documents/ew-erp/types/customer.ts)

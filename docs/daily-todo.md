@@ -65,9 +65,9 @@ Copy this section for each working day.
 
 ### Today's priorities
 
-- [ ] Keep global and module docs aligned with delivered system truth
-- [ ] Use module docs for active module-specific context
-- [ ] Use this rolling tracker for daily planning and unresolved action items
+- [x] Sync docs to today's delivered system truth from git commits
+- [x] Separate system-level truth, module-level truth, and daily action items
+- [x] Classify all unfinished items as `Deferred` or `Carried Forward`
 
 ### Action Items from conversations
 
@@ -83,15 +83,45 @@ Copy this section for each working day.
   - Owner: Codex + user
   - Next concrete step: N/A
 
-- [ ] Topic: Add links from global doc to module docs and introduce daily action-item tracking
-  - Status: In Progress
+- [x] Topic: Add links from global doc to module docs and introduce daily action-item tracking
+  - Status: Done
   - Source conversation/topic: Daily doc and AI resolution rule
   - Owner: Codex
-  - Next concrete step: Update global doc, create rolling daily doc, and add references in module docs
+  - Next concrete step: N/A
+
+- [x] Topic: Sync docs to `2026-03-31` commit reality for `System Codes`, `Partners`, and `Customers`
+  - Status: Done
+  - Source conversation/topic: Automation doc sync from today's commits
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [ ] Topic: Verify the new basic-info and customers public-write migrations on a freshly reset local DB
+  - Status: Carried Forward
+  - Source conversation/topic: `2026-03-31` schema and RLS changes
+  - Owner: User + Codex
+  - Next concrete step: Run `npm run db:reset` and smoke-test create/edit flows for container number rules and customers
+
+- [ ] Topic: Deliver `Vendors` CRUD on top of the extended `suppliers` schema
+  - Status: Carried Forward
+  - Source conversation/topic: Partners module delivery follow-up
+  - Owner: User + Codex
+  - Next concrete step: Define list/form fields from the new supplier banking and region columns, then replace the placeholder route
+
+- [ ] Topic: Decide whether `suppliers` and future partner tables must survive local reset
+  - Status: Deferred
+  - Source conversation/topic: Seed coverage planning for Partners
+  - Owner: User
+  - Next concrete step: Confirm reset-survival requirement before extending seed export and verify scripts
+
+- [ ] Topic: Replace the remaining partner placeholder routes with real CRUD scopes or explicitly keep them scaffold-only
+  - Status: Deferred
+  - Source conversation/topic: Partners module maturity planning
+  - Owner: User
+  - Next concrete step: Prioritize `Lessee`, `Lessor`, `Material Vendors`, and `Container Owners`
 
 ### In Progress
 
-- [ ] Documentation operating model refinement
+- [ ] None
 
 ### Blocked
 
@@ -102,7 +132,34 @@ Copy this section for each working day.
 - [x] Global living design doc created
 - [x] System Codes module doc created
 - [x] Partners module doc created
+- [x] System doc synced to canonical `/partners` routing and delivered `Container Number Rules`
+- [x] System Codes module doc synced to current RLS baseline and container-number-rule references
+- [x] Partners module doc synced to current customer fields, customer routes, and supplier extensions
 
 ### Carry Forward to next day
 
-- [ ] None
+- [ ] Verify new RLS and public-write migrations after `npm run db:reset`
+  - Status: Carried Forward
+  - Source conversation/topic: `2026-03-31` migration rollout
+  - Owner: User + Codex
+  - Next concrete step: Smoke-test `System Codes` and `Partners > Customers` create/edit flows
+
+- [ ] Deliver `Vendors` as the next non-placeholder `Partners` page
+  - Status: Carried Forward
+  - Source conversation/topic: Partners delivery sequence
+  - Owner: User + Codex
+  - Next concrete step: Implement list/search/form flow using the extended `suppliers` schema
+
+### Deferred
+
+- [ ] Decide whether `suppliers` should be added to reset-safe seed coverage
+  - Status: Deferred
+  - Source conversation/topic: Partner data persistence scope
+  - Owner: User
+  - Next concrete step: Confirm whether vendor data must survive local reset before changing seed tooling
+
+- [ ] Decide which placeholder partner sections should become real modules next
+  - Status: Deferred
+  - Source conversation/topic: Partners roadmap
+  - Owner: User
+  - Next concrete step: Pick the next partner workflow after `Vendors`
