@@ -119,6 +119,12 @@ Copy this section for each working day.
   - Owner: User
   - Next concrete step: Prioritize `Lessee`, `Lessor`, `Material Vendors`, and `Container Owners`
 
+- [ ] Topic: Decide whether customer legacy email/depot fields should be normalized to match the delivered UI
+  - Status: Deferred
+  - Source conversation/topic: `2026-03-31` customer form and schema mapping review
+  - Owner: User + Codex
+  - Next concrete step: Decide whether `Primary Contact Email` should keep mapping to `purchasing_emails[0]` and whether `depot_info` stays out of scope
+
 ### In Progress
 
 - [ ] None
@@ -135,6 +141,7 @@ Copy this section for each working day.
 - [x] System doc synced to canonical `/partners` routing and delivered `Container Number Rules`
 - [x] System Codes module doc synced to current RLS baseline and container-number-rule references
 - [x] Partners module doc synced to current customer fields, customer routes, and supplier extensions
+- [x] Partners and system docs synced to the current customer UI/schema mapping reality
 
 ### Carry Forward to next day
 
@@ -163,3 +170,9 @@ Copy this section for each working day.
   - Source conversation/topic: Partners roadmap
   - Owner: User
   - Next concrete step: Pick the next partner workflow after `Vendors`
+
+- [ ] Decide whether the customer schema should be normalized to match the delivered contact/certificate UI
+  - Status: Deferred
+  - Source conversation/topic: Customer legacy field cleanup
+  - Owner: User + Codex
+  - Next concrete step: Choose whether to rename/remap `purchasing_emails` usage and formally retire `depot_info` from active customer maintenance

@@ -108,6 +108,7 @@ Current delivered customer behavior includes:
 - CSV export
 - customer detail fetch
 - region join support
+- form-driven editing for customer ID, status, company names, region, contact fields, credit setup, and certificate links
 - customer certificate link support
 - canonical `View` and `Edit` flows under `/partners/customers/[id]` and `/partners/customers/[id]/edit`
 
@@ -115,6 +116,12 @@ Current search behavior note:
 
 - simple search still targets company name
 - advanced syntax now also accepts `customer_id:` and `customerid:` aliases for `customer_custom_id`
+
+Current UI-to-schema mapping note:
+
+- the UI label `Primary Contact Email` currently writes to the legacy `customers.purchasing_emails[0]` field
+- `ops_emails` and `finance_emails` are edited as comma-separated text inputs and stored as arrays
+- `depot_info` still exists in the customer schema, but depot rows are not part of the delivered customer form anymore
 
 ### Current schema surface
 
@@ -130,6 +137,8 @@ Current customer field truth added on `2026-03-31`:
 - `customers.assigned_sales`
 - `customers.company_name_other_language`
 - `customers.region_id`
+- `customers.purchasing_emails[0]` is the current storage target for the UI's `Primary Contact Email`
+- `customers.depot_info` remains schema-level legacy data, not current delivered form scope
 - `customer_certificate_links.link_url`
 
 Important migrations include:

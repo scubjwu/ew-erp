@@ -95,6 +95,7 @@ Current reality:
 - `Customers`: delivered and usable
 - `Customers` now lives canonically under `/partners/customers`
 - `Customers` schema now includes region linkage, secondary-language company name, contact person, assigned sales, and certificate links
+- `Customers` UI is currently centered on contact, credit, and certificate maintenance; legacy customer schema fields such as `depot_info` are not part of the delivered form flow
 - `Vendors`: schema is advancing, UI is still scaffold-level
 - `suppliers` now has region and bank-account-oriented extension fields for future vendor delivery
 - `Lessee`, `Lessor`, `Material Vendors`, `Container Owners`: route structure exists, but pages are not full CRUD implementations yet
