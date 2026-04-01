@@ -2,7 +2,7 @@ import { BasicInfoDashboard } from "@/components/basic-info/basic-info-dashboard
 import { getBasicInfoOverview } from "@/lib/supabase/basic-info-api";
 
 export const metadata = {
-  title: "Basic Info — EW ERP",
+  title: "System Codes — EW ERP",
 };
 
 export const dynamic = "force-dynamic";

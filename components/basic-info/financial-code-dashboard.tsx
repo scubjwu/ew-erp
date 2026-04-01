@@ -65,12 +65,12 @@ const EMPTY_FILTERS = (category: FinancialCodeCategory): SearchFilters => ({
 function labelsForCategory(category: FinancialCodeCategory) {
   return category === "INCOME"
     ? {
-        title: "Revenue Code",
+        title: "Revenue Codes",
         code: "Revenue Code",
         name: "Revenue Name",
       }
     : {
-        title: "Expense Code",
+        title: "Expense Codes",
         code: "Expense Code",
         name: "Expense Name",
       };
@@ -310,10 +310,13 @@ export function FinancialCodeDashboard({
   useEffect(() => {
     if (skipInitialFetch.current) {
       skipInitialFetch.current = false;
+      if (initial.totalCount === 0) {
+        void fetchPage();
+      }
       return;
     }
     void fetchPage();
-  }, [fetchPage]);
+  }, [fetchPage, initial.totalCount]);
 
   async function refreshCurrentPage() {
     const next = await getFinancialCodes({

@@ -1,6 +1,19 @@
 /** Matches `status` comment on your table: Normal, Prepayment, Blacklisted */
 export type CustomerStatus = "Normal" | "Prepayment" | "Blacklisted";
 
+export interface CustomerRegionRef {
+  region_code: string | null;
+  region_name: string | null;
+}
+
+export interface CustomerCertificateLink {
+  id: string;
+  customer_id: string;
+  link_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
 /** One depot entry in the editor → stored under `depot_info.depots` JSONB. */
 export interface DepotRow {
   city_code: string;
@@ -19,8 +32,12 @@ export interface Customer {
   /** Human-facing reference, e.g. `C3A9FZ` (unique when set). */
   customer_custom_id: string | null;
   company_name: string;
+  company_name_other_language: string | null;
   customer_grade: string | null;
   assigned_sales: string | null;
+  region_id: string | null;
+  region?: CustomerRegionRef | null;
+  contact_person: string | null;
   status: CustomerStatus;
   contact_phone: string | null;
   address: string | null;
@@ -31,6 +48,7 @@ export interface Customer {
   credit_limit: number;
   credit_term_days: number;
   depot_info: Record<string, unknown> | null;
+  certificate_links?: CustomerCertificateLink[];
   created_at: string;
   updated_at: string;
 }

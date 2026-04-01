@@ -25,21 +25,30 @@ export type ErpTab = {
 const BASIC_INFO_TITLES: Record<string, string> = {
   companies: "Company Information Management",
   regions: "Region Codes",
-  cities: "City Logistics",
+  cities: "City Codes",
   depots: "Depot Codes",
-  "cost-codes": "Expense Code",
-  "revenue-codes": "Revenue Code",
+  "cost-codes": "Expense Codes",
+  "revenue-codes": "Revenue Codes",
   "condition-codes": "Condition Codes",
   "size-codes": "Size Codes",
-  "type-codes": "Container Types",
+  "type-codes": "Type Codes",
   "operation-prices": "Operation Price Configs",
   "container-number-rules": "Container Number Rules",
+};
+
+const PARTNER_TITLES: Record<string, string> = {
+  customers: "Customers",
+  vendors: "Vendors",
+  lessee: "Lessee",
+  lessor: "Lessor",
+  "material-vendors": "Material Vendors",
+  "container-owners": "Container Owners",
 };
 
 const NAV = [
   {
     id: "basic-info",
-    label: "Basic Info",
+    label: "System Codes",
     href: "/basic-info",
     icon: Building2,
   },
@@ -49,7 +58,7 @@ const NAV = [
     href: "/inventory/center",
     icon: Package,
   },
-  { id: "customers", label: "Customers", href: "/customers", icon: Users },
+  { id: "partners", label: "Partners", href: "/partners", icon: Users },
   {
     id: "settings",
     label: "System Settings",
@@ -64,11 +73,11 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
       const slug = pathname.split("/")[2] ?? "";
       return {
         id: "basic-info-section",
-        title: BASIC_INFO_TITLES[slug] ?? "Basic Info Detail",
+        title: BASIC_INFO_TITLES[slug] ?? "System Codes Detail",
         href: pathname,
       };
     }
-    return { id: "basic-info", title: "Basic Info", href: "/basic-info" };
+    return { id: "basic-info", title: "System Codes", href: "/basic-info" };
   }
   if (pathname.startsWith("/inventory")) {
     return {
@@ -77,14 +86,25 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
       href: "/inventory/center",
     };
   }
+  if (pathname.startsWith("/partners")) {
+    if (pathname.startsWith("/partners/customers/") && pathname !== "/partners/customers/new") {
+      return { id: "partner-customer-edit", title: "Edit Customer", href: pathname };
+    }
+    if (pathname === "/partners/customers/new") {
+      return { id: "partner-customer-new", title: "New Customer", href: pathname };
+    }
+    if (pathname.match(/^\/partners\/[^/]+$/)) {
+      const slug = pathname.split("/")[2] ?? "";
+      return {
+        id: "partners-section",
+        title: PARTNER_TITLES[slug] ?? "Partners Detail",
+        href: pathname,
+      };
+    }
+    return { id: "partners", title: "Partners", href: "/partners" };
+  }
   if (pathname.startsWith("/customers")) {
-    if (pathname.match(/^\/customers\/[^/]+$/)) {
-      return { id: "customer-edit", title: "Edit customer", href: pathname };
-    }
-    if (pathname === "/customers/new") {
-      return { id: "customer-new", title: "New customer", href: pathname };
-    }
-    return { id: "customers", title: "Customers", href: "/customers" };
+    return { id: "partners", title: "Partners", href: "/partners" };
   }
   if (pathname.startsWith("/settings")) {
     return { id: "settings", title: "System Settings", href: "/settings" };
@@ -99,7 +119,7 @@ export function ErpAppShell({ children }: { children: ReactNode }) {
   const [tabs, setTabs] = useState<ErpTab[]>([
     {
       id: "basic-info",
-      title: "Basic Info",
+      title: "System Codes",
       href: "/basic-info",
     },
   ]);

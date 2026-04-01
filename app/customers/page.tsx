@@ -1,16 +1,5 @@
-import { getCustomers } from "@/app/customers/actions";
-import { CustomersDashboard } from "@/components/customers/customers-dashboard";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 10;
-
-export default async function CustomersPage() {
-  const initial = await getCustomers({
-    q: "",
-    page: 1,
-    pageSize: PAGE_SIZE,
-  });
-
-  return <CustomersDashboard initial={initial} pageSize={PAGE_SIZE} />;
+export default function CustomersPage() {
+  redirect("/partners/customers");
 }

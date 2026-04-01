@@ -17,6 +17,8 @@ const KEY_SET = new Set<string>(CUSTOMER_SEARCH_KEYS);
 /** Short aliases for advanced syntax (UI guide + faster typing). */
 const KEY_ALIASES: Record<string, CustomerSearchColumn> = {
   company: "company_name",
+  customer_id: "customer_custom_id",
+  customerid: "customer_custom_id",
   id: "customer_custom_id",
   sales: "assigned_sales",
   phone: "contact_phone",

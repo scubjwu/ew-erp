@@ -5,7 +5,7 @@ import {
 import { FinancialCodeDashboard } from "@/components/basic-info/financial-code-dashboard";
 
 export const metadata = {
-  title: "Expense Code — EW ERP",
+  title: "Expense Codes — EW ERP",
 };
 
 export const dynamic = "force-dynamic";

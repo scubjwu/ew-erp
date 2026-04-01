@@ -147,10 +147,13 @@ export function OperationPricesDashboard({
   useEffect(() => {
     if (skipInitialFetch.current) {
       skipInitialFetch.current = false;
+      if (initial.totalCount === 0) {
+        void fetchPage();
+      }
       return;
     }
     void fetchPage();
-  }, [fetchPage]);
+  }, [fetchPage, initial.totalCount]);
 
   async function refreshCurrentPage() {
     const next = await getOperationPrices({

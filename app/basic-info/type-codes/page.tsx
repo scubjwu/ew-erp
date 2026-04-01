@@ -5,7 +5,7 @@ import {
 import { TypeCodesDashboard } from "@/components/basic-info/type-codes-dashboard";
 
 export const metadata = {
-  title: "Container Types — EW ERP",
+  title: "Type Codes — EW ERP",
 };
 
 export const dynamic = "force-dynamic";

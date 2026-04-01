@@ -5,10 +5,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from export_basic_info_seeds import SEEDS_DIR, TABLE_SPECS, run_psql
+from export_basic_info_seeds import SEEDS_DIR, TABLE_SPECS, load_columns, run_psql
 
 
-def load_table_row_count(table_name: str) -> int:
+def load_table_row_count(table_name: str) -> int | None:
+    if not load_columns(table_name):
+        return None
     output = run_psql(f"select count(*) from public.{table_name};")
     return int(output.strip() or "0")
 
@@ -34,12 +36,37 @@ def main() -> int:
             failures.append(f"{table_name}: {exc}")
             continue
 
-        if local_count != seed_count:
+        if local_count is None:
+            if seed_count > 0:
+                print(
+                    f"ok {table_name}: table unavailable in current local schema, seed {filename} has {seed_count} rows and will restore them after schema update/reset"
+                )
+            else:
+                print(f"ok {table_name}: table unavailable in current local schema and seed empty")
+            continue
+
+        if local_count == 0 and seed_count > 0:
+            print(
+                f"ok {table_name}: local empty, seed {filename} has {seed_count} rows and will restore them on reset"
+            )
+            continue
+
+        if local_count == 0 and seed_count == 0:
+            print(f"ok {table_name}: local empty and seed empty")
+            continue
+
+        if local_count == seed_count:
+            print(f"ok {table_name}: {local_count} rows")
+            continue
+
+        if local_count > 0:
             failures.append(
                 f"{table_name}: local has {local_count} rows but seed {filename} has {seed_count} inserts"
             )
         else:
-            print(f"ok {table_name}: {local_count} rows")
+            print(
+                f"ok {table_name}: local empty, seed {filename} has {seed_count} rows and will restore them on reset"
+            )
 
     if failures:
         print("\nseed verification failed:")

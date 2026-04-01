@@ -255,10 +255,13 @@ export function TypeCodesDashboard({ initial, pageSize }: Props) {
   useEffect(() => {
     if (skipInitialFetch.current) {
       skipInitialFetch.current = false;
+      if (initial.totalCount === 0) {
+        void fetchPage();
+      }
       return;
     }
     void fetchPage();
-  }, [fetchPage]);
+  }, [fetchPage, initial.totalCount]);
 
   async function refreshCurrentPage() {
     const next = await getTypeCodes({
@@ -292,7 +295,7 @@ export function TypeCodesDashboard({ initial, pageSize }: Props) {
       <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Container Types</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Type Codes</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Maintain container type master data. {rangeLabel}
             </p>

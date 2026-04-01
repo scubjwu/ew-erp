@@ -1,9 +1,5 @@
-import { CustomerForm } from "@/components/customers/customer-form";
+import { redirect } from "next/navigation";
 
 export default function NewCustomerPage() {
-  return (
-    <div className="min-h-screen bg-background">
-      <CustomerForm mode="create" />
-    </div>
-  );
+  redirect("/partners/customers/new");
 }

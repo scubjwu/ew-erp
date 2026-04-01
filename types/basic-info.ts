@@ -28,8 +28,9 @@ export type BasicInfoSectionOverview = BasicInfoSectionMeta & {
 export const BASIC_INFO_SECTIONS: readonly BasicInfoSectionMeta[] = [
   {
     slug: "companies",
-    title: "公司信息管理",
-    description: "公司主档资料，先覆盖名称、地址、电话、邮箱和位置编码。",
+    title: "Company Information Management",
+    description:
+      "Maintain company master data including names, addresses, contact details, and location codes.",
     tableName: "company_profiles",
     fields: [
       "company_name_cn",
@@ -44,22 +45,25 @@ export const BASIC_INFO_SECTIONS: readonly BasicInfoSectionMeta[] = [
   },
   {
     slug: "regions",
-    title: "地区代码管理",
-    description: "正式地区主数据，供城市和堆场统一引用。",
+    title: "Region Codes",
+    description:
+      "Maintain region master data used consistently across cities and depots.",
     tableName: "region_codes",
     fields: ["region_code", "region_name", "description", "status"],
   },
   {
     slug: "cities",
-    title: "城市物流信息管理",
-    description: "城市/港口标准码与国家、大区映射。",
+    title: "City Codes",
+    description:
+      "Maintain city and port master data with country and region mapping.",
     tableName: "cities",
     fields: ["city_code", "city_name", "country", "region_id", "remark"],
   },
   {
     slug: "depots",
-    title: "堆场代码管理",
-    description: "堆场主档，统一城市、地区、类别和状态。",
+    title: "Depot Codes",
+    description:
+      "Maintain depot master profiles across city, region, type, and status.",
     tableName: "depots",
     fields: [
       "city_id",
@@ -77,43 +81,49 @@ export const BASIC_INFO_SECTIONS: readonly BasicInfoSectionMeta[] = [
   },
   {
     slug: "cost-codes",
-    title: "费用代码管理",
-    description: "费用类字典，可直接复用现有 code 表。",
+    title: "Expense Codes",
+    description:
+      "Maintain expense code dictionaries for operating and transactional charges.",
     tableName: "cost_codes",
     fields: ["cost_code", "cost_name", "description", "status"],
   },
   {
     slug: "revenue-codes",
-    title: "收入代码管理",
-    description: "收入类字典，可直接复用现有 code 表。",
+    title: "Revenue Codes",
+    description:
+      "Maintain revenue code dictionaries for billing and income classification.",
     tableName: "revenue_codes",
     fields: ["revenue_code", "revenue_name", "description", "status"],
   },
   {
     slug: "condition-codes",
-    title: "箱况代码管理",
-    description: "页面中的状态代码管理按箱况代码实现。",
+    title: "Condition Codes",
+    description:
+      "Maintain container condition codes used across operational pricing and inventory logic.",
     tableName: "container_condition_codes",
     fields: ["condition_code", "condition_name", "description", "status"],
   },
   {
     slug: "size-codes",
-    title: "尺寸代码管理",
-    description: "按尺寸代码维护尺寸名称主数据。",
+    title: "Size Codes",
+    description:
+      "Maintain standard container size codes and their display names.",
     tableName: "container_size_codes",
     fields: ["size_code", "size_name", "status"],
   },
   {
     slug: "type-codes",
-    title: "箱型代码管理",
-    description: "箱型和备注字典，可直接复用现有 code 表。",
+    title: "Type Codes",
+    description:
+      "Maintain container type codes, descriptions, and remarks.",
     tableName: "container_type_codes",
     fields: ["type_code", "remark", "status"],
   },
   {
     slug: "operation-prices",
-    title: "运营价格配置",
-    description: "按尺寸 + 箱况维护运营加价配置。",
+    title: "Operation Price Configs",
+    description:
+      "Maintain additional operating price configurations by size and condition.",
     tableName: "operation_price_configs",
     fields: [
       "container_size_code_id",
@@ -127,8 +137,9 @@ export const BASIC_INFO_SECTIONS: readonly BasicInfoSectionMeta[] = [
   },
   {
     slug: "container-number-rules",
-    title: "箱号规则",
-    description: "按尺寸维护前缀、流水位数和当前序号。",
+    title: "Container Number Rules",
+    description:
+      "Maintain prefix and serial rules used to generate container numbers automatically.",
     tableName: "container_number_rules",
     fields: [
       "container_size_code_id",

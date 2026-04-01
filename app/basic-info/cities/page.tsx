@@ -6,7 +6,7 @@ import {
 import { CityLogisticsDashboard } from "@/components/basic-info/city-logistics-dashboard";
 
 export const metadata = {
-  title: "City Logistics — EW ERP",
+  title: "City Codes — EW ERP",
 };
 
 export const dynamic = "force-dynamic";
