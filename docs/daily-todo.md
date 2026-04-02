@@ -184,6 +184,7 @@ Copy this section for each working day.
 - [x] Define standalone replacement partner master-data tables after removing legacy `suppliers`
 - [x] Create schema migrations for `vendors`, `material_vendors`, `lessees`, and `container_owners`
 - [x] Add test-data seeds for the new partner master-data tables and attachment tables
+- [x] Re-sync docs to the final `2026-04-01` git truth after the partner seed-data follow-up commit
 
 ### Action Items from conversations
 
@@ -199,17 +200,35 @@ Copy this section for each working day.
   - Owner: Codex
   - Next concrete step: N/A
 
+- [x] Topic: Sync docs to the final `2026-04-01` partner schema-and-seed reality
+  - Status: Done
+  - Source conversation/topic: Automation doc sync from today's commits
+  - Owner: Codex
+  - Next concrete step: N/A
+
 - [ ] Topic: Apply the new partner migrations and seeds to a local database
   - Status: Carried Forward
   - Source conversation/topic: New partner master-data schema rollout
   - Owner: User + Codex
-  - Next concrete step: Run `supabase db push`, then `supabase db reset`, and verify the new tables and seed rows exist locally
+  - Next concrete step: Run `supabase db push`, then `supabase db reset`, and verify the new tables, attachment rows, and FK user seeds exist locally
 
 - [ ] Topic: Build the first CRUD page on top of the new partner schema
   - Status: Carried Forward
   - Source conversation/topic: Partner module implementation sequencing
   - Owner: User + Codex
   - Next concrete step: Pick whether `vendors`, `material_vendors`, `lessees`, or `container_owners` should be the first delivered page
+
+- [ ] Topic: Align partner center metadata and placeholder copy with the new schema truth
+  - Status: Carried Forward
+  - Source conversation/topic: `2026-04-01` doc sync and partner metadata drift
+  - Owner: User + Codex
+  - Next concrete step: Update `types/partners.ts` and placeholder route descriptions so `Vendors` no longer claims it lacks master-data backing
+
+- [ ] Topic: Validate whether the new partner seed files are fully covered by export / verify tooling
+  - Status: Deferred
+  - Source conversation/topic: Seed automation alignment review
+  - Owner: User + Codex
+  - Next concrete step: Inspect `db:reset` seed export / verify scripts and confirm whether the new partner tables are automation-managed or repo-static only
 
 ### In Progress
 
@@ -228,6 +247,7 @@ Copy this section for each working day.
 - [x] Added standalone `container_owners` and `container_owner_attachment_links` schema
 - [x] Added partner master-data test-data seeds and minimal FK-safe user seeds
 - [x] Synced system and partners docs to the new schema-ready partner model
+- [x] Synced docs again after the partner seed-data follow-up commit clarified local reset test-data coverage
 
 ### Carry Forward to next day
 
@@ -235,10 +255,24 @@ Copy this section for each working day.
   - Status: Carried Forward
   - Source conversation/topic: Partner schema rollout
   - Owner: User + Codex
-  - Next concrete step: Run `supabase db push` and `supabase db reset`, then inspect the four new partner tables and attachment tables
+  - Next concrete step: Run `supabase db push` and `supabase db reset`, then inspect the four new partner tables, attachment tables, and supporting user rows
 
 - [ ] Choose the first partner page to build on top of the new tables
   - Status: Carried Forward
   - Source conversation/topic: Partner delivery sequence after schema setup
   - Owner: User + Codex
   - Next concrete step: Select one of `vendors`, `material_vendors`, `lessees`, or `container_owners` for the first CRUD implementation
+
+- [ ] Update partner center metadata and placeholder copy to match schema reality
+  - Status: Carried Forward
+  - Source conversation/topic: Partner doc sync follow-up
+  - Owner: User + Codex
+  - Next concrete step: Add the correct table mapping and replace stale `Vendors` placeholder copy
+
+### Deferred
+
+- [ ] Validate whether the new partner seed files are managed by export / verify automation or should remain repo-static
+  - Status: Deferred
+  - Source conversation/topic: Partner reset-safety tooling follow-up
+  - Owner: User + Codex
+  - Next concrete step: Review seed scripts and decide whether to extend automation coverage before future partner CRUD data is edited locally

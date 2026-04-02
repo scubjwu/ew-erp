@@ -97,7 +97,9 @@ Current reality:
 - `Customers` schema now includes region linkage, secondary-language company name, contact person, assigned sales, and certificate links
 - `Customers` UI is currently centered on contact, credit, and certificate maintenance; legacy customer schema fields such as `depot_info` are not part of the delivered form flow
 - `Vendors`, `Material Vendors`, `Lessees`, and `Container Owners` now have dedicated standalone partner tables and attachment-link child tables in migrations
+- those four categories now also have seed-backed test data for local development and reset survival
 - those four categories are still schema-first and do not yet have delivered CRUD pages
+- `Vendors` still has placeholder UI copy in the route metadata that says there is no active master-data backing, even though the standalone `vendors` table and seeds now exist
 - `Lessor` remains route-level scaffold only
 
 `Customers` is the current reference implementation for partner-style CRUD.
@@ -143,6 +145,15 @@ Current system interaction is mostly built on this pattern:
 6. canonical module routing
 - legacy routes may redirect into the current module-owned route family
 - current example: customer routes resolve under `/partners/customers`
+
+### Current system-level truth added on `2026-04-01`
+
+- legacy `suppliers` is no longer the intended source of truth for the partner vendor domain
+- `vendors`, `material_vendors`, `lessees`, and `container_owners` each now have dedicated master tables plus dedicated attachment-link child tables
+- those new partner master-data tables follow the same broad baseline pattern of indexes, `set_updated_at()` triggers, and public read/write RLS coverage used elsewhere in master data
+- attachment-link child tables for those partner categories also allow public delete, matching expected document-maintenance workflows
+- seed-backed local test data now exists for the four new partner tables, their attachment-link tables, and supporting `users` rows required by FK references
+- the system therefore treats those partner categories as schema-and-seed ready, but not yet UI-delivered
 
 ## UI Standards
 
@@ -422,6 +433,7 @@ Usual causes:
 - local truth and seed truth diverged in an unsafe way
 - export logic is incomplete
 - table mapping changed but the scripts were not updated
+- new seed files were added manually, but export / verify automation has not yet been expanded to manage the same tables
 
 ### Data lost after reset
 
@@ -502,6 +514,7 @@ Current stable baseline:
 - `Container Number Rules` is part of the delivered `System Codes` baseline
 - `Partners Center` exists and `Customers` is active
 - dedicated standalone partner schema foundations now exist for `vendors`, `material_vendors`, `lessees`, and `container_owners`
+- those four partner categories also have repo seed data for local page development and attachment testing
 - local reset and seed workflow are part of normal development
 - inventory schema work is ahead of inventory frontend delivery
 

@@ -45,7 +45,9 @@ Current state:
 - `Customers` is the main active and usable partner CRUD flow
 - legacy `/customers*` routes now redirect into `/partners/customers*`
 - `Vendors`, `Material Vendors`, `Lessees`, and `Container Owners` now have dedicated standalone master-data tables and attachment child tables in migrations
-- those four categories remain page-level placeholders; schema exists, but CRUD delivery is not built yet
+- those four categories also now have repo seed data and attachment seed rows for local development
+- those four categories remain page-level placeholders; schema and test data exist, but CRUD delivery is not built yet
+- `Vendors` placeholder copy and center-page metadata still describe the category as not backed by an active master-data table; treat that as stale UI copy, not schema truth
 - `Lessor` still remains placeholder-only with no dedicated table yet
 
 ### Current workflow pattern
@@ -72,20 +74,21 @@ Current center-page references:
 
 Important implementation note:
 
-- some partner categories do not yet have a backing table configured in `types/partners.ts`
-- the center page therefore mixes real counts and scaffold-only categories
-- the current real count-backed partner card is `Customers`
+- `types/partners.ts` still only maps `Customers` to a count-backed table name
+- the center page therefore mixes one real count-backed category with several schema-ready-but-unmapped categories
+- the current real count-backed partner card is still only `Customers`
+- `Vendors` metadata copy is stale relative to today's schema truth
 
 ## Section Status
 
 | Section | Current route state | Current data state | Status |
 | --- | --- | --- | --- |
 | Customers | Active page | Backed by `customers` and `customer_certificate_links` | Delivered |
-| Vendors | Placeholder page | Backed by `vendors` and `vendor_attachment_links` schema only | Schema Ready |
-| Lessee | Placeholder page | Backed by `lessees` and `lessee_attachment_links` schema only | Schema Ready |
+| Vendors | Placeholder page | Backed by `vendors`, `vendor_attachment_links`, and repo seed data | Schema + Seeds Ready |
+| Lessee | Placeholder page | Backed by `lessees`, `lessee_attachment_links`, and repo seed data | Schema + Seeds Ready |
 | Lessor | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
-| Material Vendors | Placeholder page | Backed by `material_vendors` and `material_vendor_attachment_links` schema only | Schema Ready |
-| Container Owners | Placeholder page | Backed by `container_owners` and `container_owner_attachment_links` schema only | Schema Ready |
+| Material Vendors | Placeholder page | Backed by `material_vendors`, `material_vendor_attachment_links`, and repo seed data | Schema + Seeds Ready |
+| Container Owners | Placeholder page | Backed by `container_owners`, `container_owner_attachment_links`, and repo seed data | Schema + Seeds Ready |
 
 ## Customers Workflow
 
@@ -162,7 +165,9 @@ Current state:
 
 - route placeholder exists
 - `vendors` and `vendor_attachment_links` now exist as the source-of-truth schema foundation
+- repo seed data now includes sample vendor rows plus attachment rows for local reset-safe page development
 - future vendor delivery should build UI on top of that standalone schema instead of reviving legacy `suppliers`
+- current UI copy saying the workflow is not backed by master data is stale and should not be used as implementation truth
 
 Prepared schema references:
 
@@ -170,6 +175,18 @@ Prepared schema references:
 - [`db/supabase/migrations/20260401133000_create_material_vendors.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260401133000_create_material_vendors.sql)
 - [`db/supabase/migrations/20260401140000_create_lessees.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260401140000_create_lessees.sql)
 - [`db/supabase/migrations/20260401143000_create_container_owners.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260401143000_create_container_owners.sql)
+
+Prepared seed references:
+
+- [`db/supabase/seeds/20260401_partner_master_users.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_users.sql)
+- [`db/supabase/seeds/20260401_partner_master_vendors.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_vendors.sql)
+- [`db/supabase/seeds/20260401_partner_master_vendors_attachment_links.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_vendors_attachment_links.sql)
+- [`db/supabase/seeds/20260401_partner_master_material_vendors.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_material_vendors.sql)
+- [`db/supabase/seeds/20260401_partner_master_material_vendors_attachment_links.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_material_vendors_attachment_links.sql)
+- [`db/supabase/seeds/20260401_partner_master_lessees.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_lessees.sql)
+- [`db/supabase/seeds/20260401_partner_master_lessees_attachment_links.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_lessees_attachment_links.sql)
+- [`db/supabase/seeds/20260401_partner_master_container_owners.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_container_owners.sql)
+- [`db/supabase/seeds/20260401_partner_master_container_owners_attachment_links.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds/20260401_partner_master_container_owners_attachment_links.sql)
 
 ### Risk
 
@@ -203,6 +220,15 @@ Current active or prepared partner tables:
 - `lessee_attachment_links`
 - `container_owners`
 - `container_owner_attachment_links`
+
+Current `2026-04-01` schema truth for the new standalone partner tables:
+
+- `vendors.vendor_code` uses the `S[A-Z0-9]{5}` format, requires `region_id` and `assigned_buyer_id`, and currently constrains `category` to `Container`
+- `material_vendors.vendor_code` uses the `^[A-Z]{2}[0-9]{4}$` format, tracks `material_category`, optional `pic_user_id`, `is_default_vendor`, and enforces one non-deleted default vendor per material category
+- `lessees.lessee_code` uses the `B[A-Z0-9]{5}` format and allows nullable `region_id` and `pic_user_id`
+- `container_owners.container_owner_code` uses the `O[A-Z0-9]{5}` format and keeps `address`, `region_id`, `country`, and `pic_user_id` nullable
+- all four master tables carry settlement-related fields, `Normal/Blocked/Deleted` status constraints, `set_updated_at()` triggers, and public select/insert/update policies
+- all four attachment-link child tables support cascade delete from their parent row and public select/insert/update/delete policies
 Related lookup tables already used or likely to be used:
 
 - `region_codes`
@@ -239,6 +265,7 @@ Important note:
 
 - customer coverage remains the only delivered UI-backed partner workflow
 - however, schema-ready partner tables for `vendors`, `material_vendors`, `lessees`, and `container_owners` now also have test-data seeds in repo for future page work
+- those new partner seed files currently exist as repo-authored seed inputs; seed export / verify tooling alignment should still be validated before treating them as fully automated reset coverage
 
 ## UI and Interaction Standards for This Module
 
@@ -297,7 +324,7 @@ Symptom:
 
 Usual causes:
 
-- only customer-focused partner tables are currently seed-covered
+- assuming repo seed files and seed automation are already perfectly aligned for the new partner tables
 
 ### Schema ahead of UI
 
@@ -329,6 +356,7 @@ When building a new active partner section:
 - partner categories may eventually need clearer modeling boundaries than route-only separation
 - the new standalone partner tables can drift from future page requirements if UI contracts are not defined before CRUD work starts
 - placeholder routes can create false confidence about delivery completeness
+- center-page metadata and placeholder copy can drift from migration truth unless `types/partners.ts` and route descriptions are updated together
 
 ## Maintenance Rules
 
@@ -345,4 +373,4 @@ Daily execution planning does not belong in this module doc. Track day-by-day wo
 ## Changelog
 
 - `2026-03-31` — Initial `Partners` module document created.
-- `2026-04-01` — Added schema-ready standalone partner tables and seed data for `vendors`, `material_vendors`, `lessees`, and `container_owners`; kept page status as placeholder until CRUD delivery starts.
+- `2026-04-01` — Added schema-ready standalone partner tables and seed data for `vendors`, `material_vendors`, `lessees`, and `container_owners`; documented the remaining placeholder-page and metadata drift until CRUD delivery starts.
