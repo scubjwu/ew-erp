@@ -96,8 +96,9 @@ Current reality:
 - `Customers` now lives canonically under `/partners/customers`
 - `Customers` schema now includes region linkage, secondary-language company name, contact person, assigned sales, and certificate links
 - `Customers` UI is currently centered on contact, credit, and certificate maintenance; legacy customer schema fields such as `depot_info` are not part of the delivered form flow
-- `Vendors`: UI is scaffold-level and currently does not have an active backing master-data table
-- `Lessee`, `Lessor`, `Material Vendors`, `Container Owners`: route structure exists, but pages are not full CRUD implementations yet
+- `Vendors`, `Material Vendors`, `Lessees`, and `Container Owners` now have dedicated standalone partner tables and attachment-link child tables in migrations
+- those four categories are still schema-first and do not yet have delivered CRUD pages
+- `Lessor` remains route-level scaffold only
 
 `Customers` is the current reference implementation for partner-style CRUD.
 
@@ -500,6 +501,7 @@ Current stable baseline:
 - `System Codes` is the main delivered master-data center
 - `Container Number Rules` is part of the delivered `System Codes` baseline
 - `Partners Center` exists and `Customers` is active
+- dedicated standalone partner schema foundations now exist for `vendors`, `material_vendors`, `lessees`, and `container_owners`
 - local reset and seed workflow are part of normal development
 - inventory schema work is ahead of inventory frontend delivery
 
@@ -565,7 +567,14 @@ Goal:
 Modules and tables:
 
 - `customers`
-- future partner-specific tables if introduced
+- `vendors`
+- `vendor_attachment_links`
+- `material_vendors`
+- `material_vendor_attachment_links`
+- `lessees`
+- `lessee_attachment_links`
+- `container_owners`
+- `container_owner_attachment_links`
 
 Done criteria:
 
@@ -575,7 +584,7 @@ Done criteria:
 
 Notes and risks:
 
-- `Vendors` remains a placeholder route until a formal vendor data model is chosen
+- schema now exists for `Vendors`, `Material Vendors`, `Lessees`, and `Container Owners`, but route-level CRUD delivery still needs to be built
 - partner categories may need explicit modeling instead of route-only differentiation
 
 #### Milestone 3: Inventory UI Migration Strategy
@@ -655,7 +664,7 @@ Notes and risks:
 
 - `Customers` is the strongest current reference implementation for a delivered business CRUD flow
 - `System Codes` is the strongest current reference implementation for repeated master-data patterns
-- `Vendors` currently has no active backing table in the delivered system
+- `Vendors`, `Material Vendors`, `Lessees`, and `Container Owners` now have dedicated standalone partner tables, but not delivered page flows yet
 - the current inventory UI still depends heavily on the legacy `inventory` table
 - inventory target design is broader and more normalized than the current UI suggests
 - test coverage exists, but it is currently concentrated around customer flows rather than the full system
@@ -669,8 +678,11 @@ Notes and risks:
 | System Codes center | Main delivered master-data center | Delivered |
 | Company / Region / City / Depot / financial code pages | Active CRUD reference pages | Delivered |
 | Customers | Active partner CRUD reference page | Delivered |
-| Vendors | Route exists, no active backing table, UI not complete | Scaffold Only |
-| Lessee / Lessor / Material Vendors / Container Owners | Route structure exists, detailed CRUD not built | Scaffold Only |
+| Vendors | Dedicated schema and seed data exist; route UI not built yet | Schema Ready |
+| Material Vendors | Dedicated schema and seed data exist; route UI not built yet | Schema Ready |
+| Lessees | Dedicated schema and seed data exist; route UI not built yet | Schema Ready |
+| Container Owners | Dedicated schema and seed data exist; route UI not built yet | Schema Ready |
+| Lessor | Route structure exists, detailed CRUD not built | Scaffold Only |
 | Inventory schema | Event-driven target model exists in DB design | Schema Ahead of UI |
 | Inventory UI | Command center exists but still leans on legacy `inventory` | Partially Delivered |
 | System Settings | Navigation entry exists | Scaffold Only |
@@ -866,3 +878,4 @@ These paths anchor current system truth:
 ## Changelog
 
 - `2026-03-31` — Initial in-repo living system design and ramp-up document created from current codebase, schema, seed workflow, and external onboarding doc.
+- `2026-04-01` — Added standalone partner schema foundations and test-data seeds for `vendors`, `material_vendors`, `lessees`, and `container_owners`; updated system truth to mark them schema-ready but not page-delivered.

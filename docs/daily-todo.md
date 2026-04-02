@@ -176,3 +176,69 @@ Copy this section for each working day.
   - Source conversation/topic: Customer legacy field cleanup
   - Owner: User + Codex
   - Next concrete step: Choose whether to rename/remap `purchasing_emails` usage and formally retire `depot_info` from active customer maintenance
+
+## Date: 2026-04-01
+
+### Today's priorities
+
+- [x] Define standalone replacement partner master-data tables after removing legacy `suppliers`
+- [x] Create schema migrations for `vendors`, `material_vendors`, `lessees`, and `container_owners`
+- [x] Add test-data seeds for the new partner master-data tables and attachment tables
+
+### Action Items from conversations
+
+- [x] Topic: Create standalone partner tables instead of reviving `suppliers`
+  - Status: Done
+  - Source conversation/topic: Partner master-data redesign
+  - Owner: Codex + user
+  - Next concrete step: N/A
+
+- [x] Topic: Add test data so future partner pages can be built against realistic records
+  - Status: Done
+  - Source conversation/topic: Seed data for new partner master-data tables
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [ ] Topic: Apply the new partner migrations and seeds to a local database
+  - Status: Carried Forward
+  - Source conversation/topic: New partner master-data schema rollout
+  - Owner: User + Codex
+  - Next concrete step: Run `supabase db push`, then `supabase db reset`, and verify the new tables and seed rows exist locally
+
+- [ ] Topic: Build the first CRUD page on top of the new partner schema
+  - Status: Carried Forward
+  - Source conversation/topic: Partner module implementation sequencing
+  - Owner: User + Codex
+  - Next concrete step: Pick whether `vendors`, `material_vendors`, `lessees`, or `container_owners` should be the first delivered page
+
+### In Progress
+
+- [ ] None
+
+### Blocked
+
+- [ ] None
+
+### Done
+
+- [x] Added migration to remove legacy `suppliers` and its `purchase_order.supplier_id` dependency
+- [x] Added standalone `vendors` and `vendor_attachment_links` schema
+- [x] Added standalone `material_vendors` and `material_vendor_attachment_links` schema
+- [x] Added standalone `lessees` and `lessee_attachment_links` schema
+- [x] Added standalone `container_owners` and `container_owner_attachment_links` schema
+- [x] Added partner master-data test-data seeds and minimal FK-safe user seeds
+- [x] Synced system and partners docs to the new schema-ready partner model
+
+### Carry Forward to next day
+
+- [ ] Apply and verify the new partner master-data migrations locally
+  - Status: Carried Forward
+  - Source conversation/topic: Partner schema rollout
+  - Owner: User + Codex
+  - Next concrete step: Run `supabase db push` and `supabase db reset`, then inspect the four new partner tables and attachment tables
+
+- [ ] Choose the first partner page to build on top of the new tables
+  - Status: Carried Forward
+  - Source conversation/topic: Partner delivery sequence after schema setup
+  - Owner: User + Codex
+  - Next concrete step: Select one of `vendors`, `material_vendors`, `lessees`, or `container_owners` for the first CRUD implementation

@@ -44,8 +44,9 @@ Current state:
 - `Partners Center` is now delivered as the module entry page
 - `Customers` is the main active and usable partner CRUD flow
 - legacy `/customers*` routes now redirect into `/partners/customers*`
-- `Vendors` is currently placeholder-level and does not have an active backing master-data table
-- `Lessee`, `Lessor`, `Material Vendors`, and `Container Owners` currently use placeholder pages
+- `Vendors`, `Material Vendors`, `Lessees`, and `Container Owners` now have dedicated standalone master-data tables and attachment child tables in migrations
+- those four categories remain page-level placeholders; schema exists, but CRUD delivery is not built yet
+- `Lessor` still remains placeholder-only with no dedicated table yet
 
 ### Current workflow pattern
 
@@ -80,11 +81,11 @@ Important implementation note:
 | Section | Current route state | Current data state | Status |
 | --- | --- | --- | --- |
 | Customers | Active page | Backed by `customers` and `customer_certificate_links` | Delivered |
-| Vendors | Placeholder page | No active backing master-data table | Scaffold Only |
-| Lessee | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
+| Vendors | Placeholder page | Backed by `vendors` and `vendor_attachment_links` schema only | Schema Ready |
+| Lessee | Placeholder page | Backed by `lessees` and `lessee_attachment_links` schema only | Schema Ready |
 | Lessor | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
-| Material Vendors | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
-| Container Owners | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
+| Material Vendors | Placeholder page | Backed by `material_vendors` and `material_vendor_attachment_links` schema only | Schema Ready |
+| Container Owners | Placeholder page | Backed by `container_owners` and `container_owner_attachment_links` schema only | Schema Ready |
 
 ## Customers Workflow
 
@@ -151,7 +152,7 @@ Important migrations include:
 
 ### Current status
 
-`Vendors` is not yet a delivered CRUD page and currently does not have an active backing master-data table.
+`Vendors` is not yet a delivered CRUD page, but it now has a dedicated standalone schema foundation.
 
 Current route:
 
@@ -160,8 +161,15 @@ Current route:
 Current state:
 
 - route placeholder exists
-- no active backing table should be treated as source of truth for vendor CRUD
-- future vendor delivery needs a deliberate data-model decision before UI work resumes
+- `vendors` and `vendor_attachment_links` now exist as the source-of-truth schema foundation
+- future vendor delivery should build UI on top of that standalone schema instead of reviving legacy `suppliers`
+
+Prepared schema references:
+
+- [`db/supabase/migrations/20260401130000_create_vendors.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260401130000_create_vendors.sql)
+- [`db/supabase/migrations/20260401133000_create_material_vendors.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260401133000_create_material_vendors.sql)
+- [`db/supabase/migrations/20260401140000_create_lessees.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260401140000_create_lessees.sql)
+- [`db/supabase/migrations/20260401143000_create_container_owners.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260401143000_create_container_owners.sql)
 
 ### Risk
 
@@ -187,9 +195,18 @@ Current active or prepared partner tables:
 
 - `customers`
 - `customer_certificate_links`
+- `vendors`
+- `vendor_attachment_links`
+- `material_vendors`
+- `material_vendor_attachment_links`
+- `lessees`
+- `lessee_attachment_links`
+- `container_owners`
+- `container_owner_attachment_links`
 Related lookup tables already used or likely to be used:
 
 - `region_codes`
+- `users`
 
 Schema truth lives in:
 
@@ -203,6 +220,15 @@ Currently seed-covered partner tables include:
 
 - `customers`
 - `customer_certificate_links`
+- `users` test rows used by new partner FK seeds
+- `vendors`
+- `vendor_attachment_links`
+- `material_vendors`
+- `material_vendor_attachment_links`
+- `lessees`
+- `lessee_attachment_links`
+- `container_owners`
+- `container_owner_attachment_links`
 
 Current seed workflow references:
 
@@ -211,8 +237,8 @@ Current seed workflow references:
 
 Important note:
 
-- partner seed coverage is currently customer-focused
-- new partner tables should not be assumed reset-safe unless seed coverage is explicitly added
+- customer coverage remains the only delivered UI-backed partner workflow
+- however, schema-ready partner tables for `vendors`, `material_vendors`, `lessees`, and `container_owners` now also have test-data seeds in repo for future page work
 
 ## UI and Interaction Standards for This Module
 
@@ -277,7 +303,7 @@ Usual causes:
 
 Symptom:
 
-- vendor route exists, but there is no active vendor master-data table behind it
+- partner routes exist, and dedicated tables exist, but CRUD pages are still placeholders
 
 Usual causes:
 
@@ -301,7 +327,7 @@ When building a new active partner section:
 
 - `Customers` is mature enough to guide implementation, but the rest of the module is not yet uniform
 - partner categories may eventually need clearer modeling boundaries than route-only separation
-- `Vendors` may drift if the route remains visible before its target data model is formally defined
+- the new standalone partner tables can drift from future page requirements if UI contracts are not defined before CRUD work starts
 - placeholder routes can create false confidence about delivery completeness
 
 ## Maintenance Rules
@@ -319,3 +345,4 @@ Daily execution planning does not belong in this module doc. Track day-by-day wo
 ## Changelog
 
 - `2026-03-31` — Initial `Partners` module document created.
+- `2026-04-01` — Added schema-ready standalone partner tables and seed data for `vendors`, `material_vendors`, `lessees`, and `container_owners`; kept page status as placeholder until CRUD delivery starts.
