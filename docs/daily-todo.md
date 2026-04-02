@@ -101,13 +101,13 @@ Copy this section for each working day.
   - Owner: User + Codex
   - Next concrete step: Run `npm run db:reset` and smoke-test create/edit flows for container number rules and customers
 
-- [ ] Topic: Deliver `Vendors` CRUD on top of the extended `suppliers` schema
+- [ ] Topic: Decide the replacement data model for `Vendors` after removing `suppliers`
   - Status: Carried Forward
   - Source conversation/topic: Partners module delivery follow-up
   - Owner: User + Codex
-  - Next concrete step: Define list/form fields from the new supplier banking and region columns, then replace the placeholder route
+  - Next concrete step: Choose whether a future vendor workflow should use a dedicated `vendors` table or remain scaffold-only until redesign
 
-- [ ] Topic: Decide whether `suppliers` and future partner tables must survive local reset
+- [ ] Topic: Decide whether future vendor tables and other new partner tables must survive local reset
   - Status: Deferred
   - Source conversation/topic: Seed coverage planning for Partners
   - Owner: User
@@ -140,7 +140,7 @@ Copy this section for each working day.
 - [x] Partners module doc created
 - [x] System doc synced to canonical `/partners` routing and delivered `Container Number Rules`
 - [x] System Codes module doc synced to current RLS baseline and container-number-rule references
-- [x] Partners module doc synced to current customer fields, customer routes, and supplier extensions
+- [x] Partners module doc synced to current customer fields and current route reality
 - [x] Partners and system docs synced to the current customer UI/schema mapping reality
 
 ### Carry Forward to next day
@@ -151,19 +151,19 @@ Copy this section for each working day.
   - Owner: User + Codex
   - Next concrete step: Smoke-test `System Codes` and `Partners > Customers` create/edit flows
 
-- [ ] Deliver `Vendors` as the next non-placeholder `Partners` page
+- [ ] Decide whether `Vendors` should be rebuilt after removing `suppliers`
   - Status: Carried Forward
   - Source conversation/topic: Partners delivery sequence
   - Owner: User + Codex
-  - Next concrete step: Implement list/search/form flow using the extended `suppliers` schema
+  - Next concrete step: Define the future vendor data model before restarting UI work
 
 ### Deferred
 
-- [ ] Decide whether `suppliers` should be added to reset-safe seed coverage
+- [ ] Decide whether any future vendor table should be added to reset-safe seed coverage
   - Status: Deferred
   - Source conversation/topic: Partner data persistence scope
   - Owner: User
-  - Next concrete step: Confirm whether vendor data must survive local reset before changing seed tooling
+  - Next concrete step: Confirm whether future vendor data must survive local reset before changing seed tooling
 
 - [ ] Decide which placeholder partner sections should become real modules next
   - Status: Deferred

@@ -35,10 +35,9 @@ export const PARTNER_SECTIONS: readonly PartnerSectionMeta[] = [
     slug: "vendors",
     title: "Vendors",
     description:
-      "Maintain operating suppliers and commercial vendors used across procurement and service workflows.",
+      "Vendor workflow is not currently backed by an active master-data table.",
     href: "/partners/vendors",
     countLabel: "managed vendors",
-    tableName: "suppliers",
   },
   {
     slug: "lessee",

@@ -96,8 +96,7 @@ Current reality:
 - `Customers` now lives canonically under `/partners/customers`
 - `Customers` schema now includes region linkage, secondary-language company name, contact person, assigned sales, and certificate links
 - `Customers` UI is currently centered on contact, credit, and certificate maintenance; legacy customer schema fields such as `depot_info` are not part of the delivered form flow
-- `Vendors`: schema is advancing, UI is still scaffold-level
-- `suppliers` now has region and bank-account-oriented extension fields for future vendor delivery
+- `Vendors`: UI is scaffold-level and currently does not have an active backing master-data table
 - `Lessee`, `Lessor`, `Material Vendors`, `Container Owners`: route structure exists, but pages are not full CRUD implementations yet
 
 `Customers` is the current reference implementation for partner-style CRUD.
@@ -566,7 +565,6 @@ Goal:
 Modules and tables:
 
 - `customers`
-- `suppliers`
 - future partner-specific tables if introduced
 
 Done criteria:
@@ -577,7 +575,7 @@ Done criteria:
 
 Notes and risks:
 
-- `suppliers` schema is already advancing faster than vendors UI
+- `Vendors` remains a placeholder route until a formal vendor data model is chosen
 - partner categories may need explicit modeling instead of route-only differentiation
 
 #### Milestone 3: Inventory UI Migration Strategy
@@ -657,7 +655,7 @@ Notes and risks:
 
 - `Customers` is the strongest current reference implementation for a delivered business CRUD flow
 - `System Codes` is the strongest current reference implementation for repeated master-data patterns
-- `suppliers` schema is ahead of vendors UI delivery
+- `Vendors` currently has no active backing table in the delivered system
 - the current inventory UI still depends heavily on the legacy `inventory` table
 - inventory target design is broader and more normalized than the current UI suggests
 - test coverage exists, but it is currently concentrated around customer flows rather than the full system
@@ -671,7 +669,7 @@ Notes and risks:
 | System Codes center | Main delivered master-data center | Delivered |
 | Company / Region / City / Depot / financial code pages | Active CRUD reference pages | Delivered |
 | Customers | Active partner CRUD reference page | Delivered |
-| Vendors | Route exists, schema progressing, UI not complete | Partially Delivered |
+| Vendors | Route exists, no active backing table, UI not complete | Scaffold Only |
 | Lessee / Lessor / Material Vendors / Container Owners | Route structure exists, detailed CRUD not built | Scaffold Only |
 | Inventory schema | Event-driven target model exists in DB design | Schema Ahead of UI |
 | Inventory UI | Command center exists but still leans on legacy `inventory` | Partially Delivered |

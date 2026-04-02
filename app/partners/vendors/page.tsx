@@ -4,7 +4,7 @@ export default function VendorsPage() {
   return (
     <PartnerSectionPlaceholder
       title="Vendors"
-      description="Maintain operating suppliers and commercial vendor profiles used throughout the ERP workflow."
+      description="Vendor workflow is currently not backed by an active master-data table."
     />
   );
 }

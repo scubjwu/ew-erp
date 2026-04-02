@@ -44,7 +44,7 @@ Current state:
 - `Partners Center` is now delivered as the module entry page
 - `Customers` is the main active and usable partner CRUD flow
 - legacy `/customers*` routes now redirect into `/partners/customers*`
-- `Vendors` has advancing schema support through `suppliers`, but the route is still placeholder-level
+- `Vendors` is currently placeholder-level and does not have an active backing master-data table
 - `Lessee`, `Lessor`, `Material Vendors`, and `Container Owners` currently use placeholder pages
 
 ### Current workflow pattern
@@ -73,14 +73,14 @@ Important implementation note:
 
 - some partner categories do not yet have a backing table configured in `types/partners.ts`
 - the center page therefore mixes real counts and scaffold-only categories
-- current real count-backed cards are `Customers` and `Vendors`
+- the current real count-backed partner card is `Customers`
 
 ## Section Status
 
 | Section | Current route state | Current data state | Status |
 | --- | --- | --- | --- |
 | Customers | Active page | Backed by `customers` and `customer_certificate_links` | Delivered |
-| Vendors | Placeholder page | Backed conceptually by `suppliers`, schema extended | Partially Delivered |
+| Vendors | Placeholder page | No active backing master-data table | Scaffold Only |
 | Lessee | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
 | Lessor | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
 | Material Vendors | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
@@ -147,35 +147,21 @@ Important migrations include:
 - [`db/supabase/migrations/20260331124500_customers_fields_and_public_write.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331124500_customers_fields_and_public_write.sql)
 - [`db/supabase/migrations/20260331140000_customers_region_and_certificates.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331140000_customers_region_and_certificates.sql)
 
-## Vendors and Supplier Surface
+## Vendors Surface
 
 ### Current status
 
-`Vendors` is not yet a delivered CRUD page, but the underlying schema is moving ahead.
+`Vendors` is not yet a delivered CRUD page and currently does not have an active backing master-data table.
 
 Current route:
 
 - [`app/partners/vendors/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/page.tsx)
 
-Current schema base:
+Current state:
 
-- `suppliers`
-
-Current supplier extension fields added for future `Vendors` delivery:
-
-- `region_id`
-- `country`
-- `category`
-- `account_name`
-- `account_number`
-- `bank_name`
-- `bank_code`
-- `bank_address`
-- `swift_code`
-
-Important migration:
-
-- [`db/supabase/migrations/20260331161000_suppliers_partners_extended.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331161000_suppliers_partners_extended.sql)
+- route placeholder exists
+- no active backing table should be treated as source of truth for vendor CRUD
+- future vendor delivery needs a deliberate data-model decision before UI work resumes
 
 ### Risk
 
@@ -201,8 +187,6 @@ Current active or prepared partner tables:
 
 - `customers`
 - `customer_certificate_links`
-- `suppliers`
-
 Related lookup tables already used or likely to be used:
 
 - `region_codes`
@@ -228,7 +212,6 @@ Current seed workflow references:
 Important note:
 
 - partner seed coverage is currently customer-focused
-- `suppliers` is not yet documented as reset-safe
 - new partner tables should not be assumed reset-safe unless seed coverage is explicitly added
 
 ## UI and Interaction Standards for This Module
@@ -294,7 +277,7 @@ Usual causes:
 
 Symptom:
 
-- codebase appears ready for vendor delivery because supplier schema exists, but UI routes are still placeholder-level
+- vendor route exists, but there is no active vendor master-data table behind it
 
 Usual causes:
 
@@ -318,7 +301,7 @@ When building a new active partner section:
 
 - `Customers` is mature enough to guide implementation, but the rest of the module is not yet uniform
 - partner categories may eventually need clearer modeling boundaries than route-only separation
-- `Vendors` may drift if `suppliers` schema evolves without an aligned UI and workflow definition
+- `Vendors` may drift if the route remains visible before its target data model is formally defined
 - placeholder routes can create false confidence about delivery completeness
 
 ## Maintenance Rules
