@@ -147,6 +147,24 @@ Status vocabulary:
 - Next step: rerun `EW_ERP_BASE_URL=http://localhost:3003 npm run test:regression` from a non-sandboxed local shell/session if full route/data coverage is required for this commit
 - Commit note: no code changes and no commit created in this automation run
 
+### Additional Run: 2026-04-03 08:40 PDT
+
+- Environment note: `npm run db:start` remains blocked by Docker socket access denial in the sandboxed automation session, but existing local services were already available with Supabase listening on `54321` and `next dev` listening on `3001`
+- App URL attempted: `http://localhost:3001`
+- Commit before run: `a71a7100aefe49ee81bc0235867a9855b58eeb78`
+- Command: `npm run db:start`
+- Result: Fail
+- Summary metrics: blocked by permission denial while connecting to `/Users/palayapan/.docker/run/docker.sock`
+- Command: `npm run db:reset`
+- Result: Pass
+- Summary metrics: seed export passed, seed verification passed, and `supabase db reset` finished successfully on `main`
+- Command: `EW_ERP_BASE_URL=http://localhost:3001 npm run test:regression`
+- Result: Pass
+- Summary metrics: `test:regression:ui` passed (`16/16`); local regression passed (`routes_checked: 43`, `data_checks: 51`); reset-safe regression passed (`reset_safe_checks: 25`)
+- Bug note: no new product regression was identified in this run
+- Verification note: full required regression gate is green against the active local dev server on port `3001`
+- Commit note: no code changes and no commit created in this automation run
+
 ## Template
 
 Copy this section for each regression day.
