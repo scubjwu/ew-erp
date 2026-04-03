@@ -308,6 +308,8 @@ Within that workflow, partner coverage currently includes:
 - verification that partner rows are exported into managed seed files before reset and restored after reset
 - cleanup of temporary regression rows after the run
 
+Regression execution records do not belong in this module doc. Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md) for regression failures, fix summaries, verification reruns, and regression-related commit history. Keep [`/Users/palayapan/Documents/ew-erp/docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md) for planning and carry-forward items only.
+
 ## UI and Interaction Standards for This Module
 
 `Partners` should follow the same core list/search/dialog standards as `System Codes`, but with partner-specific business structure.
@@ -430,3 +432,4 @@ Daily execution planning does not belong in this module doc. Track day-by-day wo
 - `2026-03-31` — Initial `Partners` module document created.
 - `2026-04-01` — Added schema-ready standalone partner tables and seed data for `vendors`, `material_vendors`, `lessees`, and `container_owners`; documented the remaining placeholder-page and metadata drift until CRUD delivery starts.
 - `2026-04-02` — Delivered the `container_owners` page family with list/create/view/edit, tabbed detail layout, and CSV export; updated module status to show only `Lessor` as scaffold-only.
+- `2026-04-03` — Clarified that partner daily regression history belongs in `docs/daily-regression-log.md` and that `docs/daily-todo.md` should only hold planning and carry-forward items.

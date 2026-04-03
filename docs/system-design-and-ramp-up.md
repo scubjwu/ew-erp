@@ -169,6 +169,12 @@ Current system interaction is mostly built on this pattern:
 - local `db reset` seed export also now includes `vendors`, `material_vendors`, `lessees`, `container_owners`, and their attachment-link tables, so newly created partner master-data records can survive reset after the export step runs
 - `Basic Info` dashboards are now part of the required `test:regression:ui` gate, so dashboard-level regressions are no longer limited to partners and settings
 
+### Current system-level truth added on `2026-04-03`
+
+- daily regression execution history now has its own canonical record in [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md), while [`/Users/palayapan/Documents/ew-erp/docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md) is planning-only
+- the required daily regression loop is now explicitly `run gate -> log failures -> fix -> log fix summary -> rerun -> commit after green`
+- `scripts/run_local_regression.mjs` and `scripts/run_reset_safe_regression.mjs` now surface actionable diagnostics when localhost or local Supabase HTTP access is blocked by a sandboxed environment, instead of failing with low-signal transport errors alone
+
 ## UI Standards
 
 ### List page standards

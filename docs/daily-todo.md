@@ -19,6 +19,71 @@ Do not use this file as the source of truth for:
 
 Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md) for regression execution details, bug tracking during regression, fix summaries, and retrospective notes.
 
+## Date: 2026-04-03
+
+### Today's priorities
+
+- [x] Sync docs to today's regression-workflow commit truth
+- [x] Separate system truth, module truth, and daily action items for the new regression process
+- [x] Classify all unfinished follow-up items as `Deferred` or `Carried Forward`
+
+### Action Items from conversations
+
+- [x] Topic: Sync docs to the `2026-04-03` daily regression workflow commit
+  - Status: Done
+  - Source conversation/topic: Automation doc sync from today's commits
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Clarify where regression execution history belongs
+  - Status: Done
+  - Source conversation/topic: New `daily-regression-log` split from planning docs
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [ ] Topic: Run the next daily regression from a non-sandboxed local shell/session
+  - Status: Carried Forward
+  - Source conversation/topic: Daily regression workflow rollout
+  - Owner: User + Codex
+  - Next concrete step: Use the documented `db:start` -> `dev:local` -> `db:reset` -> `test:regression` loop and record results in `docs/daily-regression-log.md`
+
+- [ ] Topic: Decide whether to add browser-level visual diffs to the daily gate
+  - Status: Deferred
+  - Source conversation/topic: Regression coverage hardening follow-up
+  - Owner: User + Codex
+  - Next concrete step: Choose screenshot baseline ownership and update the regression workflow only if the baseline strategy is acceptable
+
+### In Progress
+
+- [ ] None
+
+### Blocked
+
+- [ ] None
+
+### Done
+
+- [x] Synced `docs/system-design-and-ramp-up.md` to the new daily regression log split and required gate loop
+- [x] Synced `docs/modules/system-codes.md` to the current `System Codes` regression scope
+- [x] Synced `docs/modules/partners.md` to the current `Partners` regression logging rule
+- [x] Kept regression execution details out of `daily-todo` and moved planning-only follow-up into classified items
+
+### Carry Forward to next day
+
+- [ ] Run the next full daily regression from a non-sandboxed local shell/session
+  - Status: Carried Forward
+  - Source conversation/topic: Daily regression workflow rollout
+  - Owner: User + Codex
+  - Next concrete step: Execute the documented gate and append the run record to `docs/daily-regression-log.md`
+
+### Deferred
+
+- [ ] Decide whether to add browser-level visual diffs to the daily gate
+  - Status: Deferred
+  - Source conversation/topic: Regression coverage hardening follow-up
+  - Owner: User + Codex
+  - Next concrete step: Approve or reject a screenshot-baseline strategy before expanding the gate
+
 ## Template
 
 Copy this section for each working day.

@@ -180,6 +180,27 @@ Module-specific supporting standard:
 
 - [`docs/basic-info-list-standard.md`](/Users/palayapan/Documents/ew-erp/docs/basic-info-list-standard.md)
 
+## Required Regression Coverage
+
+Delivered editable `System Codes` pages are part of the required daily regression gate:
+
+- `npm run test:regression`
+
+Current `System Codes` coverage inside that workflow includes:
+
+- dashboard-level UI regression coverage for the delivered `Basic Info` center and section dashboards
+- route availability for current non-inventory `System Codes` pages
+- create and edit through the same local browser-write path used by the delivered pages
+- child-table write checks for `company_bank_accounts`, `depot_additional_costs`, and `depot_attachment_links`
+- declared search-filter coverage
+- reset-equivalent recovery to the unfiltered result set
+- filtered export data-source validation
+- representative reset-safe persistence assertions across the delivered `Basic Info` seed-backed tables
+- verification that seed export captures new local rows before reset and that those rows still exist after reset
+- cleanup of temporary regression rows after the run
+
+Regression execution records do not belong in this module doc. Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md) for regression failures, fixes, reruns, and commit history. Keep [`/Users/palayapan/Documents/ew-erp/docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md) for planning and carry-forward items only.
+
 ## Reference Implementations
 
 Use these as first-open references:
@@ -281,3 +302,4 @@ Daily execution planning does not belong in this module doc. Track day-by-day wo
 ## Changelog
 
 - `2026-03-31` — Initial `System Codes` module document created.
+- `2026-04-03` — Documented the required daily regression scope for delivered `System Codes` pages and clarified that regression execution history now belongs in `docs/daily-regression-log.md`.
