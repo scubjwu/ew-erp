@@ -80,6 +80,15 @@ sql_paths = [
   "./seeds/20260330_basic_info_depot_additional_costs.sql",
   "./seeds/20260330_basic_info_container_number_rules.sql",
   "./seeds/20260330_basic_info_operation_price_configs.sql",
+  "./seeds/20260401_partner_master_users.sql",
+  "./seeds/20260401_partner_master_vendors.sql",
+  "./seeds/20260401_partner_master_vendors_attachment_links.sql",
+  "./seeds/20260401_partner_master_material_vendors.sql",
+  "./seeds/20260401_partner_master_material_vendors_attachment_links.sql",
+  "./seeds/20260401_partner_master_lessees.sql",
+  "./seeds/20260401_partner_master_lessees_attachment_links.sql",
+  "./seeds/20260401_partner_master_container_owners.sql",
+  "./seeds/20260401_partner_master_container_owners_attachment_links.sql",
 ]
 
 [db.network_restrictions]

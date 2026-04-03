@@ -165,6 +165,8 @@ Current system interaction is mostly built on this pattern:
 - `email` is now nullable in the business `users` table so user-management workflows are not blocked on email availability
 - `System Settings` now has a delivered `User Management` page family under `/settings/users`
 - `User Management` follows the standard list/create/view/edit pattern with server-side filtering, CSV export, and tabbed detail pages
+- local `db reset` seed export now includes `users`, so locally created user records can survive reset after the export step runs
+- local `db reset` seed export also now includes `vendors`, `material_vendors`, `lessees`, `container_owners`, and their attachment-link tables, so newly created partner master-data records can survive reset after the export step runs
 
 ## UI Standards
 
@@ -303,6 +305,14 @@ Local persistence safety currently depends on:
 - seed verification behavior
 - seed load order for FK relationships
 
+From this point forward, any newly created business table that is expected to be edited locally must be added in the same change to:
+
+- `scripts/export_basic_info_seeds.py`
+- `scripts/verify_basic_info_seeds.py`
+- `db/supabase/config.toml` seed load order
+
+Reset-safe persistence is now the default requirement for new editable local tables. It is not a later cleanup step.
+
 ### Key local commands
 
 - `npm install`
@@ -380,6 +390,8 @@ If a delivered local CRUD page is expected to survive `npm run db:reset`, it mus
 - seed export
 - seed verification
 - seed restore/load order
+
+If a new editable table is introduced for normal local development, the implementation is incomplete until all three are updated.
 
 ### Milestone truth
 
@@ -492,7 +504,7 @@ Use this standard sequence unless there is a strong reason to deviate.
 6. add the dashboard/list component
 7. add create/edit/view dialogs or detail pages
 8. add export if the page is business-facing and export is expected
-9. add seed coverage if local reset survival is expected
+9. add reset-safe seed coverage in the same change for any new editable local table
 10. validate naming, search behavior, pagination behavior, and reset survival
 11. update this document if the page changes system truth, milestone status, or conventions
 
@@ -508,7 +520,7 @@ A page is not done until:
 - create, edit, and view flows work
 - export exists if the page is business-facing
 - RLS and write permissions are verified
-- local seed persistence is added if reset survival is expected
+- local seed persistence is added in the same change for any new editable local table
 - `npm run db:reset` does not silently lose intended local data
 - route and navigation labels match the terminology map
 - server-side filtering and pagination conventions are followed
@@ -695,6 +707,7 @@ Notes and risks:
 - test coverage exists, but it is currently concentrated around customer flows rather than the full system
 - local reset safety depends on seed scripts, not just migrations
 - when adding fields to seed-covered tables, engineers should review export and verify scripts in the same change
+- when creating a new editable table, engineers should also update `db/supabase/config.toml` seed load order in the same change
 
 ## Current Delivery Snapshot
 
@@ -738,6 +751,7 @@ This file should be updated when:
 - naming or workflow conventions change
 - a scaffold-only module becomes active
 - a new page becomes part of the reference implementation standard
+- reset-safe seed coverage expands to new tables or child tables
 
 Maintenance expectations:
 

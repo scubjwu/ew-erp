@@ -107,11 +107,11 @@ Copy this section for each working day.
   - Owner: User + Codex
   - Next concrete step: Choose whether a future vendor workflow should use a dedicated `vendors` table or remain scaffold-only until redesign
 
-- [ ] Topic: Decide whether future vendor tables and other new partner tables must survive local reset
-  - Status: Deferred
+- [x] Topic: Decide whether future vendor tables and other new partner tables must survive local reset
+  - Status: Done
   - Source conversation/topic: Seed coverage planning for Partners
-  - Owner: User
-  - Next concrete step: Confirm reset-survival requirement before extending seed export and verify scripts
+  - Owner: User + Codex
+  - Next concrete step: N/A
 
 - [ ] Topic: Replace the remaining partner placeholder routes with real CRUD scopes or explicitly keep them scaffold-only
   - Status: Deferred
@@ -159,11 +159,11 @@ Copy this section for each working day.
 
 ### Deferred
 
-- [ ] Decide whether any future vendor table should be added to reset-safe seed coverage
-  - Status: Deferred
+- [x] Decide whether any future vendor table should be added to reset-safe seed coverage
+  - Status: Done
   - Source conversation/topic: Partner data persistence scope
-  - Owner: User
-  - Next concrete step: Confirm whether future vendor data must survive local reset before changing seed tooling
+  - Owner: User + Codex
+  - Next concrete step: N/A
 
 - [ ] Decide which placeholder partner sections should become real modules next
   - Status: Deferred
@@ -224,11 +224,11 @@ Copy this section for each working day.
   - Owner: User + Codex
   - Next concrete step: Update `types/partners.ts` and placeholder route descriptions so `Vendors` no longer claims it lacks master-data backing
 
-- [ ] Topic: Validate whether the new partner seed files are fully covered by export / verify tooling
-  - Status: Deferred
+- [x] Topic: Validate whether the new partner seed files are fully covered by export / verify tooling
+  - Status: Done
   - Source conversation/topic: Seed automation alignment review
-  - Owner: User + Codex
-  - Next concrete step: Inspect `db:reset` seed export / verify scripts and confirm whether the new partner tables are automation-managed or repo-static only
+  - Owner: Codex
+  - Next concrete step: N/A
 
 ### In Progress
 
@@ -282,6 +282,8 @@ Copy this section for each working day.
 - [x] Expand the `users` schema for upcoming User Management work
 - [x] Deliver the first `System Settings` CRUD page family for `User Management`
 - [x] Fix `users` browser-write permission gap for local User Management create/edit
+- [x] Add `users` to the reset-safe seed export workflow
+- [x] Add standalone partner master-data tables to the reset-safe seed export workflow
 
 ### Action Items from conversations
 
@@ -343,7 +345,7 @@ Copy this section for each working day.
   - Status: Carried Forward
   - Source conversation/topic: User Management schema preparation
   - Owner: User + Codex
-  - Next concrete step: Run `supabase db push` or `supabase db reset`, then confirm `user_code`, `status`, and the new management fields exist in `public.users`
+  - Next concrete step: Run `supabase db push` or `supabase db reset`, then confirm `user_code`, `status`, the new management fields, and reset-exported user rows exist in `public.users`
 
 - [ ] Topic: Verify the new `User Management` page against a local database with the latest migrations applied
   - Status: Carried Forward
@@ -354,6 +356,18 @@ Copy this section for each working day.
 - [x] Topic: Restore `users` table write grants required by browser-based User Management CRUD
   - Status: Done
   - Source conversation/topic: `permission denied for table users` during Create New User
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Make `users` survive local `db reset` by adding it to the export/verify seed workflow
+  - Status: Done
+  - Source conversation/topic: Newly created users disappearing after `db reset`
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Make standalone partner master-data records survive local `db reset`
+  - Status: Done
+  - Source conversation/topic: Preserve `vendors`, `material_vendors`, `lessees`, and `container_owners` after reset
   - Owner: Codex
   - Next concrete step: N/A
 
@@ -412,8 +426,8 @@ Copy this section for each working day.
 
 ### Deferred
 
-- [ ] Validate whether the new partner seed files are managed by export / verify automation or should remain repo-static
-  - Status: Deferred
+- [x] Validate whether the new partner seed files are managed by export / verify automation or should remain repo-static
+  - Status: Done
   - Source conversation/topic: Partner reset-safety tooling follow-up
-  - Owner: User + Codex
-  - Next concrete step: Review seed scripts and decide whether to extend automation coverage before future partner CRUD data is edited locally
+  - Owner: Codex
+  - Next concrete step: N/A

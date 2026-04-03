@@ -263,9 +263,8 @@ Current seed workflow references:
 
 Important note:
 
-- customer and vendor coverage are the current delivered UI-backed partner workflows
-- however, schema-ready partner tables for `vendors`, `material_vendors`, `lessees`, and `container_owners` now also have test-data seeds in repo for future page work
-- those new partner seed files currently exist as repo-authored seed inputs; seed export / verify tooling alignment should still be validated before treating them as fully automated reset coverage
+- customer and the standalone partner master-data tables are now covered by the reset-safe export / verify / restore workflow
+- partner child tables must be added to the same workflow in the same change whenever new attachment or detail tables are introduced
 
 ## UI and Interaction Standards for This Module
 
@@ -334,6 +333,7 @@ Symptom:
 Usual causes:
 
 - assuming repo seed files and seed automation are already perfectly aligned for the new partner tables
+- creating a new partner table or child table without also adding it to export, verify, and `db/supabase/config.toml`
 
 ### Schema ahead of UI
 
@@ -354,7 +354,7 @@ When building a new active partner section:
 3. add or update migrations and permissions
 4. replace the placeholder route with a real page flow
 5. add actions/API, dashboard, dialogs, and export as needed
-6. decide whether local reset persistence is required and add seed coverage if it is
+6. add reset-safe seed coverage in the same change for any new editable partner table or child table
 7. update the center-page counts and metadata if table mapping changes
 8. update the global doc if overall delivery status changes
 9. update this module doc with the new section status and references
@@ -374,6 +374,7 @@ Update this document when:
 - a placeholder partner section becomes a real CRUD flow
 - partner tables or relationships change materially
 - seed coverage expands beyond customer-related tables
+- reset-safe export / verify / load-order rules change for partner tables or child tables
 - the recommended partner reference implementation changes
 - milestone status for the module changes
 

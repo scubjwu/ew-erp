@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SEEDS_DIR = ROOT / "db" / "supabase" / "seeds"
 
 TABLE_SPECS = [
+    ("users", "20260401_partner_master_users.sql"),
     ("company_profiles", "20260330_basic_info_company_profiles.sql"),
     ("company_bank_accounts", "20260330_basic_info_company_bank_accounts.sql"),
     ("customers", "20260330_basic_info_customers.sql"),
@@ -27,6 +28,14 @@ TABLE_SPECS = [
     ("container_type_codes", "20260330_basic_info_type_codes.sql"),
     ("container_number_rules", "20260330_basic_info_container_number_rules.sql"),
     ("operation_price_configs", "20260330_basic_info_operation_price_configs.sql"),
+    ("vendors", "20260401_partner_master_vendors.sql"),
+    ("vendor_attachment_links", "20260401_partner_master_vendors_attachment_links.sql"),
+    ("material_vendors", "20260401_partner_master_material_vendors.sql"),
+    ("material_vendor_attachment_links", "20260401_partner_master_material_vendors_attachment_links.sql"),
+    ("lessees", "20260401_partner_master_lessees.sql"),
+    ("lessee_attachment_links", "20260401_partner_master_lessees_attachment_links.sql"),
+    ("container_owners", "20260401_partner_master_container_owners.sql"),
+    ("container_owner_attachment_links", "20260401_partner_master_container_owners_attachment_links.sql"),
 ]
 
 def run_psql(sql: str) -> str:
