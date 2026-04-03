@@ -548,6 +548,8 @@ Current required command sequence:
 
 If `next dev` is running on a non-default port, the regression command should be run with `EW_ERP_BASE_URL` set to that origin so the route checks hit the real local app instance.
 
+Daily regression execution records belong in [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md). That file is the canonical record for bug findings, fix summaries, verification reruns, and commit history produced by regression work. [`/Users/palayapan/Documents/ew-erp/docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md) should only carry planning, blocked items, and next steps.
+
 Current `npm run test:regression` covers:
 
 - dashboard-level UI regression coverage for current `System Codes` dashboards plus delivered editable partner/settings pages
@@ -579,6 +581,15 @@ Current `npm run test:regression` covers:
 - verification that seed export captures newly created local rows before reset
 - verification that those rows still exist after `supabase db reset`
 - cleanup of temporary regression rows after the run
+
+Required daily regression loop:
+
+1. run the regression gate
+2. log failures in `docs/daily-regression-log.md`
+3. fix one bug or one coherent bug batch at a time
+4. record root cause, changed files, and fix summary
+5. rerun the gate
+6. commit fixes only after the gate is green
 
 ## Definition of Done For New Master-Data Pages
 

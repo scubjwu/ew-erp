@@ -106,6 +106,8 @@ cd /Users/palayapan/Documents/ew-erp
 EW_ERP_BASE_URL=http://localhost:3001 npm run test:regression
 ```
 
+Daily regression execution records belong in [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md). Use that log to record failures, fixes, post-fix verification, and commit history. Keep [`/Users/palayapan/Documents/ew-erp/docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md) for planning and carry-forward items only.
+
 Current `npm run test:regression` coverage includes:
 
 - dashboard-level UI regression coverage through `npm run test:regression:ui` for:
@@ -161,6 +163,15 @@ Current `npm run test:regression` coverage includes:
 - temporary regression data cleanup after the run
 
 Treat the local regression command as the required daily gate for the currently delivered editable pages.
+
+Expected daily loop:
+
+1. run the gate
+2. log bugs in `docs/daily-regression-log.md`
+3. fix bugs
+4. log root cause and fix summary
+5. rerun the gate
+6. commit only after the gate is green
 
 If you want a clean reset without overwriting seed files:
 

@@ -27,6 +27,26 @@ function fail(message) {
   throw new Error(message);
 }
 
+function isLocalHttpTarget(target) {
+  return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?/i.test(target);
+}
+
+function formatError(error) {
+  if (error instanceof Error) {
+    const cause = error.cause instanceof Error ? ` Cause: ${error.cause.message}` : "";
+    return `${error.message}${cause}`;
+  }
+  return String(error);
+}
+
+function describeLocalReachabilityFailure(target, error, label = "local endpoint") {
+  const detail = formatError(error);
+  if (!isLocalHttpTarget(target)) {
+    return detail;
+  }
+  return `Cannot reach ${label} ${target} from this environment. If this regression is running inside a sandboxed automation session, rerun it from a shell/session with local network access. Details: ${detail}`;
+}
+
 function runPsql(sql) {
   execFileSync(
     "docker",
@@ -80,7 +100,7 @@ async function assertHttpOk(url, expectedText = []) {
         }
       }
     } catch (error) {
-      lastFailure = error instanceof Error ? error.message : String(error);
+      lastFailure = describeLocalReachabilityFailure(url, error, "app URL");
     }
     await delay(1000);
   }
@@ -108,7 +128,11 @@ async function waitForSupabaseReady(supabase) {
     }
     await delay(1000);
   }
-  if (lastError instanceof Error) throw lastError;
+  if (lastError instanceof Error) {
+    throw new Error(
+      describeLocalReachabilityFailure(`${LOCAL_SUPABASE_URL}/rest/v1/users`, lastError, "Supabase API")
+    );
+  }
   throw new Error(`Supabase API did not become ready: ${String(lastError)}`);
 }
 

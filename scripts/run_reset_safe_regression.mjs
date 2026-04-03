@@ -29,6 +29,18 @@ function fail(message) {
   throw new Error(message);
 }
 
+function formatError(error) {
+  if (error instanceof Error) {
+    const cause = error.cause instanceof Error ? ` Cause: ${error.cause.message}` : "";
+    return `${error.message}${cause}`;
+  }
+  return String(error);
+}
+
+function describeSupabaseReachabilityFailure(error) {
+  return `Cannot reach local Supabase API ${LOCAL_SUPABASE_URL} from this environment. If this regression is running inside a sandboxed automation session, rerun it from a shell/session with local network access. Details: ${formatError(error)}`;
+}
+
 function run(command, args, options = {}) {
   execFileSync(command, args, {
     cwd: ROOT,
@@ -85,7 +97,9 @@ async function waitForSupabaseReady(supabase) {
     }
     await delay(1000);
   }
-  if (lastError instanceof Error) throw lastError;
+  if (lastError instanceof Error) {
+    throw new Error(describeSupabaseReachabilityFailure(lastError));
+  }
   throw new Error(`Supabase API did not become ready after reset: ${String(lastError)}`);
 }
 

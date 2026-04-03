@@ -15,6 +15,9 @@ Do not use this file as the source of truth for:
 - schema design
 - module workflow specifications
 - milestone completion status
+- daily regression execution records, bug logs, fix notes, or regression commit history
+
+Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md) for regression execution details, bug tracking during regression, fix summaries, and retrospective notes.
 
 ## Template
 
@@ -429,6 +432,11 @@ Copy this section for each working day.
   - Source conversation/topic: Partners rollout after Vendors
   - Owner: User + Codex
   - Next concrete step: Decide whether to deliver `lessor` next or pause partner expansion
+- [ ] Add visual regression coverage for delivered non-inventory pages
+  - Status: Carried Forward
+  - Source conversation/topic: Regression coverage gap review
+  - Owner: User + Codex
+  - Next concrete step: Decide the screenshot baseline strategy and then add browser-level visual diffs to the daily regression workflow
 
 ### Deferred
 
