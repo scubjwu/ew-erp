@@ -167,6 +167,7 @@ Current system interaction is mostly built on this pattern:
 - `User Management` follows the standard list/create/view/edit pattern with server-side filtering, CSV export, and tabbed detail pages
 - local `db reset` seed export now includes `users`, so locally created user records can survive reset after the export step runs
 - local `db reset` seed export also now includes `vendors`, `material_vendors`, `lessees`, `container_owners`, and their attachment-link tables, so newly created partner master-data records can survive reset after the export step runs
+- `Basic Info` dashboards are now part of the required `test:regression:ui` gate, so dashboard-level regressions are no longer limited to partners and settings
 
 ## UI Standards
 
@@ -505,12 +506,68 @@ Use this standard sequence unless there is a strong reason to deviate.
 7. add create/edit/view dialogs or detail pages
 8. add export if the page is business-facing and export is expected
 9. add reset-safe seed coverage in the same change for any new editable local table
-10. validate naming, search behavior, pagination behavior, and reset survival
-11. update this document if the page changes system truth, milestone status, or conventions
+10. run the required smoke-test suite on a migrated local database
+11. validate naming, search behavior, pagination behavior, and reset survival
+12. update this document if the page changes system truth, milestone status, or conventions
 
 ### Reference implementation rule
 
 For new master-data pages, copy the delivered `System Codes` and `Customers` patterns first. These are the repository's current implementation standards.
+
+### Required smoke-test suite
+
+Every new CRUD page must complete a local smoke test before it is called delivered.
+
+Required execution order:
+
+1. run `npm run db:reset`
+2. verify the list route loads successfully
+3. verify the `new` route loads successfully
+4. verify the `view` route loads successfully for a real seeded or newly created row
+5. verify the `edit` route loads successfully for a real seeded or newly created row
+6. verify create succeeds through the same browser-write path the page actually uses
+7. verify edit succeeds through the same browser-write path the page actually uses
+8. if the page owns child attachment or link tables, verify those child rows are created or updated correctly
+9. verify every declared search field with at least one positive match
+10. verify `Reset` restores the unfiltered result set after a filtered search
+11. verify filtered export uses the same filters as the list page
+12. if export includes attachment-derived data, verify those attachment rows are present in the export data source
+13. clean up temporary smoke-test rows unless they are intentionally promoted into managed seed data
+14. record the completed coverage in `docs/daily-todo.md`
+
+### Daily regression workflow
+
+Delivered editable pages should also be covered by the repeatable daily regression workflow.
+
+Current required command sequence:
+
+1. `npm run db:start`
+2. `npm run dev:local`
+3. `npm run db:reset`
+4. `npm run test:regression`
+
+If `next dev` is running on a non-default port, the regression command should be run with `EW_ERP_BASE_URL` set to that origin so the route checks hit the real local app instance.
+
+Current `npm run test:regression` covers:
+
+- dashboard-level UI regression coverage for current `System Codes` dashboards plus delivered editable partner/settings pages
+- route availability for all current non-inventory pages
+- create and edit through the same local browser-write path used by:
+  - `User Management`
+  - `Customers`
+  - `Vendors`
+  - `Material Vendors`
+  - `Lessees`
+  - `Container Owners`
+- attachment child-table writes where applicable
+- search coverage for declared filters on the delivered editable page families already wired into regression
+- reset-equivalent recovery to the unfiltered result set
+- filtered export data-source validation
+- representative `Basic Info` reset-safe restore assertions across company profile, region, city, depot, financial code, condition, size, type, container-number-rule, and operation-price seed tables, plus zero-row assertions for empty managed child tables
+- reset-safe persistence regression for `users`, `vendors`, `material_vendors`, `lessees`, `container_owners`, and their attachment child tables
+- verification that seed export captures newly created local rows before reset
+- verification that those rows still exist after `supabase db reset`
+- cleanup of temporary regression rows after the run
 
 ## Definition of Done For New Master-Data Pages
 
@@ -526,6 +583,9 @@ A page is not done until:
 - server-side filtering and pagination conventions are followed
 - schema, policy, and seed coverage are reflected in this document when introduced
 - user-facing naming is consistent and English-first unless business requirements explicitly say otherwise
+- the required smoke-test suite has been completed after `npm run db:reset`
+- search, reset, and filtered export have been explicitly verified instead of inferred from page rendering
+- temporary smoke-test data has been removed or intentionally converted into managed seed data
 
 ## Plans and Target State
 
@@ -708,6 +768,8 @@ Notes and risks:
 - local reset safety depends on seed scripts, not just migrations
 - when adding fields to seed-covered tables, engineers should review export and verify scripts in the same change
 - when creating a new editable table, engineers should also update `db/supabase/config.toml` seed load order in the same change
+- when delivering a new CRUD page, engineers should not stop at route rendering; they must also run create, edit, search, reset, and filtered-export smoke tests
+- when a new editable table or child table is added to reset-safe seed coverage, the reset-safe regression workflow should be extended in the same change
 
 ## Current Delivery Snapshot
 
@@ -752,6 +814,7 @@ This file should be updated when:
 - a scaffold-only module becomes active
 - a new page becomes part of the reference implementation standard
 - reset-safe seed coverage expands to new tables or child tables
+- smoke-test expectations or required verification scope changes
 
 Maintenance expectations:
 
@@ -759,6 +822,8 @@ Maintenance expectations:
 - prefer current code and migrations over memory
 - update milestone status in the same change when a milestone materially advances
 - if a migration changes workflow assumptions, update the workflow sections, not only the schema notes
+- if a page is marked delivered, its smoke-test coverage should already be recorded in `docs/daily-todo.md`
+- if a page family is part of the daily regression scope, the command and expected coverage should stay current in `README.md` and this document
 
 ## Module Docs
 

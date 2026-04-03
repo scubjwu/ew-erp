@@ -293,11 +293,11 @@ Copy this section for each working day.
   - Owner: Codex
   - Next concrete step: N/A
 
-- [ ] Topic: Verify the new `Vendors` page against a local database with the latest migrations and seeds applied
-  - Status: Carried Forward
+- [x] Topic: Verify the new `Vendors` page against a local database with the latest migrations and seeds applied
+  - Status: Done
   - Source conversation/topic: Vendors UI delivery
   - Owner: User + Codex
-  - Next concrete step: Run `supabase db push`, `supabase db reset`, then smoke-test list/create/view/edit/export for `/partners/vendors`
+  - Next concrete step: N/A
 
 - [x] Topic: Pick the next schema-ready partner page to implement
   - Status: Done
@@ -335,23 +335,23 @@ Copy this section for each working day.
   - Owner: Codex
   - Next concrete step: N/A
 
-- [ ] Topic: Verify the new `Container Owners` page against a local database with the latest migrations and seeds applied
-  - Status: Carried Forward
+- [x] Topic: Verify the new `Container Owners` page against a local database with the latest migrations and seeds applied
+  - Status: Done
   - Source conversation/topic: Container Owners UI delivery
   - Owner: User + Codex
-  - Next concrete step: Smoke-test list/create/view/edit/export for `/partners/container-owners`
+  - Next concrete step: N/A
 
-- [ ] Topic: Verify the expanded `users` schema and seed data on a local database
-  - Status: Carried Forward
+- [x] Topic: Verify the expanded `users` schema and seed data on a local database
+  - Status: Done
   - Source conversation/topic: User Management schema preparation
   - Owner: User + Codex
-  - Next concrete step: Run `supabase db push` or `supabase db reset`, then confirm `user_code`, `status`, the new management fields, and reset-exported user rows exist in `public.users`
+  - Next concrete step: N/A
 
-- [ ] Topic: Verify the new `User Management` page against a local database with the latest migrations applied
-  - Status: Carried Forward
+- [x] Topic: Verify the new `User Management` page against a local database with the latest migrations applied
+  - Status: Done
   - Source conversation/topic: User Management UI delivery
   - Owner: User + Codex
-  - Next concrete step: Smoke-test list/create/view/edit/export for `/settings/users`
+  - Next concrete step: N/A
 
 - [x] Topic: Restore `users` table write grants required by browser-based User Management CRUD
   - Status: Done
@@ -397,32 +397,35 @@ Copy this section for each working day.
 - [x] Added tabbed lessee form for basic info, bank information, settlement, and attachments
 - [x] Added lessee CSV export
 - [x] Updated partner center metadata and tab titles so `Lessee` is count-backed and route-aware
+- [x] Reset the local database and restored seed-backed rows for `users`, `vendors`, `material_vendors`, `lessees`, and `container_owners`
+- [x] Smoke-tested list and new routes for `Vendors`, `Material Vendors`, `Lessee`, `Container Owners`, and `User Management`
+- [x] Smoke-tested detail and edit routes for seed-backed records in `Vendors`, `Material Vendors`, `Lessee`, `Container Owners`, and `User Management`
+- [x] Smoke-tested browser-path create and edit writes for `User Management`, `Vendors`, `Material Vendors`, `Lessee`, and `Container Owners` using the local anon Supabase client
+- [x] Verified attachment child-table writes for `Vendors`, `Material Vendors`, `Lessee`, and `Container Owners`
+- [x] Verified the list pages render the newly written records and expose the `Export CSV` control for `User Management`, `Vendors`, `Material Vendors`, `Lessee`, and `Container Owners`
+- [x] Smoke-tested search filters and reset-equivalent unfiltered result recovery for `User Management`, `Vendors`, `Material Vendors`, `Lessee`, and `Container Owners`
+- [x] Verified filtered export data sources for `User Management`, `Vendors`, `Material Vendors`, `Lessee`, and `Container Owners`, including attachment-backed rows where applicable
+- [x] Updated global, module, and README docs so new CRUD pages must complete full smoke-test coverage before being treated as delivered
+- [x] Added a repeatable local daily regression command and supporting regression script for delivered editable pages
+- [x] Fixed the Vitest UI regression environment and moved `test:regression:ui` back into the required daily regression gate
+- [x] Expanded local daily regression coverage to all current non-inventory routes and added `Customers` to the browser-write regression set
+- [x] Stabilized standalone `Basic Info` dashboard UI regression tests and added them to the required `test:regression:ui` gate
+- [x] Added reset-safe persistence regression and moved it into the required daily `test:regression` gate
+- [x] Cleaned regression residue out of local partner seeds and re-exported a clean baseline after stabilizing reset-safe regression
+- [x] Added an idempotent `users` management RLS/grants migration so local reset no longer hides `public.users` from the delivered page and regression paths
+- [x] Fixed seed export so empty child tables like `customer_certificate_links` no longer preserve stale seed rows that break `db reset`
+- [x] Extended reset-safe regression so `Basic Info` is no longer only indirectly covered by reset success; representative seed restore assertions now run inside the required daily gate
+- [x] Fixed local regression cleanup so temporary `customers` and `customer_certificate_links` rows no longer leak into the reset-safe seed baseline
+- [x] Removed tracked `scripts/__pycache__` artifacts and ignored future Python cache files
+- [x] Re-ran the full daily gate successfully with a live local dev server and explicit `EW_ERP_BASE_URL` when the app was on port `3001`
 
 ### Carry Forward to next day
-
-- [ ] Smoke-test the delivered `Vendors` page against a migrated local database
-  - Status: Carried Forward
-  - Source conversation/topic: Vendors CRUD rollout
-  - Owner: User + Codex
-  - Next concrete step: Apply migrations and seeds locally, then test `/partners/vendors`
 
 - [ ] Choose the next partner CRUD page
   - Status: Carried Forward
   - Source conversation/topic: Partners rollout after Vendors
   - Owner: User + Codex
-  - Next concrete step: Select `container_owners` or return to `lessor`
-
-- [ ] Smoke-test the delivered `Material Vendors` page against a migrated local database
-  - Status: Carried Forward
-  - Source conversation/topic: Material Vendors CRUD rollout
-  - Owner: User + Codex
-  - Next concrete step: Apply migrations and seeds locally, then test `/partners/material-vendors`
-
-- [ ] Smoke-test the delivered `Lessee` page against a migrated local database
-  - Status: Carried Forward
-  - Source conversation/topic: Lessee CRUD rollout
-  - Owner: User + Codex
-  - Next concrete step: Apply migrations and seeds locally, then test `/partners/lessee`
+  - Next concrete step: Decide whether to deliver `lessor` next or pause partner expansion
 
 ### Deferred
 

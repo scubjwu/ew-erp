@@ -266,6 +266,48 @@ Important note:
 - customer and the standalone partner master-data tables are now covered by the reset-safe export / verify / restore workflow
 - partner child tables must be added to the same workflow in the same change whenever new attachment or detail tables are introduced
 
+## Required Smoke-Test Coverage
+
+Every new `Partners` CRUD page must complete smoke testing before it is marked delivered.
+
+Required coverage:
+
+- list route loads successfully after `npm run db:reset`
+- `new` route loads successfully
+- `view` route loads successfully for a real row
+- `edit` route loads successfully for a real row
+- create succeeds through the same browser-write path used by the page
+- edit succeeds through the same browser-write path used by the page
+- each declared search field produces at least one positive match
+- `Reset` restores the unfiltered result set after a filtered search
+- filtered export uses the same filters as the list page
+- attachment child-table writes are verified when the page owns attachments
+- temporary smoke-test rows are cleaned up unless they are intentionally promoted into managed seed data
+
+For current delivered partner pages, the expected smoke-test set is:
+
+- `Vendors`
+- `Material Vendors`
+- `Lessees`
+- `Container Owners`
+
+Those partner pages are also part of the local daily regression command:
+
+- `npm run test:regression`
+
+Within that workflow, partner coverage currently includes:
+
+- dashboard-level UI regression coverage
+- route availability for list / new / view / edit
+- create and edit through the local browser-write path
+- attachment child-table writes
+- declared search filters
+- reset-equivalent unfiltered recovery
+- filtered export data-source validation
+- reset-safe persistence regression for partner master-data tables and their attachment tables
+- verification that partner rows are exported into managed seed files before reset and restored after reset
+- cleanup of temporary regression rows after the run
+
 ## UI and Interaction Standards for This Module
 
 `Partners` should follow the same core list/search/dialog standards as `System Codes`, but with partner-specific business structure.
@@ -355,9 +397,10 @@ When building a new active partner section:
 4. replace the placeholder route with a real page flow
 5. add actions/API, dashboard, dialogs, and export as needed
 6. add reset-safe seed coverage in the same change for any new editable partner table or child table
-7. update the center-page counts and metadata if table mapping changes
-8. update the global doc if overall delivery status changes
-9. update this module doc with the new section status and references
+7. run the required smoke-test suite after `npm run db:reset`
+8. update the center-page counts and metadata if table mapping changes
+9. update the global doc if overall delivery status changes
+10. update this module doc with the new section status and references
 
 ## Current Gaps and Risks
 
@@ -375,8 +418,10 @@ Update this document when:
 - partner tables or relationships change materially
 - seed coverage expands beyond customer-related tables
 - reset-safe export / verify / load-order rules change for partner tables or child tables
+- reset-safe regression scope changes for partner tables or child tables
 - the recommended partner reference implementation changes
 - milestone status for the module changes
+- smoke-test expectations or completed partner-page verification status changes
 
 Daily execution planning does not belong in this module doc. Track day-by-day work and unresolved action items in [`docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md).
 

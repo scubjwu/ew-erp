@@ -38,6 +38,17 @@ TABLE_SPECS = [
     ("container_owner_attachment_links", "20260401_partner_master_container_owners_attachment_links.sql"),
 ]
 
+DO_NOT_PRESERVE_WHEN_EMPTY = {
+    "customer_certificate_links",
+    "company_bank_accounts",
+    "depot_attachment_links",
+    "depot_additional_costs",
+    "vendor_attachment_links",
+    "material_vendor_attachment_links",
+    "lessee_attachment_links",
+    "container_owner_attachment_links",
+}
+
 def run_psql(sql: str) -> str:
     normalized_sql = " ".join(sql.split())
     result = subprocess.run(
@@ -394,7 +405,11 @@ def main() -> int:
         sql = build_seed_sql(table_name, columns, column_types, rows)
         if not rows and target.exists():
             existing = target.read_text(encoding="utf-8")
-            if existing.strip() and not existing.startswith(f"-- No local rows exported for public.{table_name}."):
+            if (
+                table_name not in DO_NOT_PRESERVE_WHEN_EMPTY
+                and existing.strip()
+                and not existing.startswith(f"-- No local rows exported for public.{table_name}.")
+            ):
                 print(f"preserved {filename} (current table empty, kept existing seed)")
                 continue
 
