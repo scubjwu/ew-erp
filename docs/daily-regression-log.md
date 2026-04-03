@@ -128,6 +128,25 @@ Status vocabulary:
 - Tooling gap: the local regression harness previously hid the actionable cause behind a generic transport error
 - Follow-up hardening item: keep the improved reachability diagnostics so future automation runs fail with actionable messages if localhost access is unavailable again
 
+### Additional Run: 2026-04-03 03:34 PDT
+
+- Environment note: this automation run successfully completed `npm run db:reset`, but `npm run db:start` still cannot inspect Docker through `/Users/palayapan/.docker/run/docker.sock` from the sandboxed session
+- App URL attempted: `http://localhost:3003`
+- Commit before run: `99063d88cc34a4bcd89f05eff0cae5c80bb8775b`
+- Command: `npm run db:start`
+- Result: Fail
+- Summary metrics: blocked by Docker socket access denial in the automation environment before service inspection
+- Command: `npm run db:reset`
+- Result: Pass
+- Summary metrics: seed export passed, seed verification passed, and `supabase db reset` finished successfully on `main`
+- Command: `EW_ERP_BASE_URL=http://localhost:3003 npm run test:regression`
+- Result: Fail
+- Summary metrics: `test:regression:ui` passed (`16/16`); `scripts/run_local_regression.mjs` stopped before route/data checks because this automation session could not reach `http://localhost:3003` and surfaced the expected actionable localhost-access message
+- Bug note: no new product regression was identified; the failure matched the already-known sandbox localhost-access limitation
+- Verification note: regression harness messaging remains correct and actionable for this environment-level failure mode
+- Next step: rerun `EW_ERP_BASE_URL=http://localhost:3003 npm run test:regression` from a non-sandboxed local shell/session if full route/data coverage is required for this commit
+- Commit note: no code changes and no commit created in this automation run
+
 ## Template
 
 Copy this section for each regression day.
