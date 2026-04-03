@@ -1,0 +1,2 @@
+-- No local rows exported for public.purchase_order_item.
+-- Run `npm run db:seed:export-basic-info` again after adding data.

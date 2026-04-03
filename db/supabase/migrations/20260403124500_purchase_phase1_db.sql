@@ -66,6 +66,12 @@ where vents_count is null and vents is true;
 
 alter table if exists public.purchase_order_container
   add column if not exists location_city_id uuid,
+  add column if not exists color text,
+  add column if not exists flp boolean not null default false,
+  add column if not exists lbx boolean not null default false,
+  add column if not exists locking_bars_count integer,
+  add column if not exists vents_count integer,
+  add column if not exists machine_type text,
   add column if not exists yom integer,
   add column if not exists offline_date date,
   add column if not exists purchase_price numeric(14,2) not null default 0,
@@ -362,6 +368,28 @@ begin
     alter table public.purchase_order_container
       add constraint purchase_order_container_yom_check
       check (yom is null or yom between 1900 and 2100);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'purchase_order_container_locking_bars_count_check'
+      and conrelid = 'public.purchase_order_container'::regclass
+  ) then
+    alter table public.purchase_order_container
+      add constraint purchase_order_container_locking_bars_count_check
+      check (locking_bars_count is null or locking_bars_count in (3, 4));
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'purchase_order_container_vents_count_check'
+      and conrelid = 'public.purchase_order_container'::regclass
+  ) then
+    alter table public.purchase_order_container
+      add constraint purchase_order_container_vents_count_check
+      check (vents_count is null or vents_count >= 0);
   end if;
 
   if exists (
@@ -794,8 +822,62 @@ grant all on table public.purchase_finance_record to service_role;
 alter table public.purchase_order_material_type enable row level security;
 alter table public.purchase_finance_record enable row level security;
 
+grant select, insert, update, delete on table public.purchase_order to anon;
+grant all on table public.purchase_order to authenticated;
+grant all on table public.purchase_order to service_role;
+
+grant select, insert, update, delete on table public.purchase_order_item to anon;
+grant all on table public.purchase_order_item to authenticated;
+grant all on table public.purchase_order_item to service_role;
+
+grant select, insert, update, delete on table public.purchase_order_container to anon;
+grant all on table public.purchase_order_container to authenticated;
+grant all on table public.purchase_order_container to service_role;
+
 do $$
 begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'purchase_order'
+      and policyname = 'purchase_order_public_all'
+  ) then
+    create policy purchase_order_public_all
+      on public.purchase_order
+      for all
+      to public
+      using (true)
+      with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'purchase_order_item'
+      and policyname = 'purchase_order_item_public_all'
+  ) then
+    create policy purchase_order_item_public_all
+      on public.purchase_order_item
+      for all
+      to public
+      using (true)
+      with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'purchase_order_container'
+      and policyname = 'purchase_order_container_public_all'
+  ) then
+    create policy purchase_order_container_public_all
+      on public.purchase_order_container
+      for all
+      to public
+      using (true)
+      with check (true);
+  end if;
+
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'

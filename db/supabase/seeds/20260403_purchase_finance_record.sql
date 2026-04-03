@@ -1,0 +1,2 @@
+-- No local rows exported for public.purchase_finance_record.
+-- Run `npm run db:seed:export-basic-info` again after adding data.

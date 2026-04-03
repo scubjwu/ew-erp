@@ -165,6 +165,33 @@ Status vocabulary:
 - Verification note: full required regression gate is green against the active local dev server on port `3001`
 - Commit note: no code changes and no commit created in this automation run
 
+### Additional Run: 2026-04-03 Purchase Seed Reset-Safe Follow-Up
+
+- Environment note: this run extended reset-safe persistence coverage to the new Purchase database tables and hardened the reset-safe tooling around local Supabase reset behavior
+- Tables added to reset-safe coverage: `purchase_order`, `purchase_order_item`, `purchase_order_container`, `purchase_order_material_type`, `purchase_finance_record`
+- Commands rerun:
+  - `npm run db:reset`
+  - `python3 scripts/export_basic_info_seeds.py`
+  - `python3 scripts/verify_basic_info_seeds.py`
+  - `npm run test:regression:reset-safe`
+- Result: Pass
+- Summary metrics: Purchase seed export passed, Purchase seed verification passed, and reset-safe regression passed with `reset_safe_checks: 30`
+- Problems found during the rollout:
+  - new Purchase seed files were initially missing from `db/supabase/config.toml` `sql_paths`, so reset did not restore them
+  - historical Purchase tables initially lacked public write coverage, so reset-safe fixture creation failed with `42501 permission denied`
+  - `purchase_order_container` was initially missing execution-layer fields required by realistic fixture creation
+  - `purchase_finance_record` is trigger-derived from `purchase_order`, so naive seed replay caused duplicate-key failures until the seed was made idempotent
+  - retrying reset through full `npm run db:reset` after a local Supabase `502` could wipe newly exported Purchase fixture seeds by re-exporting an empty post-reset state
+- Fix summary:
+  - added Purchase seed files to export and verify scripts
+  - added Purchase seed files to `db/supabase/config.toml` load order
+  - extended reset-safe regression to create and restore Purchase fixtures
+  - added Purchase RLS/grants for local browser-write parity
+  - added missing `purchase_order_container` execution fields
+  - made `purchase_finance_record` seed replay idempotent
+  - changed reset-safe tooling to default to `npm run db:reset` while preserving Purchase seed files across fallback/reset retry paths
+- Follow-up rule recorded in system doc: every new editable table must now be wired into migration, seed export, seed verify, seed load order, reset-safe fixture creation, restore assertions, and full regression in the same change
+
 ## Template
 
 Copy this section for each regression day.

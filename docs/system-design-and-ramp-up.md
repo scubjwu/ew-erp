@@ -174,6 +174,8 @@ Current system interaction is mostly built on this pattern:
 - daily regression execution history now has its own canonical record in [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md), while [`/Users/palayapan/Documents/ew-erp/docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md) is planning-only
 - the required daily regression loop is now explicitly `run gate -> log failures -> fix -> log fix summary -> rerun -> commit after green`
 - `scripts/run_local_regression.mjs` and `scripts/run_reset_safe_regression.mjs` now surface actionable diagnostics when localhost or local Supabase HTTP access is blocked by a sandboxed environment, instead of failing with low-signal transport errors alone
+- `Purchase` database tables `purchase_order`, `purchase_order_item`, `purchase_order_container`, `purchase_order_material_type`, and `purchase_finance_record` are now part of the reset-safe seed workflow
+- current Purchase regression coverage is database-layer only: seed export, seed verify, reset-safe restore, derived finance-record sync, and material-vendor resolution are covered; route/UI CRUD regression is not yet part of the daily gate because the Purchase page family is not delivered yet
 
 ## UI Standards
 
@@ -584,9 +586,40 @@ Current `npm run test:regression` covers:
 - filtered export data-source validation
 - representative `Basic Info` reset-safe restore assertions across company profile, region, city, depot, financial code, condition, size, type, container-number-rule, and operation-price seed tables, plus zero-row assertions for empty managed child tables
 - reset-safe persistence regression for `users`, `vendors`, `material_vendors`, `lessees`, `container_owners`, and their attachment child tables
+- reset-safe persistence regression for `purchase_order`, `purchase_order_item`, `purchase_order_container`, `purchase_order_material_type`, and `purchase_finance_record`
 - verification that seed export captures newly created local rows before reset
 - verification that those rows still exist after `supabase db reset`
 - cleanup of temporary regression rows after the run
+
+### Required reset-safe checklist for every new editable table
+
+When a new editable table or child table is added, the change is not complete until all of the following are done in the same change:
+
+1. add the migration and run `npm run db:reset`
+2. decide whether the table is source-of-truth seed data or a derived table
+3. add the table to `scripts/export_basic_info_seeds.py` `TABLE_SPECS`
+4. add stable FK export mapping in `build_select_sql` and `render_column_value`
+5. add the table to `DO_NOT_PRESERVE_WHEN_EMPTY` only if empty local state should overwrite old seed content
+6. add the generated seed file to `db/supabase/config.toml` `db.seed.sql_paths`
+7. extend `scripts/run_reset_safe_regression.mjs` so it creates a fixture row for the new table when that table should survive reset
+8. extend the restore assertions so reset-safe verifies the row came back after reset
+9. if the new table is derived by trigger or function, decide whether it should be seeded at all
+10. if the derived table is seeded, make the seed idempotent with `ON CONFLICT DO NOTHING` or equivalent
+11. rerun `python3 scripts/export_basic_info_seeds.py`
+12. rerun `python3 scripts/verify_basic_info_seeds.py`
+13. rerun `npm run test:regression:reset-safe`
+14. rerun full `npm run test:regression` before calling the change done
+
+### Purchase table lessons learned
+
+The `2026-04-03` Purchase table rollout exposed several failure modes that must be treated as standard warnings for future table creation:
+
+- adding a table to export/verify is not enough; if the seed file is missing from `db/supabase/config.toml` `sql_paths`, reset will never restore it
+- historical tables may still have old grants/RLS; reset-safe fixtures can fail with `42501 permission denied` even when the schema itself is correct
+- child execution tables often need more fields than the first draft assumes; for Purchase, `purchase_order_container` was initially missing business columns needed by real fixture creation
+- derived tables should not be blindly seeded like source tables; `purchase_finance_record` is auto-created by trigger, so its seed had to be made idempotent to avoid duplicate-key failures during reset
+- retrying `npm run db:reset` inside reset-safe can accidentally re-export empty state and wipe fixture seed files; if retry logic is needed, preserve the generated seed files first and avoid a second export pass
+- default local reset for the team should stay `npm run db:reset`; use bare `supabase db reset` only as a fallback inside tooling after seed files have already been exported and preserved
 
 Required daily regression loop:
 
