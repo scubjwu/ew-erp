@@ -44,10 +44,12 @@ Current state:
 - `Partners Center` is now delivered as the module entry page
 - `Customers` is the main active and usable partner CRUD flow
 - legacy `/customers*` routes now redirect into `/partners/customers*`
-- `Vendors`, `Material Vendors`, `Lessees`, and `Container Owners` now have dedicated standalone master-data tables and attachment child tables in migrations
+- `Vendors` now has a delivered list/create/view/edit flow on top of the standalone `vendors` schema
+- `Material Vendors`, `Lessees`, and `Container Owners` now have dedicated standalone master-data tables and attachment child tables in migrations
 - those four categories also now have repo seed data and attachment seed rows for local development
-- those four categories remain page-level placeholders; schema and test data exist, but CRUD delivery is not built yet
-- `Vendors` placeholder copy and center-page metadata still describe the category as not backed by an active master-data table; treat that as stale UI copy, not schema truth
+- `Material Vendors` now has a delivered list/create/view/edit flow on top of the standalone `material_vendors` schema
+- `Lessees` now has a delivered list/create/view/edit flow on top of the standalone `lessees` schema
+- `Container Owners` now has a delivered list/create/view/edit flow on top of the standalone `container_owners` schema
 - `Lessor` still remains placeholder-only with no dedicated table yet
 
 ### Current workflow pattern
@@ -61,7 +63,7 @@ For active partner CRUD pages, the working pattern is:
 5. schema and permissions are provided by migrations
 6. seed coverage is added when local reset survival is required
 
-At the moment, `Customers` is the only strong delivered reference for this pattern inside `Partners`.
+At the moment, `Customers` and `Vendors` are the strongest delivered references for this pattern inside `Partners`.
 
 ## Center Page
 
@@ -74,21 +76,19 @@ Current center-page references:
 
 Important implementation note:
 
-- `types/partners.ts` still only maps `Customers` to a count-backed table name
-- the center page therefore mixes one real count-backed category with several schema-ready-but-unmapped categories
-- the current real count-backed partner card is still only `Customers`
-- `Vendors` metadata copy is stale relative to today's schema truth
+- `types/partners.ts` now maps both `Customers` and `Vendors` to count-backed table names
+- the center page still mixes active CRUD categories with the remaining scaffold-only `Lessor` section
 
 ## Section Status
 
 | Section | Current route state | Current data state | Status |
 | --- | --- | --- | --- |
 | Customers | Active page | Backed by `customers` and `customer_certificate_links` | Delivered |
-| Vendors | Placeholder page | Backed by `vendors`, `vendor_attachment_links`, and repo seed data | Schema + Seeds Ready |
-| Lessee | Placeholder page | Backed by `lessees`, `lessee_attachment_links`, and repo seed data | Schema + Seeds Ready |
+| Vendors | Active page family with list/create/view/edit | Backed by `vendors`, `vendor_attachment_links`, and repo seed data | Delivered |
+| Lessee | Active page family with list/create/view/edit | Backed by `lessees`, `lessee_attachment_links`, and repo seed data | Delivered |
 | Lessor | Placeholder page | No delivered CRUD flow yet | Scaffold Only |
-| Material Vendors | Placeholder page | Backed by `material_vendors`, `material_vendor_attachment_links`, and repo seed data | Schema + Seeds Ready |
-| Container Owners | Placeholder page | Backed by `container_owners`, `container_owner_attachment_links`, and repo seed data | Schema + Seeds Ready |
+| Material Vendors | Active page family with list/create/view/edit | Backed by `material_vendors`, `material_vendor_attachment_links`, and repo seed data | Delivered |
+| Container Owners | Active page family with list/create/view/edit | Backed by `container_owners`, `container_owner_attachment_links`, and repo seed data | Delivered |
 
 ## Customers Workflow
 
@@ -155,19 +155,22 @@ Important migrations include:
 
 ### Current status
 
-`Vendors` is not yet a delivered CRUD page, but it now has a dedicated standalone schema foundation.
+`Vendors` is now an active partner CRUD surface built on a dedicated standalone schema foundation.
 
 Current route:
 
 - [`app/partners/vendors/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/page.tsx)
+- [`app/partners/vendors/new/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/new/page.tsx)
+- [`app/partners/vendors/[id]/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/[id]/page.tsx)
+- [`app/partners/vendors/[id]/edit/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/[id]/edit/page.tsx)
 
 Current state:
 
-- route placeholder exists
 - `vendors` and `vendor_attachment_links` now exist as the source-of-truth schema foundation
+- the list page now supports server-side filtering, pagination, `View/Edit`, and CSV export
+- detail/edit pages now use tabbed sections for basic info, bank information, settlement, and attachments
 - repo seed data now includes sample vendor rows plus attachment rows for local reset-safe page development
-- future vendor delivery should build UI on top of that standalone schema instead of reviving legacy `suppliers`
-- current UI copy saying the workflow is not backed by master data is stale and should not be used as implementation truth
+- vendor workflow now builds on the standalone schema instead of reviving legacy `suppliers`
 
 Prepared schema references:
 
@@ -198,10 +201,7 @@ Engineers must not assume that a visible route under `/partners` means the workf
 
 Current placeholder routes:
 
-- [`app/partners/lessee/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/lessee/page.tsx)
 - [`app/partners/lessor/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/lessor/page.tsx)
-- [`app/partners/material-vendors/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/material-vendors/page.tsx)
-- [`app/partners/container-owners/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/container-owners/page.tsx)
 - shared placeholder UI: [`components/partners/partner-section-placeholder.tsx`](/Users/palayapan/Documents/ew-erp/components/partners/partner-section-placeholder.tsx)
 
 These routes establish navigation and future module boundaries, but they are not reference implementations for delivered CRUD behavior.
@@ -263,7 +263,7 @@ Current seed workflow references:
 
 Important note:
 
-- customer coverage remains the only delivered UI-backed partner workflow
+- customer and vendor coverage are the current delivered UI-backed partner workflows
 - however, schema-ready partner tables for `vendors`, `material_vendors`, `lessees`, and `container_owners` now also have test-data seeds in repo for future page work
 - those new partner seed files currently exist as repo-authored seed inputs; seed export / verify tooling alignment should still be validated before treating them as fully automated reset coverage
 
@@ -275,7 +275,7 @@ Current module rules:
 
 - use business-facing English titles
 - align center-page card design with delivered `System Codes` style
-- for new partner CRUD pages, use `Customers` as the internal reference implementation
+- for new partner CRUD pages, use `Customers` and `Vendors` as the internal reference implementations
 - do not use placeholder pages as design standards
 
 ## Reference Implementations
@@ -293,6 +293,15 @@ Open these first:
   - [`app/customers/actions.ts`](/Users/palayapan/Documents/ew-erp/app/customers/actions.ts)
   - [`components/customers/customers-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/customers/customers-dashboard.tsx)
   - [`types/customer.ts`](/Users/palayapan/Documents/ew-erp/types/customer.ts)
+- vendor CRUD:
+  - [`app/partners/vendors/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/page.tsx)
+  - [`app/partners/vendors/new/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/new/page.tsx)
+  - [`app/partners/vendors/[id]/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/[id]/page.tsx)
+  - [`app/partners/vendors/[id]/edit/page.tsx`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/[id]/edit/page.tsx)
+  - [`app/partners/vendors/actions.ts`](/Users/palayapan/Documents/ew-erp/app/partners/vendors/actions.ts)
+  - [`components/vendors/vendors-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/vendors/vendors-dashboard.tsx)
+  - [`components/vendors/vendor-form.tsx`](/Users/palayapan/Documents/ew-erp/components/vendors/vendor-form.tsx)
+  - [`types/vendor.ts`](/Users/palayapan/Documents/ew-erp/types/vendor.ts)
 
 ## Common Failure Modes
 
@@ -374,3 +383,4 @@ Daily execution planning does not belong in this module doc. Track day-by-day wo
 
 - `2026-03-31` — Initial `Partners` module document created.
 - `2026-04-01` — Added schema-ready standalone partner tables and seed data for `vendors`, `material_vendors`, `lessees`, and `container_owners`; documented the remaining placeholder-page and metadata drift until CRUD delivery starts.
+- `2026-04-02` — Delivered the `container_owners` page family with list/create/view/edit, tabbed detail layout, and CSV export; updated module status to show only `Lessor` as scaffold-only.

@@ -35,9 +35,10 @@ export const PARTNER_SECTIONS: readonly PartnerSectionMeta[] = [
     slug: "vendors",
     title: "Vendors",
     description:
-      "Vendor workflow is not currently backed by an active master-data table.",
+      "Maintain container factories and dealer partners that supply container equipment.",
     href: "/partners/vendors",
     countLabel: "managed vendors",
+    tableName: "vendors",
   },
   {
     slug: "lessee",
@@ -46,6 +47,7 @@ export const PARTNER_SECTIONS: readonly PartnerSectionMeta[] = [
       "Maintain lessee counterparties for lease-out operations and commercial management.",
     href: "/partners/lessee",
     countLabel: "managed lessees",
+    tableName: "lessees",
   },
   {
     slug: "lessor",
@@ -62,6 +64,7 @@ export const PARTNER_SECTIONS: readonly PartnerSectionMeta[] = [
       "Maintain material supply partners used for repair, refurbishment, and operating support.",
     href: "/partners/material-vendors",
     countLabel: "managed material vendors",
+    tableName: "material_vendors",
   },
   {
     slug: "container-owners",
@@ -70,6 +73,7 @@ export const PARTNER_SECTIONS: readonly PartnerSectionMeta[] = [
       "Maintain ownership counterparties and principals connected to container assets.",
     href: "/partners/container-owners",
     countLabel: "managed container owners",
+    tableName: "container_owners",
   },
 ] as const;
 

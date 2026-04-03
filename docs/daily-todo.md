@@ -264,10 +264,151 @@ Copy this section for each working day.
   - Next concrete step: Select one of `vendors`, `material_vendors`, `lessees`, or `container_owners` for the first CRUD implementation
 
 - [ ] Update partner center metadata and placeholder copy to match schema reality
-  - Status: Carried Forward
+  - Status: Done
   - Source conversation/topic: Partner doc sync follow-up
+  - Owner: Codex
+  - Next concrete step: N/A
+
+## Date: 2026-04-02
+
+### Today's priorities
+
+- [x] Replace the placeholder `Vendors` route with a real CRUD page family
+- [x] Match the depot-style list/detail presentation for `Vendors`
+- [x] Add CSV export for `Vendors`
+- [x] Deliver the `Material Vendors` page family using the same pattern as `Vendors`
+- [x] Deliver the `Lessee` page family using the same pattern as `Vendors`
+- [x] Deliver the `Container Owners` page family using the same pattern as `Vendors`
+- [x] Expand the `users` schema for upcoming User Management work
+- [x] Deliver the first `System Settings` CRUD page family for `User Management`
+- [x] Fix `users` browser-write permission gap for local User Management create/edit
+
+### Action Items from conversations
+
+- [x] Topic: Deliver the first real page on top of the new standalone partner schema
+  - Status: Done
+  - Source conversation/topic: Build Vendors UI on top of the new `vendors` table
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [ ] Topic: Verify the new `Vendors` page against a local database with the latest migrations and seeds applied
+  - Status: Carried Forward
+  - Source conversation/topic: Vendors UI delivery
   - Owner: User + Codex
-  - Next concrete step: Add the correct table mapping and replace stale `Vendors` placeholder copy
+  - Next concrete step: Run `supabase db push`, `supabase db reset`, then smoke-test list/create/view/edit/export for `/partners/vendors`
+
+- [x] Topic: Pick the next schema-ready partner page to implement
+  - Status: Done
+  - Source conversation/topic: Partner delivery sequence after Vendors
+  - Owner: User + Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Deliver the `Material Vendors` page family on top of the new `material_vendors` table
+  - Status: Done
+  - Source conversation/topic: Build Material Vendors UI using the Vendors format
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Deliver the `Lessee` page family on top of the new `lessees` table
+  - Status: Done
+  - Source conversation/topic: Build Lessee UI using the Vendors format
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Deliver the `Container Owners` page family on top of the new `container_owners` table
+  - Status: Done
+  - Source conversation/topic: Build Container Owners UI using the Vendors format
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Expand `public.users` for User Management preparation
+  - Status: Done
+  - Source conversation/topic: Extend the existing `users` table before building User Management
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [x] Topic: Deliver `User Management` under `System Settings`
+  - Status: Done
+  - Source conversation/topic: Build the main and detail pages for managing users
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [ ] Topic: Verify the new `Container Owners` page against a local database with the latest migrations and seeds applied
+  - Status: Carried Forward
+  - Source conversation/topic: Container Owners UI delivery
+  - Owner: User + Codex
+  - Next concrete step: Smoke-test list/create/view/edit/export for `/partners/container-owners`
+
+- [ ] Topic: Verify the expanded `users` schema and seed data on a local database
+  - Status: Carried Forward
+  - Source conversation/topic: User Management schema preparation
+  - Owner: User + Codex
+  - Next concrete step: Run `supabase db push` or `supabase db reset`, then confirm `user_code`, `status`, and the new management fields exist in `public.users`
+
+- [ ] Topic: Verify the new `User Management` page against a local database with the latest migrations applied
+  - Status: Carried Forward
+  - Source conversation/topic: User Management UI delivery
+  - Owner: User + Codex
+  - Next concrete step: Smoke-test list/create/view/edit/export for `/settings/users`
+
+- [x] Topic: Restore `users` table write grants required by browser-based User Management CRUD
+  - Status: Done
+  - Source conversation/topic: `permission denied for table users` during Create New User
+  - Owner: Codex
+  - Next concrete step: N/A
+
+### In Progress
+
+- [ ] None
+
+### Blocked
+
+- [ ] None
+
+### Done
+
+- [x] Added `vendors` list page with depot-style search, table layout, and pagination
+- [x] Added vendor detail/new/edit route family under `/partners/vendors`
+- [x] Added tabbed vendor form for basic info, bank information, settlement, and attachments
+- [x] Added vendor CSV export
+- [x] Updated partner center metadata so `Vendors` is count-backed
+- [x] Synced system and partners docs to the delivered `Vendors` UI
+- [x] Added `material_vendors` list page with search on vendor code, legal company name, material category, and default-vendor flag
+- [x] Added material-vendor detail/new/edit route family under `/partners/material-vendors`
+- [x] Added tabbed material-vendor form for basic info, bank information, settlement, and attachments
+- [x] Added material-vendor CSV export
+- [x] Updated partner center metadata and tab titles so `Material Vendors` is count-backed and route-aware
+- [x] Added `lessees` list page with search on lessee code, legal company name, and region
+- [x] Added lessee detail/new/edit route family under `/partners/lessee`
+- [x] Added tabbed lessee form for basic info, bank information, settlement, and attachments
+- [x] Added lessee CSV export
+- [x] Updated partner center metadata and tab titles so `Lessee` is count-backed and route-aware
+
+### Carry Forward to next day
+
+- [ ] Smoke-test the delivered `Vendors` page against a migrated local database
+  - Status: Carried Forward
+  - Source conversation/topic: Vendors CRUD rollout
+  - Owner: User + Codex
+  - Next concrete step: Apply migrations and seeds locally, then test `/partners/vendors`
+
+- [ ] Choose the next partner CRUD page
+  - Status: Carried Forward
+  - Source conversation/topic: Partners rollout after Vendors
+  - Owner: User + Codex
+  - Next concrete step: Select `container_owners` or return to `lessor`
+
+- [ ] Smoke-test the delivered `Material Vendors` page against a migrated local database
+  - Status: Carried Forward
+  - Source conversation/topic: Material Vendors CRUD rollout
+  - Owner: User + Codex
+  - Next concrete step: Apply migrations and seeds locally, then test `/partners/material-vendors`
+
+- [ ] Smoke-test the delivered `Lessee` page against a migrated local database
+  - Status: Carried Forward
+  - Source conversation/topic: Lessee CRUD rollout
+  - Owner: User + Codex
+  - Next concrete step: Apply migrations and seeds locally, then test `/partners/lessee`
 
 ### Deferred
 

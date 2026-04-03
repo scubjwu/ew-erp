@@ -87,6 +87,66 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
     };
   }
   if (pathname.startsWith("/partners")) {
+    if (pathname.startsWith("/partners/container-owners/") && pathname.endsWith("/edit")) {
+      return {
+        id: "partner-container-owner-edit",
+        title: "Edit Container Owner",
+        href: pathname,
+      };
+    }
+    if (pathname === "/partners/container-owners/new") {
+      return {
+        id: "partner-container-owner-new",
+        title: "New Container Owner",
+        href: pathname,
+      };
+    }
+    if (pathname.match(/^\/partners\/container-owners\/[^/]+$/)) {
+      return {
+        id: "partner-container-owner-view",
+        title: "Container Owner Detail",
+        href: pathname,
+      };
+    }
+    if (pathname.startsWith("/partners/lessee/") && pathname.endsWith("/edit")) {
+      return { id: "partner-lessee-edit", title: "Edit Lessee", href: pathname };
+    }
+    if (pathname === "/partners/lessee/new") {
+      return { id: "partner-lessee-new", title: "New Lessee", href: pathname };
+    }
+    if (pathname.match(/^\/partners\/lessee\/[^/]+$/)) {
+      return { id: "partner-lessee-view", title: "Lessee Detail", href: pathname };
+    }
+    if (pathname.startsWith("/partners/material-vendors/") && pathname.endsWith("/edit")) {
+      return {
+        id: "partner-material-vendor-edit",
+        title: "Edit Material Vendor",
+        href: pathname,
+      };
+    }
+    if (pathname === "/partners/material-vendors/new") {
+      return {
+        id: "partner-material-vendor-new",
+        title: "New Material Vendor",
+        href: pathname,
+      };
+    }
+    if (pathname.match(/^\/partners\/material-vendors\/[^/]+$/)) {
+      return {
+        id: "partner-material-vendor-view",
+        title: "Material Vendor Detail",
+        href: pathname,
+      };
+    }
+    if (pathname.startsWith("/partners/vendors/") && pathname.endsWith("/edit")) {
+      return { id: "partner-vendor-edit", title: "Edit Vendor", href: pathname };
+    }
+    if (pathname === "/partners/vendors/new") {
+      return { id: "partner-vendor-new", title: "New Vendor", href: pathname };
+    }
+    if (pathname.match(/^\/partners\/vendors\/[^/]+$/)) {
+      return { id: "partner-vendor-view", title: "Vendor Detail", href: pathname };
+    }
     if (pathname.startsWith("/partners/customers/") && pathname !== "/partners/customers/new") {
       return { id: "partner-customer-edit", title: "Edit Customer", href: pathname };
     }
@@ -107,6 +167,18 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
     return { id: "partners", title: "Partners", href: "/partners" };
   }
   if (pathname.startsWith("/settings")) {
+    if (pathname.startsWith("/settings/users/") && pathname.endsWith("/edit")) {
+      return { id: "settings-user-edit", title: "Edit User", href: pathname };
+    }
+    if (pathname === "/settings/users/new") {
+      return { id: "settings-user-new", title: "New User", href: pathname };
+    }
+    if (pathname.match(/^\/settings\/users\/[^/]+$/)) {
+      return { id: "settings-user-view", title: "User Detail", href: pathname };
+    }
+    if (pathname === "/settings/users") {
+      return { id: "settings-users", title: "User Management", href: pathname };
+    }
     return { id: "settings", title: "System Settings", href: "/settings" };
   }
   return null;
