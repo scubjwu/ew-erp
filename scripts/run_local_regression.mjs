@@ -138,6 +138,18 @@ async function main() {
 
   const createdIds = {
     userId: null,
+    regionId: null,
+    cityId: null,
+    companyId: null,
+    companyBankAccountId: null,
+    costCodeId: null,
+    revenueCodeId: null,
+    conditionCodeId: null,
+    sizeCodeId: null,
+    typeCodeId: null,
+    containerNumberRuleId: null,
+    operationPriceId: null,
+    depotId: null,
     vendorId: null,
     materialVendorId: null,
     lesseeId: null,
@@ -176,6 +188,404 @@ async function main() {
     if (!china?.id || !usa?.id) {
       fail("Could not resolve required region ids");
     }
+
+    const createdRegion = await must(
+      supabase
+        .from("region_codes")
+        .insert({
+          region_code: `RG${last4}`,
+          region_name: `Regression Region ${stamp}`,
+          description: "regression-create",
+          status: "ACTIVE",
+        })
+        .select("id, region_code")
+        .single(),
+      "create regression region"
+    );
+    createdIds.regionId = createdRegion.id;
+
+    await must(
+      supabase
+        .from("region_codes")
+        .update({
+          region_name: `Regression Region ${stamp} Updated`,
+          description: "regression-updated",
+          status: "INACTIVE",
+        })
+        .eq("id", createdRegion.id)
+        .select("id")
+        .single(),
+      "update regression region"
+    );
+
+    const createdCity = await must(
+      supabase
+        .from("cities")
+        .insert({
+          city_code: `RG${last4}`,
+          city_name: `Regression City ${stamp}`,
+          region_id: createdRegion.id,
+          region: `Regression Region ${stamp} Updated`,
+          country: "RegressionLand",
+          remark: "regression-create",
+        })
+        .select("id, city_code")
+        .single(),
+      "create regression city"
+    );
+    createdIds.cityId = createdCity.id;
+
+    await must(
+      supabase
+        .from("cities")
+        .update({
+          city_name: `Regression City ${stamp} Updated`,
+          remark: "regression-updated",
+        })
+        .eq("id", createdCity.id)
+        .select("id")
+        .single(),
+      "update regression city"
+    );
+
+    const createdCompany = await must(
+      supabase
+        .from("company_profiles")
+        .insert({
+          company_name_cn: `回归公司${stamp}`,
+          company_name_en: `Regression Company ${stamp}`,
+          address_cn: `回归地址${stamp}`,
+          address_en: `Regression Address ${stamp}`,
+          phone: `8000${last4}`,
+          email: `regression.company.${stamp}@example.com`,
+          location_code: `LOC${last4}`,
+          status: "ACTIVE",
+          remark: "regression-create",
+        })
+        .select("id, company_name_en")
+        .single(),
+      "create regression company"
+    );
+    createdIds.companyId = createdCompany.id;
+
+    await must(
+      supabase
+        .from("company_profiles")
+        .update({
+          company_name_en: `Regression Company ${stamp} Updated`,
+          remark: "regression-updated",
+        })
+        .eq("id", createdCompany.id)
+        .select("id")
+        .single(),
+      "update regression company"
+    );
+
+    const createdCompanyBankAccount = await must(
+      supabase
+        .from("company_bank_accounts")
+        .insert({
+          company_profile_id: createdCompany.id,
+          account_name: `Regression Company Account ${stamp}`,
+          account_number: `ACCT${last5}`,
+          bank_name: "Regression Bank",
+          bank_code: "RGBK",
+          bank_address: "Regression Bank Address",
+          swift_code: `SWF${last5}`,
+          remark: "regression-create",
+        })
+        .select("id")
+        .single(),
+      "create regression company bank account"
+    );
+    createdIds.companyBankAccountId = createdCompanyBankAccount.id;
+
+    const createdCostCode = await must(
+      supabase
+        .from("cost_codes")
+        .insert({
+          cost_code: `QC${last4}`,
+          cost_name: `Regression Cost ${stamp}`,
+          description: "regression-create",
+          status: "INACTIVE",
+        })
+        .select("id, cost_code")
+        .single(),
+      "create regression cost code"
+    );
+    createdIds.costCodeId = createdCostCode.id;
+
+    await must(
+      supabase
+        .from("cost_codes")
+        .update({
+          cost_name: `Regression Cost ${stamp} Updated`,
+          description: "regression-updated",
+        })
+        .eq("id", createdCostCode.id)
+        .select("id")
+        .single(),
+      "update regression cost code"
+    );
+
+    const createdRevenueCode = await must(
+      supabase
+        .from("revenue_codes")
+        .insert({
+          revenue_code: `QR${last4}`,
+          revenue_name: `Regression Revenue ${stamp}`,
+          description: "regression-create",
+          status: "INACTIVE",
+        })
+        .select("id, revenue_code")
+        .single(),
+      "create regression revenue code"
+    );
+    createdIds.revenueCodeId = createdRevenueCode.id;
+
+    await must(
+      supabase
+        .from("revenue_codes")
+        .update({
+          revenue_name: `Regression Revenue ${stamp} Updated`,
+          description: "regression-updated",
+        })
+        .eq("id", createdRevenueCode.id)
+        .select("id")
+        .single(),
+      "update regression revenue code"
+    );
+
+    const createdConditionCode = await must(
+      supabase
+        .from("container_condition_codes")
+        .insert({
+          condition_code: `RC${last4}`,
+          condition_name: `Regression Condition ${stamp}`,
+          description: "regression-create",
+          status: "INACTIVE",
+        })
+        .select("id, condition_code")
+        .single(),
+      "create regression condition code"
+    );
+    createdIds.conditionCodeId = createdConditionCode.id;
+
+    await must(
+      supabase
+        .from("container_condition_codes")
+        .update({
+          condition_name: `Regression Condition ${stamp} Updated`,
+          description: "regression-updated",
+        })
+        .eq("id", createdConditionCode.id)
+        .select("id")
+        .single(),
+      "update regression condition code"
+    );
+
+    const createdSizeCode = await must(
+      supabase
+        .from("container_size_codes")
+        .insert({
+          size_code: `9${last4}`,
+          size_name: `Regression Size ${stamp}`,
+          remark: `Regression Size ${stamp}`,
+          status: "ACTIVE",
+        })
+        .select("id, size_code")
+        .single(),
+      "create regression size code"
+    );
+    createdIds.sizeCodeId = createdSizeCode.id;
+
+    await must(
+      supabase
+        .from("container_size_codes")
+        .update({
+          size_name: `Regression Size ${stamp} Updated`,
+          remark: `Regression Size ${stamp} Updated`,
+        })
+        .eq("id", createdSizeCode.id)
+        .select("id")
+        .single(),
+      "update regression size code"
+    );
+
+    const createdTypeCode = await must(
+      supabase
+        .from("container_type_codes")
+        .insert({
+          type_code: `RT${last4}`,
+          type_description: `Regression Type ${stamp}`,
+          remark: "regression-create",
+          status: "INACTIVE",
+        })
+        .select("id, type_code")
+        .single(),
+      "create regression type code"
+    );
+    createdIds.typeCodeId = createdTypeCode.id;
+
+    await must(
+      supabase
+        .from("container_type_codes")
+        .update({
+          type_description: `Regression Type ${stamp} Updated`,
+          remark: "regression-updated",
+        })
+        .eq("id", createdTypeCode.id)
+        .select("id")
+        .single(),
+      "update regression type code"
+    );
+
+    const createdContainerNumberRule = await must(
+      supabase
+        .from("container_number_rules")
+        .insert({
+          container_size_code_id: createdSizeCode.id,
+          prefix: `RG${last4}`,
+          serial_length: 5,
+          start_serial: 0,
+          end_serial: 99999,
+          current_serial: 7,
+          status: "INACTIVE",
+          example_container_number: `RG${last4}00008`,
+          remark: "regression-create",
+        })
+        .select("id, prefix")
+        .single(),
+      "create regression container number rule"
+    );
+    createdIds.containerNumberRuleId = createdContainerNumberRule.id;
+
+    await must(
+      supabase
+        .from("container_number_rules")
+        .update({
+          current_serial: 8,
+          example_container_number: `RG${last4}00009`,
+          remark: "regression-updated",
+        })
+        .eq("id", createdContainerNumberRule.id)
+        .select("id")
+        .single(),
+      "update regression container number rule"
+    );
+
+    const createdOperationPrice = await must(
+      supabase
+        .from("operation_price_configs")
+        .insert({
+          container_size_code_id: createdSizeCode.id,
+          container_condition_code_id: createdConditionCode.id,
+          addon_price: 88.5,
+          currency: "USD",
+          effective_from: "2026-04-02",
+          effective_to: null,
+          status: "INACTIVE",
+          remark: "regression-create",
+        })
+        .select("id")
+        .single(),
+      "create regression operation price"
+    );
+    createdIds.operationPriceId = createdOperationPrice.id;
+
+    await must(
+      supabase
+        .from("operation_price_configs")
+        .update({
+          addon_price: 99.5,
+          remark: "regression-updated",
+        })
+        .eq("id", createdOperationPrice.id)
+        .select("id")
+        .single(),
+      "update regression operation price"
+    );
+
+    const createdDepot = await must(
+      supabase
+        .from("depots")
+        .insert({
+          city_id: createdCity.id,
+          country_name: "RegressionLand",
+          country_code: "RG",
+          depot_code: `RG${last4}001`,
+          depot_name: `Regression Depot ${stamp}`,
+          depot_type: "CONTRACT",
+          depot_address: "Regression Depot Address",
+          contact_person: "Regression Depot PIC",
+          contact_email: `regression.depot.${stamp}@example.com`,
+          gate_email: `regression.depot.gate.${stamp}@example.com`,
+          account_email: `regression.depot.account.${stamp}@example.com`,
+          depot_tel: "7008009000",
+          status: "NORMAL",
+          is_primary_depot: false,
+          gate_in_20_cost: 10,
+          gate_out_20_cost: 11,
+          lift_in_20_cost: 12,
+          lift_out_20_cost: 13,
+          gate_in_40_cost: 14,
+          gate_out_40_cost: 15,
+          lift_in_40_cost: 16,
+          lift_out_40_cost: 17,
+          storage_rate_20: 1,
+          storage_rate_40: 2,
+          labour_cost: 3,
+          free_days: 5,
+          currency: "USD",
+          data_updated_on: new Date().toISOString(),
+          remark: "regression-create",
+          depot_attachment_url: `https://example.com/regression-depot-${stamp}.pdf`,
+        })
+        .select("id, depot_code")
+        .single(),
+      "create regression depot"
+    );
+    createdIds.depotId = createdDepot.id;
+
+    await must(
+      supabase
+        .from("depot_additional_costs")
+        .insert({
+          depot_id: createdDepot.id,
+          cost_item: "Regression Fuel Surcharge",
+          rate: 12.34,
+          currency: "USD",
+          remark: "regression-create",
+        })
+        .select("id")
+        .single(),
+      "create regression depot additional cost"
+    );
+
+    await must(
+      supabase
+        .from("depot_attachment_links")
+        .insert({
+          depot_id: createdDepot.id,
+          url: `https://example.com/regression-depot-attachment-${stamp}.pdf`,
+        })
+        .select("id")
+        .single(),
+      "create regression depot attachment"
+    );
+
+    await must(
+      supabase
+        .from("depots")
+        .update({
+          depot_name: `Regression Depot ${stamp} Updated`,
+          remark: "regression-updated",
+        })
+        .eq("id", createdDepot.id)
+        .select("id")
+        .single(),
+      "update regression depot"
+    );
 
     const createdUser = await must(
       supabase
@@ -487,6 +897,259 @@ async function main() {
 
     const checks = [];
 
+    const regionsSearch = await must(
+      supabase
+        .from("region_codes")
+        .select("id")
+        .or(`region_code.ilike.%${createdRegion.region_code}%,region_name.ilike.%Regression Region ${stamp} Updated%,description.ilike.%regression-updated%`),
+      "search regression regions"
+    );
+    checks.push(["regions_search", regionsSearch.length === 1]);
+
+    const regionsExportRows = await must(
+      supabase
+        .from("region_codes")
+        .select("id")
+        .ilike("region_code", `%${createdRegion.region_code}%`),
+      "export datasource regions"
+    );
+    checks.push(["regions_filtered_export_datasource", regionsExportRows.length === 1]);
+
+    const citiesSearch = await must(
+      supabase
+        .from("cities")
+        .select("id")
+        .ilike("city_code", `%${createdCity.city_code}%`)
+        .ilike("city_name", `%Regression City ${stamp} Updated%`)
+        .eq("region_id", createdRegion.id)
+        .ilike("country", "%RegressionLand%"),
+      "search regression cities"
+    );
+    checks.push(["cities_search", citiesSearch.length === 1]);
+
+    const citiesExportRows = await must(
+      supabase
+        .from("cities")
+        .select("id")
+        .eq("region_id", createdRegion.id)
+        .ilike("city_code", `%${createdCity.city_code}%`),
+      "export datasource cities"
+    );
+    checks.push(["cities_filtered_export_datasource", citiesExportRows.length === 1]);
+
+    const companiesSearch = await must(
+      supabase
+        .from("company_profiles")
+        .select("id")
+        .ilike("company_name_cn", `%回归公司${stamp}%`)
+        .ilike("company_name_en", `%Regression Company ${stamp} Updated%`)
+        .or(`address_cn.ilike.%回归地址${stamp}%,address_en.ilike.%Regression Address ${stamp}%`)
+        .ilike("phone", `%${`8000${last4}`}%`)
+        .ilike("email", `%regression.company.${stamp}@example.com%`),
+      "search regression companies"
+    );
+    checks.push(["companies_search", companiesSearch.length === 1]);
+
+    const companiesExportRows = await must(
+      supabase
+        .from("company_profiles")
+        .select("id")
+        .ilike("company_name_en", `%Regression Company ${stamp} Updated%`),
+      "export datasource companies"
+    );
+    const companyBankAccounts = await must(
+      supabase
+        .from("company_bank_accounts")
+        .select("id")
+        .eq("company_profile_id", createdCompany.id),
+      "export datasource company bank accounts"
+    );
+    checks.push([
+      "companies_filtered_export_datasource",
+      companiesExportRows.length === 1 && companyBankAccounts.length === 1,
+    ]);
+
+    const costCodesSearch = await must(
+      supabase
+        .from("cost_codes")
+        .select("id")
+        .ilike("cost_code", `%${createdCostCode.cost_code}%`)
+        .ilike("cost_name", `%Regression Cost ${stamp} Updated%`)
+        .eq("status", "INACTIVE"),
+      "search regression cost codes"
+    );
+    checks.push(["cost_codes_search", costCodesSearch.length === 1]);
+
+    const costCodesExportRows = await must(
+      supabase
+        .from("cost_codes")
+        .select("id")
+        .eq("status", "INACTIVE")
+        .ilike("cost_code", `%${createdCostCode.cost_code}%`),
+      "export datasource cost codes"
+    );
+    checks.push(["cost_codes_filtered_export_datasource", costCodesExportRows.length === 1]);
+
+    const revenueCodesSearch = await must(
+      supabase
+        .from("revenue_codes")
+        .select("id")
+        .ilike("revenue_code", `%${createdRevenueCode.revenue_code}%`)
+        .ilike("revenue_name", `%Regression Revenue ${stamp} Updated%`)
+        .eq("status", "INACTIVE"),
+      "search regression revenue codes"
+    );
+    checks.push(["revenue_codes_search", revenueCodesSearch.length === 1]);
+
+    const revenueCodesExportRows = await must(
+      supabase
+        .from("revenue_codes")
+        .select("id")
+        .eq("status", "INACTIVE")
+        .ilike("revenue_code", `%${createdRevenueCode.revenue_code}%`),
+      "export datasource revenue codes"
+    );
+    checks.push(["revenue_codes_filtered_export_datasource", revenueCodesExportRows.length === 1]);
+
+    const conditionCodesSearch = await must(
+      supabase
+        .from("container_condition_codes")
+        .select("id")
+        .ilike("condition_code", `%${createdConditionCode.condition_code}%`)
+        .ilike("condition_name", `%Regression Condition ${stamp} Updated%`),
+      "search regression condition codes"
+    );
+    checks.push(["condition_codes_search", conditionCodesSearch.length === 1]);
+
+    const conditionCodesExportRows = await must(
+      supabase
+        .from("container_condition_codes")
+        .select("id")
+        .ilike("condition_code", `%${createdConditionCode.condition_code}%`),
+      "export datasource condition codes"
+    );
+    checks.push(["condition_codes_filtered_export_datasource", conditionCodesExportRows.length === 1]);
+
+    const sizeCodesSearch = await must(
+      supabase
+        .from("container_size_codes")
+        .select("id")
+        .ilike("size_code", `%${createdSizeCode.size_code}%`),
+      "search regression size codes"
+    );
+    checks.push(["size_codes_search", sizeCodesSearch.length === 1]);
+
+    const sizeCodesExportRows = await must(
+      supabase
+        .from("container_size_codes")
+        .select("id")
+        .ilike("size_code", `%${createdSizeCode.size_code}%`),
+      "export datasource size codes"
+    );
+    checks.push(["size_codes_filtered_export_datasource", sizeCodesExportRows.length === 1]);
+
+    const typeCodesSearch = await must(
+      supabase
+        .from("container_type_codes")
+        .select("id")
+        .ilike("type_code", `%${createdTypeCode.type_code}%`),
+      "search regression type codes"
+    );
+    checks.push(["type_codes_search", typeCodesSearch.length === 1]);
+
+    const typeCodesExportRows = await must(
+      supabase
+        .from("container_type_codes")
+        .select("id")
+        .ilike("type_code", `%${createdTypeCode.type_code}%`),
+      "export datasource type codes"
+    );
+    checks.push(["type_codes_filtered_export_datasource", typeCodesExportRows.length === 1]);
+
+    const numberRulesSearch = await must(
+      supabase
+        .from("container_number_rules")
+        .select("id")
+        .eq("container_size_code_id", createdSizeCode.id)
+        .ilike("prefix", `%RG${last4}%`)
+        .eq("status", "INACTIVE"),
+      "search regression container number rules"
+    );
+    checks.push(["container_number_rules_search", numberRulesSearch.length === 1]);
+
+    const numberRulesExportRows = await must(
+      supabase
+        .from("container_number_rules")
+        .select("id")
+        .eq("container_size_code_id", createdSizeCode.id)
+        .ilike("prefix", `%RG${last4}%`)
+        .eq("status", "INACTIVE"),
+      "export datasource container number rules"
+    );
+    checks.push(["container_number_rules_filtered_export_datasource", numberRulesExportRows.length === 1]);
+
+    const operationPricesSearch = await must(
+      supabase
+        .from("operation_price_configs")
+        .select("id")
+        .eq("container_size_code_id", createdSizeCode.id)
+        .eq("container_condition_code_id", createdConditionCode.id)
+        .eq("status", "INACTIVE"),
+      "search regression operation prices"
+    );
+    checks.push(["operation_prices_search", operationPricesSearch.length === 1]);
+
+    const operationPricesExportRows = await must(
+      supabase
+        .from("operation_price_configs")
+        .select("id")
+        .eq("container_size_code_id", createdSizeCode.id)
+        .eq("container_condition_code_id", createdConditionCode.id)
+        .eq("status", "INACTIVE"),
+      "export datasource operation prices"
+    );
+    checks.push(["operation_prices_filtered_export_datasource", operationPricesExportRows.length === 1]);
+
+    const depotsSearch = await must(
+      supabase
+        .from("depots")
+        .select("id")
+        .ilike("depot_code", `%${createdDepot.depot_code}%`)
+        .ilike("depot_name", `%Regression Depot ${stamp} Updated%`)
+        .eq("city_id", createdCity.id)
+        .eq("depot_type", "CONTRACT")
+        .eq("status", "NORMAL"),
+      "search regression depots"
+    );
+    checks.push(["depots_search", depotsSearch.length === 1]);
+
+    const depotsExportRows = await must(
+      supabase
+        .from("depots")
+        .select("id")
+        .eq("city_id", createdCity.id)
+        .ilike("depot_code", `%${createdDepot.depot_code}%`),
+      "export datasource depots"
+    );
+    const depotAdditionalCosts = await must(
+      supabase
+        .from("depot_additional_costs")
+        .select("id")
+        .eq("depot_id", createdDepot.id),
+      "export datasource depot additional costs"
+    );
+    const depotAttachments = await must(
+      supabase
+        .from("depot_attachment_links")
+        .select("id")
+        .eq("depot_id", createdDepot.id),
+      "export datasource depot attachments"
+    );
+    checks.push([
+      "depots_filtered_export_datasource",
+      depotsExportRows.length === 1 && depotAdditionalCosts.length === 1 && depotAttachments.length === 1,
+    ]);
+
     const usersSearch = await must(
       supabase
         .from("users")
@@ -729,6 +1392,72 @@ async function main() {
     );
     checks.push(["customers_reset", allCustomers.length >= 3]);
 
+    const allRegions = await must(
+      supabase.from("region_codes").select("id"),
+      "reset-equivalent region count"
+    );
+    checks.push(["regions_reset", allRegions.length >= 19]);
+
+    const allCities = await must(
+      supabase.from("cities").select("id"),
+      "reset-equivalent city count"
+    );
+    checks.push(["cities_reset", allCities.length >= 413]);
+
+    const allCompanies = await must(
+      supabase.from("company_profiles").select("id"),
+      "reset-equivalent company count"
+    );
+    checks.push(["companies_reset", allCompanies.length >= 2]);
+
+    const allCostCodes = await must(
+      supabase.from("cost_codes").select("id"),
+      "reset-equivalent cost code count"
+    );
+    checks.push(["cost_codes_reset", allCostCodes.length >= 31]);
+
+    const allRevenueCodes = await must(
+      supabase.from("revenue_codes").select("id"),
+      "reset-equivalent revenue code count"
+    );
+    checks.push(["revenue_codes_reset", allRevenueCodes.length >= 9]);
+
+    const allConditionCodes = await must(
+      supabase.from("container_condition_codes").select("id"),
+      "reset-equivalent condition code count"
+    );
+    checks.push(["condition_codes_reset", allConditionCodes.length >= 5]);
+
+    const allSizeCodes = await must(
+      supabase.from("container_size_codes").select("id"),
+      "reset-equivalent size code count"
+    );
+    checks.push(["size_codes_reset", allSizeCodes.length >= 5]);
+
+    const allTypeCodes = await must(
+      supabase.from("container_type_codes").select("id"),
+      "reset-equivalent type code count"
+    );
+    checks.push(["type_codes_reset", allTypeCodes.length >= 23]);
+
+    const allNumberRules = await must(
+      supabase.from("container_number_rules").select("id"),
+      "reset-equivalent container number rule count"
+    );
+    checks.push(["container_number_rules_reset", allNumberRules.length >= 3]);
+
+    const allOperationPrices = await must(
+      supabase.from("operation_price_configs").select("id"),
+      "reset-equivalent operation price count"
+    );
+    checks.push(["operation_prices_reset", allOperationPrices.length >= 3]);
+
+    const allDepots = await must(
+      supabase.from("depots").select("id"),
+      "reset-equivalent depot count"
+    );
+    checks.push(["depots_reset", allDepots.length >= 3]);
+
     const failedChecks = checks.filter(([, ok]) => !ok);
     if (failedChecks.length > 0) {
       fail(`Regression datasource checks failed: ${failedChecks.map(([name]) => name).join(", ")}`);
@@ -796,6 +1525,72 @@ async function main() {
       )
     );
   } finally {
+    if (createdIds.depotId) {
+      runPsql(
+        `delete from public.depot_attachment_links where depot_id = '${escapeLiteral(createdIds.depotId)}';`
+      );
+      runPsql(
+        `delete from public.depot_additional_costs where depot_id = '${escapeLiteral(createdIds.depotId)}';`
+      );
+      runPsql(
+        `delete from public.depots where id = '${escapeLiteral(createdIds.depotId)}';`
+      );
+    }
+    if (createdIds.operationPriceId) {
+      runPsql(
+        `delete from public.operation_price_configs where id = '${escapeLiteral(createdIds.operationPriceId)}';`
+      );
+    }
+    if (createdIds.containerNumberRuleId) {
+      runPsql(
+        `delete from public.container_number_rules where id = '${escapeLiteral(createdIds.containerNumberRuleId)}';`
+      );
+    }
+    if (createdIds.typeCodeId) {
+      runPsql(
+        `delete from public.container_type_codes where id = '${escapeLiteral(createdIds.typeCodeId)}';`
+      );
+    }
+    if (createdIds.sizeCodeId) {
+      runPsql(
+        `delete from public.container_size_codes where id = '${escapeLiteral(createdIds.sizeCodeId)}';`
+      );
+    }
+    if (createdIds.conditionCodeId) {
+      runPsql(
+        `delete from public.container_condition_codes where id = '${escapeLiteral(createdIds.conditionCodeId)}';`
+      );
+    }
+    if (createdIds.revenueCodeId) {
+      runPsql(
+        `delete from public.revenue_codes where id = '${escapeLiteral(createdIds.revenueCodeId)}';`
+      );
+    }
+    if (createdIds.costCodeId) {
+      runPsql(
+        `delete from public.cost_codes where id = '${escapeLiteral(createdIds.costCodeId)}';`
+      );
+    }
+    if (createdIds.companyBankAccountId) {
+      runPsql(
+        `delete from public.company_bank_accounts where id = '${escapeLiteral(createdIds.companyBankAccountId)}';`
+      );
+    }
+    if (createdIds.companyId) {
+      runPsql(
+        `delete from public.company_profiles where id = '${escapeLiteral(createdIds.companyId)}';`
+      );
+    }
+    if (createdIds.cityId) {
+      runPsql(
+        `delete from public.cities where id = '${escapeLiteral(createdIds.cityId)}';`
+      );
+    }
+    if (createdIds.regionId) {
+      runPsql(
+        `delete from public.region_codes where id = '${escapeLiteral(createdIds.regionId)}';`
+      );
+    }
     if (createdIds.vendorId) {
       runPsql(
         `delete from public.vendors where id = '${escapeLiteral(createdIds.vendorId)}';`

@@ -418,6 +418,9 @@ Copy this section for each working day.
 - [x] Fixed local regression cleanup so temporary `customers` and `customer_certificate_links` rows no longer leak into the reset-safe seed baseline
 - [x] Removed tracked `scripts/__pycache__` artifacts and ignored future Python cache files
 - [x] Re-ran the full daily gate successfully with a live local dev server and explicit `EW_ERP_BASE_URL` when the app was on port `3001`
+- [x] Extended `run_local_regression.mjs` so `Basic Info` CRUD families now have the same create/edit/search/export data-path coverage depth as `Customers` and the delivered partner pages
+- [x] Added direct regression coverage for `company_bank_accounts`, `depot_additional_costs`, and `depot_attachment_links` so `Basic Info` child-table behavior is no longer outside the daily gate
+- [x] Re-ran the full daily regression gate successfully after expanding `Basic Info` data checks from 18 to 51
 
 ### Carry Forward to next day
 

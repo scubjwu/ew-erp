@@ -127,13 +127,24 @@ Current `npm run test:regression` coverage includes:
   - `Container Owners`
 - route availability for all current non-inventory pages
 - create and edit through the local browser-write path for:
+  - `Region Codes`
+  - `City Codes`
+  - `Company Information`
+  - `Expense Codes`
+  - `Revenue Codes`
+  - `Condition Codes`
+  - `Container Number Rules`
+  - `Operation Price Configs`
+  - `Size Codes`
+  - `Type Codes`
+  - `Depot Codes`
   - `User Management`
   - `Customers`
   - `Vendors`
   - `Material Vendors`
   - `Lessees`
   - `Container Owners`
-- attachment child-table writes where applicable
+- attachment or child-table writes where applicable, including `company_bank_accounts`, `depot_additional_costs`, and `depot_attachment_links`
 - search coverage for declared filters on current delivered editable page families
 - reset-equivalent recovery to unfiltered results
 - filtered export data-source validation
