@@ -231,6 +231,24 @@ Status vocabulary:
 - Verification note:
   - `public.ral_color_codes` is now migration-backed, seed-backed, reset-safe, and ready to be promoted through the normal remote migration/seed flow
 
+### Additional Run: 2026-04-04 05:27 PDT
+
+- Environment note: `npm run db:start` remains blocked by Docker socket access denial in the automation sandbox, but existing local services were usable; Supabase was already listening on `54321`, and this run started `next dev` locally on `3000`
+- App URL attempted: `http://localhost:3000`
+- Commit before run: `7e1c01a3d06d077e269750c4e4c1915030e737b6`
+- Command: `npm run db:start`
+- Result: Fail
+- Summary metrics: blocked by permission denial while connecting to `/Users/palayapan/.docker/run/docker.sock`
+- Command: `npm run db:reset`
+- Result: Pass
+- Summary metrics: seed export passed, seed verification passed, and `supabase db reset` finished successfully on `main`
+- Command: `npm run test:regression`
+- Result: Pass
+- Summary metrics: `test:regression:ui` passed (`16/16`); local regression passed (`routes_checked: 47`, `data_checks: 53`); reset-safe regression passed (`reset_safe_checks: 32`)
+- Bug note: no new product regression was identified in this run
+- Verification note: full required regression gate is green against the active local dev server on port `3000`
+- Commit note: no code changes and no commit created in this automation run
+
 ## Template
 
 Copy this section for each regression day.

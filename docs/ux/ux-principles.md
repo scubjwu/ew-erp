@@ -22,7 +22,7 @@ Current product reality:
 
 - `System Codes` is the interaction and CRUD reference standard
 - `Partners` is the next most mature business module
-- `Purchase` is currently a delivered read-oriented management flow, not yet a full transaction workflow
+- `Purchase` is now transitioning from read-oriented management into an incremental transaction workflow beginning with Create PO delivery
 - `Inventory` still contains legacy UI behavior and must not be treated as the future workflow model
 
 Design and planning must reflect delivered reality, not aspirational future scope.
@@ -97,7 +97,7 @@ Current expected framing:
 
 - `System Codes`: maintenance workflows
 - `Partners`: partner master-data workflows
-- `Purchase`: management and drill-down workflows, expanding toward create/edit later
+- `Purchase`: management, drill-down, and staged transaction workflows; create/edit must expand incrementally by delivered milestone, not by assumed future scope
 - `Inventory`: transitional surface, not a future-source workflow reference
 
 Do not design future-state transaction assumptions into current pages unless the implementation plan explicitly supports them.

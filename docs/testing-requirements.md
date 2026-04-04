@@ -92,10 +92,12 @@ If the change affects complex edit-page wiring, tab behavior, attachment handlin
 
 ### Purchase
 
-Changes to delivered Purchase read-only behavior must run:
+Changes to delivered Purchase UI, query, detail, create, or edit behavior must run:
 
 - `./node_modules/.bin/vitest run __tests__/purchase-orders-dashboard.test.tsx __tests__/purchase-order-detail.test.tsx __tests__/purchase-query-helpers.test.ts`
 - `npm run test:regression`
+
+If the touched behavior is in a Purchase create/edit path whose critical user flow is not yet covered by adequate browser-path automation, the developer must also manually verify the touched route and record what was exercised.
 
 Changes to Purchase schema, derived finance sync, seeds, reset-safe behavior, or RAL lookup behavior must also run:
 
@@ -105,6 +107,7 @@ Changes to Purchase schema, derived finance sync, seeds, reset-safe behavior, or
 Important current rule:
 
 - Purchase targeted vitests are required even though they are not yet included in the shared `npm run test:regression` command
+- starting with Milestone 3, Purchase is no longer treated as a read-only exception when applying testing requirements
 
 ### Inventory
 
