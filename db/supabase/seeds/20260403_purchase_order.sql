@@ -1,2 +1,7 @@
--- No local rows exported for public.purchase_order.
--- Run `npm run db:seed:export-basic-info` again after adding data.
+BEGIN;
+
+INSERT INTO public.purchase_order (id, order_no, purchase_type, depot_id, liner_company, business_owner_id, purchase_date, estimated_offline_date, settlement_currency, exchange_rate, total_amount_payable, total_amount_paid, total_amount_unpaid, order_status, offline_status, inbound_status, remark, created_by, updated_by, created_at, updated_at, supplier_id, owner_id, buyer_id, estimated_offline_time, contract_number, invoice_number, payment_mode, payment_account, due_date, total_planned_qty, total_received_qty, total_available_qty, grand_total, vendor_bank_information, settlement_payment_term, settlement_credit_days, settlement_advance_payment_percentage, settlement_balance_trigger_event, settlement_prepayment_pool, settlement_prepayment_threshold, settlement_current_prepaid_balance, freeday, vendor_release_number, vendor_release_date) VALUES ('0191c99b-395f-46f7-8c28-d2dd12001526', 'PO-RS-1775275409298', 'FACTORY_ORDER', NULL, NULL, NULL, '2026-04-03', NULL, 'USD', 1.0, 2500.0, 0.0, 2500.0, 'CONFIRMED', 'NOT_STARTED', 'PARTIAL', 'reset-safe-1775275409298', NULL, NULL, '2026-04-04T04:03:29.707832+00:00', '2026-04-04T04:03:29.77649+00:00', (SELECT id FROM public.vendors WHERE vendor_code = 'S09298' LIMIT 1), (SELECT id FROM public.container_owners WHERE container_owner_code = 'O09298' LIMIT 1), (SELECT id FROM public.users WHERE user_code = 'RS9298' LIMIT 1), '2026-04-10T00:00:00+00:00', 'CT-1775275409298', 'INV-1775275409298', 'PREPAYMENT', 'RESET-SAFE-ACCOUNT-1775275409298', '2026-05-03', 2, 0, 1, 2500.0, '{"bank_code": null, "bank_name": null, "swift_code": null, "bank_address": null, "bank_account_name": null, "bank_account_number": null}'::jsonb, NULL, 30, 0.0, NULL, false, 0.0, 0.0, 7, 'VRN-1775275409298', '2026-04-12');
+
+COMMIT;
+
+-- rows exported: 1

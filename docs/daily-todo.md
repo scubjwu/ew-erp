@@ -59,6 +59,12 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Owner: User + Codex
   - Next concrete step: Review the current Purchase coverage gap against the new guideline and add any accepted backlog item to the appropriate regression planning flow
 
+- [ ] Topic: Backlog the current repository-wide `tsc --noEmit` failures for later cleanup
+  - Status: Carried Forward
+  - Source conversation/topic: Purchase Milestone 1 validation follow-up
+  - Owner: User + Codex
+  - Next concrete step: Split the current full-TypeScript-check failures into legacy buckets (`basic-info`, tests, `inventory`, and other shared components), then prioritize a dedicated cleanup pass after the Purchase milestones
+
 - [x] Topic: Require future local-change reviews to assess testing coverage and record non-blocking gaps as `P3`
   - Status: Done
   - Source conversation/topic: Local change review guideline and testing coverage rule
@@ -87,6 +93,12 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Source conversation/topic: Daily regression workflow rollout
   - Owner: User + Codex
   - Next concrete step: Execute the documented gate and append the run record to `docs/daily-regression-log.md`
+
+- [ ] Backlog and later fix the current repository-wide `tsc --noEmit` failures
+  - Status: Carried Forward
+  - Source conversation/topic: Purchase Milestone 1 validation follow-up
+  - Owner: User + Codex
+  - Next concrete step: Create a dedicated type-cleanup work item grouped by module so Purchase delivery can continue without losing track of the global TS debt
 
 ### Deferred
 

@@ -1503,6 +1503,8 @@ async function main() {
       [`${appBaseUrl}/basic-info/type-codes`, ["Export CSV"]],
       [`${appBaseUrl}/partners`, ["Partners Center"]],
       [`${appBaseUrl}/partners/lessor`, ["Lessor"]],
+      [`${appBaseUrl}/purchase`, ["PO Management"]],
+      [`${appBaseUrl}/purchase/po-management`, ["PO Management", "Prepaid Balance"]],
       [`${appBaseUrl}/settings`, []],
       [`${appBaseUrl}/settings/users`, ["Regression User", "Export CSV"]],
       [`${appBaseUrl}/settings/users/new`, []],

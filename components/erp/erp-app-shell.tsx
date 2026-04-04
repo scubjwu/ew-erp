@@ -7,6 +7,7 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
+  ShoppingCart,
   Package,
   Settings,
   Users,
@@ -45,6 +46,10 @@ const PARTNER_TITLES: Record<string, string> = {
   "container-owners": "Container Owners",
 };
 
+const PURCHASE_TITLES: Record<string, string> = {
+  "po-management": "PO Management",
+};
+
 const NAV = [
   {
     id: "basic-info",
@@ -57,6 +62,12 @@ const NAV = [
     label: "Inventory",
     href: "/inventory/center",
     icon: Package,
+  },
+  {
+    id: "purchase",
+    label: "Purchase",
+    href: "/purchase",
+    icon: ShoppingCart,
   },
   { id: "partners", label: "Partners", href: "/partners", icon: Users },
   {
@@ -85,6 +96,26 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
       title: "Inventory Command Center",
       href: "/inventory/center",
     };
+  }
+  if (pathname.startsWith("/purchase")) {
+    if (pathname.startsWith("/purchase/po-management/") && pathname.endsWith("/edit")) {
+      return { id: "purchase-po-edit", title: "Edit Purchase Order", href: pathname };
+    }
+    if (pathname === "/purchase/po-management/new") {
+      return { id: "purchase-po-new", title: "New Purchase Order", href: pathname };
+    }
+    if (pathname.match(/^\/purchase\/po-management\/[^/]+$/)) {
+      return { id: "purchase-po-view", title: "Purchase Order Detail", href: pathname };
+    }
+    if (pathname.match(/^\/purchase\/[^/]+$/)) {
+      const slug = pathname.split("/")[2] ?? "";
+      return {
+        id: "purchase-section",
+        title: PURCHASE_TITLES[slug] ?? "Purchase Detail",
+        href: pathname,
+      };
+    }
+    return { id: "purchase", title: "Purchase", href: "/purchase" };
   }
   if (pathname.startsWith("/partners")) {
     if (pathname.startsWith("/partners/container-owners/") && pathname.endsWith("/edit")) {
