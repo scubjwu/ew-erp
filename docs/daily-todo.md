@@ -53,6 +53,18 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Owner: User + Codex
   - Next concrete step: Choose screenshot baseline ownership and update the regression workflow only if the baseline strategy is acceptable
 
+- [ ] Topic: Decide whether Purchase local-change reviews should always raise missing non-blocking coverage as `P3` and backfill the current Purchase coverage gap into the regression backlog
+  - Status: Carried Forward
+  - Source conversation/topic: Local change review guideline and testing coverage rule
+  - Owner: User + Codex
+  - Next concrete step: Review the current Purchase coverage gap against the new guideline and add any accepted backlog item to the appropriate regression planning flow
+
+- [x] Topic: Require future local-change reviews to assess testing coverage and record non-blocking gaps as `P3`
+  - Status: Done
+  - Source conversation/topic: Local change review guideline and testing coverage rule
+  - Owner: Codex
+  - Next concrete step: N/A
+
 ### In Progress
 
 - [ ] None

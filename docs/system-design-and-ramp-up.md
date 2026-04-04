@@ -865,6 +865,12 @@ Open these first when you need a working example:
   - [`scripts/export_basic_info_seeds.py`](/Users/palayapan/Documents/ew-erp/scripts/export_basic_info_seeds.py)
   - [`scripts/verify_basic_info_seeds.py`](/Users/palayapan/Documents/ew-erp/scripts/verify_basic_info_seeds.py)
 
+## Local Change Review Standard
+
+Use [`docs/local-change-review-guidelines.md`](/Users/palayapan/Documents/ew-erp/docs/local-change-review-guidelines.md) as the canonical standard for reviewing local uncommitted changes.
+
+This global system doc should only point to the rule. Severity definitions, testing-coverage expectations, and review output format belong in the dedicated review guideline document.
+
 ## Doc Maintenance Rules
 
 This file should be updated when:
