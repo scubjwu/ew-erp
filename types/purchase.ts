@@ -41,6 +41,36 @@ export interface PurchaseBuyerRef {
   full_name: string | null;
 }
 
+export interface PurchaseLocationRef {
+  id: string;
+  city_code: string;
+  city_name: string;
+}
+
+export interface PurchaseDepotRef {
+  id: string;
+  depot_code: string;
+  depot_name: string;
+}
+
+export interface PurchaseSizeCodeRef {
+  id: string;
+  size_code: string;
+  size_name: string | null;
+}
+
+export interface PurchaseTypeCodeRef {
+  id: string;
+  type_code: string;
+  type_description: string | null;
+}
+
+export interface PurchaseConditionRef {
+  id: string;
+  condition_code: string;
+  condition_name: string;
+}
+
 export interface PurchaseMaterialVendorRef {
   id: string;
   vendor_code: string | null;
@@ -72,7 +102,7 @@ export interface PurchaseOrderBase {
   freeday: number | null;
   vendorReleaseNumber: string | null;
   vendorReleaseDate: string | null;
-  remarks: string | null;
+  remark: string | null;
   exchangeRate: number | null;
   orderStatus: PurchaseOrderStatus;
   inboundStatus: PurchaseInboundStatus | null;
@@ -133,9 +163,14 @@ export interface PurchaseOrderItem {
   financialCost: number | null;
   settlementPrice: number | null;
   lineAmount: number | null;
-  remarks: string | null;
+  remark: string | null;
   createdAt: string;
   updatedAt: string;
+  location?: PurchaseLocationRef | null;
+  depot?: PurchaseDepotRef | null;
+  size?: PurchaseSizeCodeRef | null;
+  type?: PurchaseTypeCodeRef | null;
+  condition?: PurchaseConditionRef | null;
 }
 
 export interface PurchaseOrderContainer {
@@ -159,9 +194,14 @@ export interface PurchaseOrderContainer {
   purchasePrice: number | null;
   financialCost: number | null;
   containerStatus: string | null;
-  remarks: string | null;
+  remark: string | null;
   createdAt: string;
   updatedAt: string;
+  location?: PurchaseLocationRef | null;
+  depot?: PurchaseDepotRef | null;
+  size?: PurchaseSizeCodeRef | null;
+  type?: PurchaseTypeCodeRef | null;
+  condition?: PurchaseConditionRef | null;
 }
 
 export interface PurchaseOrderMaterialTypeRow {
@@ -211,4 +251,11 @@ export interface PurchaseOrderDetail extends PurchaseOrderBase {
   containers: PurchaseOrderContainer[];
   materialTypes: PurchaseOrderMaterialTypeRow[];
   financeRecord: PurchaseFinanceRecord | null;
+}
+
+export interface PurchaseOrderItemContainersDetail {
+  orderId: string;
+  orderNo: string;
+  item: PurchaseOrderItem;
+  containers: PurchaseOrderContainer[];
 }

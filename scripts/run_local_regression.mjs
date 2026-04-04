@@ -179,6 +179,8 @@ async function main() {
     lesseeId: null,
     ownerId: null,
     customerId: null,
+    purchaseOrderId: null,
+    purchaseOrderItemId: null,
   };
 
   const stamp = String(Date.now());
@@ -919,6 +921,148 @@ async function main() {
       "update regression container owner"
     );
 
+    const purchaseOrderNo = `PO-RG-${last5}`;
+
+    const createdPurchaseOrder = await must(
+      supabase
+        .from("purchase_order")
+        .insert({
+          order_no: purchaseOrderNo,
+          purchase_type: "FACTORY_ORDER",
+          supplier_id: createdVendor.id,
+          owner_id: createdOwner.id,
+          buyer_id: baseUserId,
+          purchase_date: "2026-04-03",
+          estimated_offline_time: "2026-04-10T08:00:00.000Z",
+          contract_number: `CT-${last5}`,
+          invoice_number: `INV-${last5}`,
+          freeday: 7,
+          vendor_release_number: `REL-${last5}`,
+          vendor_release_date: "2026-04-12",
+          remark: "regression-purchase-order",
+          exchange_rate: 1,
+          order_status: "CONFIRMED",
+          inbound_status: "PARTIAL",
+          payment_mode: "PREPAYMENT",
+          payment_account: "Regression Payment Account",
+          due_date: "2026-05-03",
+          settlement_payment_term: "Net 30",
+          settlement_credit_days: 30,
+          settlement_advance_payment_percentage: 10,
+          settlement_balance_trigger_event: "After Offline",
+          settlement_currency: "USD",
+          settlement_prepayment_pool: true,
+          settlement_prepayment_threshold: 1000,
+          settlement_current_prepaid_balance: 5000,
+        })
+        .select("id, order_no")
+        .single(),
+      "create regression purchase order"
+    );
+    createdIds.purchaseOrderId = createdPurchaseOrder.id;
+
+    const createdPurchaseOrderItem = await must(
+      supabase
+        .from("purchase_order_item")
+        .insert({
+          purchase_order_id: createdPurchaseOrder.id,
+          line_no: 1,
+          location_city_id: createdCity.id,
+          depot_id: createdDepot.id,
+          container_size_code_id: createdSizeCode.id,
+          container_type_code_id: createdTypeCode.id,
+          container_condition_code_id: createdConditionCode.id,
+          color: "Blue",
+          flp: true,
+          lbx: false,
+          locking_bars_count: 4,
+          vents_count: 2,
+          machine_type: "Carrier PrimeLINE",
+          yom: 2026,
+          offline_date: "2026-04-10",
+          planned_qty: 2,
+          unit_price: 2000,
+          financial_cost: 150,
+          settlement_price: 2150,
+          line_amount: 4300,
+          remark: "regression-purchase-item",
+        })
+        .select("id")
+        .single(),
+      "create regression purchase order item"
+    );
+    createdIds.purchaseOrderItemId = createdPurchaseOrderItem.id;
+
+    await must(
+      supabase
+        .from("purchase_order_container")
+        .insert([
+          {
+            purchase_order_id: createdPurchaseOrder.id,
+            purchase_order_item_id: createdPurchaseOrderItem.id,
+            container_number: `RGREADY${last4}`,
+            location_city_id: createdCity.id,
+            depot_id: createdDepot.id,
+            container_size_code_id: createdSizeCode.id,
+            container_type_code_id: createdTypeCode.id,
+            container_condition_code_id: createdConditionCode.id,
+            color: "Blue",
+            flp: true,
+            lbx: false,
+            locking_bars_count: 4,
+            vents_count: 2,
+            machine_type: "Carrier PrimeLINE",
+            yom: 2026,
+            offline_date: "2026-04-10",
+            actual_offline_time: "2026-04-10T10:00:00.000Z",
+            purchase_price: 2000,
+            financial_cost: 150,
+            container_status: "READY",
+            remark: "regression-ready-container",
+          },
+          {
+            purchase_order_id: createdPurchaseOrder.id,
+            purchase_order_item_id: createdPurchaseOrderItem.id,
+            container_number: `RGPICK${last4}`,
+            location_city_id: createdCity.id,
+            depot_id: createdDepot.id,
+            container_size_code_id: createdSizeCode.id,
+            container_type_code_id: createdTypeCode.id,
+            container_condition_code_id: createdConditionCode.id,
+            color: "Blue",
+            flp: false,
+            lbx: true,
+            locking_bars_count: 3,
+            vents_count: 1,
+            machine_type: "Daikin LXE",
+            yom: 2026,
+            offline_date: "2026-04-11",
+            actual_offline_time: "2026-04-11T10:00:00.000Z",
+            purchase_price: 2050,
+            financial_cost: 175,
+            container_status: "PICKED_UP",
+            remark: "regression-picked-container",
+          },
+        ])
+        .select("id"),
+      "create regression purchase order containers"
+    );
+
+    await must(
+      supabase
+        .from("purchase_order_material_type")
+        .insert({
+          purchase_order_id: createdPurchaseOrder.id,
+          material_type: "地板",
+          material_vendor_id: createdMaterialVendor.id,
+          material_vendor_name_snapshot: `Regression Material Vendor ${stamp} Updated`,
+          material_vendor_code_snapshot: createdMaterialVendor.vendor_code,
+        })
+        .select("id")
+        .single(),
+      "create regression purchase material type"
+    );
+
     const checks = [];
 
     const regionsSearch = await must(
@@ -1482,6 +1626,41 @@ async function main() {
     );
     checks.push(["depots_reset", allDepots.length >= 3]);
 
+    const purchaseOrderChecks = await must(
+      supabase
+        .from("purchase_order")
+        .select(
+          "id, freeday, vendor_release_number, vendor_release_date, total_planned_qty, total_available_qty, total_received_qty"
+        )
+        .eq("id", createdPurchaseOrder.id)
+        .single(),
+      "read regression purchase order"
+    );
+    checks.push([
+      "purchase_order_detail_shape",
+      purchaseOrderChecks.freeday === 7 &&
+        purchaseOrderChecks.vendor_release_number === `REL-${last5}` &&
+        purchaseOrderChecks.vendor_release_date === "2026-04-12" &&
+        purchaseOrderChecks.total_planned_qty === 2 &&
+        purchaseOrderChecks.total_available_qty === 2 &&
+        purchaseOrderChecks.total_received_qty === 1,
+    ]);
+
+    const purchaseFinanceChecks = await must(
+      supabase
+        .from("purchase_finance_record")
+        .select("id, order_no, finance_status, grand_total")
+        .eq("purchase_order_id", createdPurchaseOrder.id)
+        .single(),
+      "read regression purchase finance record"
+    );
+    checks.push([
+      "purchase_finance_record_sync",
+      purchaseFinanceChecks.order_no === purchaseOrderNo &&
+        purchaseFinanceChecks.finance_status === "PENDING" &&
+        Number(purchaseFinanceChecks.grand_total) === 4300,
+    ]);
+
     const failedChecks = checks.filter(([, ok]) => !ok);
     if (failedChecks.length > 0) {
       fail(`Regression datasource checks failed: ${failedChecks.map(([name]) => name).join(", ")}`);
@@ -1505,6 +1684,14 @@ async function main() {
       [`${appBaseUrl}/partners/lessor`, ["Lessor"]],
       [`${appBaseUrl}/purchase`, ["PO Management"]],
       [`${appBaseUrl}/purchase/po-management`, ["PO Management", "Prepaid Balance"]],
+      [
+        `${appBaseUrl}/purchase/po-management/${createdPurchaseOrder.id}`,
+        ["Purchase Order Detail", purchaseOrderNo, "View Containers", "Finance Sync"],
+      ],
+      [
+        `${appBaseUrl}/purchase/po-management/${createdPurchaseOrder.id}/items/${createdPurchaseOrderItem.id}/containers`,
+        ["Container Details", purchaseOrderNo, "Purchase Price", "Machine Type"],
+      ],
       [`${appBaseUrl}/settings`, []],
       [`${appBaseUrl}/settings/users`, ["Regression User", "Export CSV"]],
       [`${appBaseUrl}/settings/users/new`, []],
@@ -1551,6 +1738,11 @@ async function main() {
       )
     );
   } finally {
+    if (createdIds.purchaseOrderId) {
+      runPsql(
+        `delete from public.purchase_order where id = '${escapeLiteral(createdIds.purchaseOrderId)}';`
+      );
+    }
     if (createdIds.depotId) {
       runPsql(
         `delete from public.depot_attachment_links where depot_id = '${escapeLiteral(createdIds.depotId)}';`

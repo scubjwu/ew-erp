@@ -134,7 +134,7 @@ function purchaseResult(
         freeday: null,
         vendorReleaseNumber: null,
         vendorReleaseDate: null,
-        remarks: null,
+        remark: null,
         exchangeRate: 1,
         orderStatus: "CONFIRMED",
         inboundStatus: "PARTIAL",

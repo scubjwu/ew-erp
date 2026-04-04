@@ -98,6 +98,13 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
     };
   }
   if (pathname.startsWith("/purchase")) {
+    if (pathname.match(/^\/purchase\/po-management\/[^/]+\/items\/[^/]+\/containers$/)) {
+      return {
+        id: "purchase-po-containers",
+        title: "Purchase Containers",
+        href: pathname,
+      };
+    }
     if (pathname.startsWith("/purchase/po-management/") && pathname.endsWith("/edit")) {
       return { id: "purchase-po-edit", title: "Edit Purchase Order", href: pathname };
     }

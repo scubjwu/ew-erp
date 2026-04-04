@@ -1,7 +1,2 @@
-BEGIN;
-
-INSERT INTO public.purchase_order_container (id, purchase_order_id, purchase_order_item_id, container_id, container_number, country_code, depot_id, estimated_offline_time, actual_offline_time, inbound_time, item_status, remark, created_at, updated_at, container_type_code_id, container_condition_code_id, container_size_code_id, location_city_id, color, flp, lbx, locking_bars_count, vents_count, machine_type, yom, offline_date, purchase_price, financial_cost, container_status) VALUES ('db723da2-d23e-4768-a156-de0d27a0200a', (SELECT id FROM public.purchase_order WHERE order_no = 'PO-RS-1775275409298' LIMIT 1), (SELECT poi.id FROM public.purchase_order_item poi JOIN public.purchase_order po ON po.id = poi.purchase_order_id WHERE po.order_no = 'PO-RS-1775275409298' AND poi.line_no = 1 LIMIT 1), NULL, 'RSCU92980001', NULL, (SELECT id FROM public.depots WHERE depot_code = 'USLAX001' LIMIT 1), NULL, '2026-04-11T00:00:00+00:00', NULL, 'OFFLINED', 'reset-safe-1775275409298', '2026-04-04T04:03:29.77649+00:00', '2026-04-04T04:03:29.77649+00:00', (SELECT id FROM public.container_type_codes WHERE type_code = 'HCHOT' LIMIT 1), (SELECT id FROM public.container_condition_codes WHERE condition_code = 'Brand New' LIMIT 1), (SELECT id FROM public.container_size_codes WHERE size_code = '20' LIMIT 1), (SELECT id FROM public.cities WHERE city_code = 'ADWEN' LIMIT 1), 'Blue', true, false, NULL, NULL, NULL, 2026, '2026-04-11', 1250.0, 45.0, 'READY');
-
-COMMIT;
-
--- rows exported: 1
+-- No local rows exported for public.purchase_order_container.
+-- Run `npm run db:seed:export-basic-info` again after adding data.
