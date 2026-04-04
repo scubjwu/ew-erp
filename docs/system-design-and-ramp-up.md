@@ -216,6 +216,12 @@ Current system interaction is mostly built on this pattern:
   - current static seed coverage contains `66` valid `RAL` codes using the canonical no-space format such as `RAL1000`
 - Purchase demo seeds, Purchase UI tests, and reset-safe fixtures now use only `RAL` codes that exist in `public.ral_color_codes`
 - `Inventory` remains deprecated for future Purchase work; new Purchase delivery should not treat legacy inventory pages or the legacy `inventory` table as a dependency or truth source
+- delivered `Purchase` page behavior is now the system reference for future transaction-style page UX, including:
+  - sticky form action bars
+  - right-sticky `Actions` columns in list pages
+  - sortable visible list columns
+  - autocomplete-first search fields with keyboard selection
+  - collapsible search filters with a compact active-filter summary after search
 
 ## UI Standards
 
@@ -244,11 +250,13 @@ All new list pages should follow these rules unless there is a stronger business
 - use compact ERP-style density
 - do not show a leading `No.` index column
 - use sticky table headers
-- freeze the first business column when useful
+- keep `Actions` fixed on the right when row actions exist
 - prefer text-link style row actions over large inline action buttons
 - prefer `View / Edit` over `Delete` unless delete is explicitly required
 - keep empty and loading states inside the table body
 - keep toolbar spacing and card layout aligned with delivered pages
+- every visible list column should support sorting
+- align text left, quantities center, and amounts right
 
 ### Search standards
 
@@ -258,11 +266,16 @@ Current agreed search behavior:
 - use server-side pagination for main list data
 - use current-page local sorting for UI-only column sorting
 - keep search toolbar compact and ERP-style
-- provide search suggestions only where they materially help the workflow
+- use autocomplete-style suggestions by default where the field is choosing from a bounded business value set
 - suggestion dropdowns must render above sticky headers and table chrome
 - selecting a suggestion fills the input only; it does not auto-run search
 - search should run when the user clicks `Search` or presses `Enter`
 - search and reset button placement should follow delivered production pages
+- `Quick Filter` should sit above the main filter area when present
+- `Search` success should collapse the filter area
+- `Reset` should not collapse the filter area
+- `Quick Filter` should not collapse the filter area
+- collapsed filter areas must show a compact active-filter summary
 
 ### Sorting standards
 
@@ -280,6 +293,7 @@ All dialogs and forms should:
 - clearly mark required fields with `*`
 - render readonly or system-controlled fields as visibly locked
 - group fields by business meaning rather than raw DB layout
+- default to sticky action bars with explicit background and border treatment
 
 ### Dashboard and center page standards
 

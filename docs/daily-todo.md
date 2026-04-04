@@ -145,6 +145,42 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Owner: User + Codex
   - Next concrete step: Review `System Codes`, `Partners`, `Users`, and `Purchase` for search behavior, action placement, detail-page structure, and maturity signaling gaps
 
+- [ ] Topic: Audit delivered pages for non-compliance with the new Purchase-based page-style standard
+  - Status: Carried Forward
+  - Source conversation/topic: Unified page style rule rollout
+  - Owner: User + Codex
+  - Next concrete step: Identify delivered pages that still lack sticky form action bars, sortable visible columns, autocomplete-based search, collapse summaries, or right-sticky `Actions` columns
+
+- [ ] Topic: Backlog `System Codes` pages that do not yet follow the new page-style standard
+  - Status: Carried Forward
+  - Source conversation/topic: Unified page style rule rollout
+  - Owner: User + Codex
+  - Next concrete step: List the delivered `System Codes` pages that still need sortable visible columns, autocomplete-based search, collapse summaries, right-sticky `Actions`, or sticky form actions
+
+- [ ] Topic: Backlog `Partners` pages that do not yet follow the new page-style standard
+  - Status: Carried Forward
+  - Source conversation/topic: Unified page style rule rollout
+  - Owner: User + Codex
+  - Next concrete step: List the delivered `Partners` pages that still need sortable visible columns, autocomplete-based search, collapse summaries, right-sticky `Actions`, or sticky form actions
+
+- [ ] Topic: Backlog `Settings` pages that do not yet follow the new page-style standard
+  - Status: Carried Forward
+  - Source conversation/topic: Unified page style rule rollout
+  - Owner: User + Codex
+  - Next concrete step: List the delivered `Settings` pages that still need sortable visible columns, autocomplete-based search, collapse summaries, right-sticky `Actions`, or sticky form actions
+
+- [ ] Topic: Backlog legacy `Inventory` pages that do not yet follow the new page-style standard
+  - Status: Carried Forward
+  - Source conversation/topic: Unified page style rule rollout
+  - Owner: User + Codex
+  - Next concrete step: Mark legacy `Inventory` pages as low-priority follow-up for later alignment on sortable visible columns, autocomplete-based search, collapse summaries, right-sticky `Actions`, and sticky form actions where applicable
+
+- [ ] Topic: Follow up old delivered pages that do not yet show active filter summaries after search collapse
+  - Status: Carried Forward
+  - Source conversation/topic: Unified page style rule rollout
+  - Owner: User + Codex
+  - Next concrete step: Add compact active-filter summaries to any delivered list page that supports filter collapse but still loses context after search
+
 - [ ] Topic: Decide whether `basic-info-list-standard` should later be absorbed into the broader UX page standards
   - Status: Deferred
   - Source conversation/topic: UX doc consolidation

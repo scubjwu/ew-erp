@@ -89,6 +89,14 @@ This includes:
 - create/edit/view structure
 - empty, loading, and error states
 
+Current delivered baseline from `Purchase` should now be treated as the default reference for future transaction-oriented page behavior, especially for:
+
+- sticky form action bars
+- right-sticky `Actions` columns in list pages
+- sortable visible list columns
+- autocomplete-first search fields with keyboard selection
+- collapsible search filters with compact active-filter summaries
+
 ### 7. Progressive workflow maturity
 
 When a module is not yet a full end-to-end transaction flow, design it according to its current maturity.
@@ -101,6 +109,10 @@ Current expected framing:
 - `Inventory`: transitional surface, not a future-source workflow reference
 
 Do not design future-state transaction assumptions into current pages unless the implementation plan explicitly supports them.
+
+Current planning rule:
+
+- prefer delivered `Purchase` interaction patterns over legacy `Inventory` behavior when choosing the baseline for new transaction-oriented pages
 
 ## Planning Rules
 

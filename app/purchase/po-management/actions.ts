@@ -18,6 +18,7 @@ import {
   applyQuickFilterDates,
   firstPurchaseItemByOrder,
   groupPurchaseItemsByOrder,
+  normalizeRalLikeSearch,
   rowMatchesAnyPurchaseItem,
   type PurchaseQuickFilter,
 } from "@/app/purchase/po-management/query-helpers";
@@ -25,6 +26,7 @@ import {
 export type PurchaseManagementSortBy =
   | "orderDate"
   | "orderNo"
+  | "status"
   | "vendor"
   | "location"
   | "sizeType"
@@ -96,42 +98,21 @@ export type PurchaseOrderManagementRow = PurchaseOrderSummary & {
   remainingQty: number;
 };
 
-export type PurchaseVendorOption = {
-  id: string;
-  vendor_code: string;
-  company_name: string | null;
-  legal_company_name: string | null;
-};
-
-export type PurchaseLocationOption = {
-  id: string;
-  city_code: string;
-  city_name: string;
-};
-
-export type PurchaseConditionOption = {
-  id: string;
-  condition_code: string;
-  condition_name: string;
-};
-
-export type PurchaseColorOption = {
+export type PurchaseAutocompleteOption = {
   value: string;
-};
-
-export type PurchaseSizeTypeOption = {
-  value: string;
-  sizeId: string;
-  typeId: string;
   label: string;
+  secondaryLabel?: string;
+  searchText?: string;
 };
+
+export type PurchaseColorOption = PurchaseAutocompleteOption;
 
 export type PurchaseFilterOptions = {
-  vendors: PurchaseVendorOption[];
-  locations: PurchaseLocationOption[];
-  conditions: PurchaseConditionOption[];
+  vendors: PurchaseAutocompleteOption[];
+  locations: PurchaseAutocompleteOption[];
+  sizeTypes: PurchaseAutocompleteOption[];
+  conditions: PurchaseAutocompleteOption[];
   colors: PurchaseColorOption[];
-  sizeTypes: PurchaseSizeTypeOption[];
   statuses: PurchaseOrderStatus[];
 };
 
@@ -200,6 +181,11 @@ type PurchaseItemRowRaw = {
   container_size_code_id: string | null;
   container_type_code_id: string | null;
   container_condition_code_id: string | null;
+  location_code?: string | null;
+  location_name?: string | null;
+  size_code?: string | null;
+  type_code?: string | null;
+  condition_code?: string | null;
   location?: {
     id: string;
     city_code: string;
@@ -381,6 +367,12 @@ function toNumber(value: number | string | null | undefined) {
 
 function compareString(a: string | null | undefined, b: string | null | undefined) {
   return (a ?? "").localeCompare(b ?? "", undefined, { sensitivity: "base" });
+}
+
+function includesText(haystack?: string | null, needle?: string | null) {
+  const normalizedNeedle = normalizeText(needle).toLowerCase();
+  if (!normalizedNeedle) return true;
+  return normalizeText(haystack).toLowerCase().includes(normalizedNeedle);
 }
 
 function getOrderDateValue(value: string | null | undefined) {
@@ -591,6 +583,9 @@ function sortRows(
       case "vendor":
         result = compareString(left.vendorLabel, right.vendorLabel);
         break;
+      case "status":
+        result = compareString(left.orderStatus, right.orderStatus);
+        break;
       case "location":
         result = compareString(left.locationLabel, right.locationLabel);
         break;
@@ -687,9 +682,6 @@ async function loadPurchaseRows(baseFilters: {
       `
     );
 
-  if (baseFilters.vendorId) {
-    query = query.eq("supplier_id", baseFilters.vendorId);
-  }
   if (baseFilters.orderStatus) {
     query = query.eq("order_status", baseFilters.orderStatus);
   }
@@ -730,7 +722,179 @@ async function loadPurchaseItems(orderIds: string[]) {
     .order("line_no", { ascending: true });
 
   if (error) throw new Error(error.message);
-  return ((data ?? []) as unknown) as PurchaseItemRowRaw[];
+  return (((data ?? []) as unknown) as PurchaseItemRowRaw[]).map((row) => ({
+    ...row,
+    location_code: row.location?.city_code ?? null,
+    location_name: row.location?.city_name ?? null,
+    size_code: row.size?.size_code ?? null,
+    type_code: row.type?.type_code ?? null,
+    condition_code: row.condition?.condition_code ?? null,
+  }));
+}
+
+async function loadRalColorCodes() {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("ral_color_codes")
+    .select("color_code")
+    .order("color_code", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<{ color_code: string }>).map((row) => row.color_code);
+}
+
+function dedupeAutocompleteOptions(options: PurchaseAutocompleteOption[]) {
+  const unique = new Map<string, PurchaseAutocompleteOption>();
+  for (const option of options) {
+    if (!option.value) continue;
+    if (!unique.has(option.value)) {
+      unique.set(option.value, option);
+    }
+  }
+  return Array.from(unique.values());
+}
+
+async function loadVendorFilterOptions(): Promise<PurchaseAutocompleteOption[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("purchase_order")
+    .select(
+      `
+        supplier:vendors!purchase_order_supplier_id_vendors_fkey(
+          id,
+          vendor_code,
+          company_name,
+          legal_company_name
+        )
+      `
+    )
+    .not("supplier_id", "is", null);
+
+  if (error) throw new Error(error.message);
+
+  const options = ((data ?? []) as Array<{ supplier?: PurchaseOrderRowRaw["supplier"] }>).flatMap((row) => {
+      const supplier = row.supplier;
+      if (!supplier) return [];
+      const value =
+        supplier.vendor_code ??
+        supplier.company_name ??
+        supplier.legal_company_name ??
+        supplier.id;
+      const secondaryLabel = supplier.company_name ?? supplier.legal_company_name ?? undefined;
+      return [
+        {
+          value,
+          label: supplier.vendor_code ?? secondaryLabel ?? value,
+          secondaryLabel,
+          searchText: [
+            supplier.vendor_code,
+            supplier.company_name,
+            supplier.legal_company_name,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        },
+      ];
+    }) as PurchaseAutocompleteOption[];
+
+  return dedupeAutocompleteOptions(options).sort((left, right) =>
+    `${left.label} ${left.secondaryLabel ?? ""}`.localeCompare(
+      `${right.label} ${right.secondaryLabel ?? ""}`,
+      undefined,
+      { sensitivity: "base" }
+    )
+  );
+}
+
+async function loadLocationFilterOptions(): Promise<PurchaseAutocompleteOption[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("purchase_order_item")
+    .select("location:cities(id, city_code, city_name)")
+    .not("location_city_id", "is", null);
+
+  if (error) throw new Error(error.message);
+
+  const options = ((data ?? []) as Array<{ location?: PurchaseItemRowRaw["location"] }>).flatMap((row) => {
+      const location = row.location;
+      if (!location?.city_code) return [];
+      return [
+        {
+          value: location.city_code,
+          label: location.city_code,
+          secondaryLabel: location.city_name,
+          searchText: `${location.city_code} ${location.city_name}`,
+        },
+      ];
+    }) as PurchaseAutocompleteOption[];
+
+  return dedupeAutocompleteOptions(options).sort((left, right) =>
+    left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
+  );
+}
+
+async function loadSizeTypeFilterOptions(): Promise<PurchaseAutocompleteOption[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("purchase_order_item")
+    .select(
+      `
+        size:container_size_codes(id, size_code),
+        type:container_type_codes(id, type_code)
+      `
+    )
+    .not("container_size_code_id", "is", null)
+    .not("container_type_code_id", "is", null);
+
+  if (error) throw new Error(error.message);
+
+  const options = ((data ?? []) as Array<{
+      size?: Pick<NonNullable<PurchaseItemRowRaw["size"]>, "size_code"> | null;
+      type?: Pick<NonNullable<PurchaseItemRowRaw["type"]>, "type_code"> | null;
+    }>).flatMap((row) => {
+      const sizeCode = row.size?.size_code ?? null;
+      const typeCode = row.type?.type_code ?? null;
+      if (!sizeCode || !typeCode) return [];
+      const combined = `${sizeCode}${typeCode}`;
+      return [
+        {
+          value: combined,
+          label: combined,
+          searchText: `${sizeCode} ${typeCode} ${combined}`,
+        },
+      ];
+    }) as PurchaseAutocompleteOption[];
+
+  return dedupeAutocompleteOptions(options).sort((left, right) =>
+    left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
+  );
+}
+
+async function loadConditionFilterOptions(): Promise<PurchaseAutocompleteOption[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("purchase_order_item")
+    .select("condition:container_condition_codes(id, condition_code)")
+    .not("container_condition_code_id", "is", null);
+
+  if (error) throw new Error(error.message);
+
+  const options = ((data ?? []) as Array<{
+      condition?: Pick<NonNullable<PurchaseItemRowRaw["condition"]>, "condition_code"> | null;
+    }>).flatMap((row) => {
+      const code = row.condition?.condition_code ?? null;
+      if (!code) return [];
+      return [
+        {
+          value: code,
+          label: code,
+          searchText: code,
+        },
+      ];
+    }) as PurchaseAutocompleteOption[];
+
+  return dedupeAutocompleteOptions(options).sort((left, right) =>
+    left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
+  );
 }
 
 function filterRowsByItems(
@@ -744,6 +908,24 @@ function filterRowsByItems(
   }
 ) {
   return rows.filter((row) => rowMatchesAnyPurchaseItem(itemsByOrder.get(row.id), filters));
+}
+
+function filterRowsByBase(
+  rows: PurchaseOrderManagementRow[],
+  filters: {
+    vendorId: string;
+  }
+) {
+  return rows.filter((row) => {
+    if (!filters.vendorId) return true;
+    const vendorQuery = filters.vendorId;
+    return (
+      includesText(row.supplier?.vendor_code, vendorQuery) ||
+      includesText(row.supplier?.company_name, vendorQuery) ||
+      includesText(row.supplier?.legal_company_name, vendorQuery) ||
+      includesText(row.vendorLabel, vendorQuery)
+    );
+  });
 }
 
 export async function getPurchaseOrders(
@@ -772,6 +954,31 @@ export async function getPurchaseOrders(
   const page = Math.max(1, Math.floor(params.page || 1));
   const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize || 10)));
 
+  const validRalColors = filters.color ? await loadRalColorCodes() : [];
+  if (
+    filters.color &&
+    !validRalColors.some((code) =>
+      normalizeRalLikeSearch(code).includes(normalizeRalLikeSearch(filters.color))
+    )
+  ) {
+    return {
+      rows: [],
+      totalCount: 0,
+      page,
+      pageSize,
+      filters,
+      summary: {
+        totalOrders: 0,
+        totalPlannedQty: 0,
+        totalAvailableQty: 0,
+        totalRemainingQty: 0,
+        totalCancelledQty: 0,
+        prepaidBalance: 0,
+      },
+      sort,
+    };
+  }
+
   const baseRows = await loadPurchaseRows(filters);
   const orderIds = baseRows.map((row) => row.id);
   const items = await loadPurchaseItems(orderIds);
@@ -780,7 +987,8 @@ export async function getPurchaseOrders(
   const firstItems = firstPurchaseItemByOrder(itemsByOrder);
 
   const mappedRows = baseRows.map((row) => mapPurchaseRow(row, firstItems.get(row.id)));
-  const filteredRows = filterRowsByItems(mappedRows, itemsByOrder, filters);
+  const baseFilteredRows = filterRowsByBase(mappedRows, filters);
+  const filteredRows = filterRowsByItems(baseFilteredRows, itemsByOrder, filters);
   const sortedRows = sortRows(filteredRows, sort.sortBy, sort.sortDirection);
 
   const totalCount = sortedRows.length;
@@ -832,63 +1040,24 @@ export async function exportPurchaseOrders(
 
 export async function getPurchaseFilterOptions(): Promise<PurchaseFilterOptions> {
   noStore();
-  const supabase = createServerSupabaseClient();
-
-  const [{ data: vendors, error: vendorsError }, { data: locations, error: locationsError }, { data: conditions, error: conditionsError }, { data: sizes, error: sizesError }, { data: types, error: typesError }, { data: colors, error: colorsError }] =
-    await Promise.all([
-      supabase
-        .from("vendors")
-        .select("id, vendor_code, company_name, legal_company_name")
-        .order("vendor_code", { ascending: true }),
-      supabase.from("cities").select("id, city_code, city_name").order("city_code", { ascending: true }),
-      supabase
-        .from("container_condition_codes")
-        .select("id, condition_code, condition_name")
-        .order("condition_code", { ascending: true }),
-      supabase.from("container_size_codes").select("id, size_code, size_name").order("size_code", { ascending: true }),
-      supabase
-        .from("container_type_codes")
-        .select("id, type_code, type_description")
-        .order("type_code", { ascending: true }),
-      supabase
-        .from("purchase_order_item")
-        .select("color")
-        .not("color", "is", null),
-    ]);
-
-  if (vendorsError) throw new Error(vendorsError.message);
-  if (locationsError) throw new Error(locationsError.message);
-  if (conditionsError) throw new Error(conditionsError.message);
-  if (sizesError) throw new Error(sizesError.message);
-  if (typesError) throw new Error(typesError.message);
-  if (colorsError) throw new Error(colorsError.message);
-
-  const sizeTypes: PurchaseSizeTypeOption[] = [];
-  for (const size of sizes ?? []) {
-    for (const type of types ?? []) {
-      sizeTypes.push({
-        value: `${size.id}:${type.id}`,
-        sizeId: size.id,
-        typeId: type.id,
-        label: `${size.size_code}${type.type_code}`,
-      });
-    }
-  }
-
-  const uniqueColors = Array.from(
-    new Set(
-      ((colors ?? []) as Array<{ color: string | null }>)
-        .map((row) => normalizeText(row.color))
-        .filter(Boolean)
-    )
-  ).sort((left, right) => left.localeCompare(right));
+  const [vendors, locations, sizeTypes, conditions, colors] = await Promise.all([
+    loadVendorFilterOptions(),
+    loadLocationFilterOptions(),
+    loadSizeTypeFilterOptions(),
+    loadConditionFilterOptions(),
+    loadRalColorCodes(),
+  ]);
 
   return {
-    vendors: ((vendors ?? []) as PurchaseVendorOption[]),
-    locations: ((locations ?? []) as PurchaseLocationOption[]),
-    conditions: ((conditions ?? []) as PurchaseConditionOption[]),
-    colors: uniqueColors.map((value) => ({ value })),
+    vendors,
+    locations,
     sizeTypes,
+    conditions,
+    colors: colors.map((value) => ({
+      value,
+      label: value,
+      searchText: value,
+    })),
     statuses: ["DRAFT", "CONFIRMED", "PARTIAL_RECEIVED", "COMPLETED", "CANCELLED"],
   };
 }

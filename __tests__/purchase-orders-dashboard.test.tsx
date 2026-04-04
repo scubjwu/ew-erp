@@ -37,6 +37,8 @@ vi.mock("lucide-react", () => {
     ArrowDown: Icon,
     ArrowUp: Icon,
     ArrowUpDown: Icon,
+    ChevronDown: Icon,
+    ChevronUp: Icon,
     Download: Icon,
     Eye: Icon,
     Pencil: Icon,
@@ -206,11 +208,51 @@ function purchaseResult(
 }
 
 const filterOptions = {
-  vendors: [{ id: "vendor-1", vendor_code: "SABCDE", company_name: "Vendor One", legal_company_name: null }],
-  locations: [{ id: "city-1", city_code: "SHA", city_name: "Shanghai" }],
-  conditions: [{ id: "condition-1", condition_code: "CW", condition_name: "Cargo Worthy" }],
-  colors: [{ value: "RAL1001" }],
-  sizeTypes: [{ value: "size-1:type-1", sizeId: "size-1", typeId: "type-1", label: "20DV" }],
+  vendors: [
+    {
+      value: "VENDOR1",
+      label: "VENDOR1",
+      secondaryLabel: "Vendor One",
+      searchText: "VENDOR1 Vendor One",
+    },
+  ],
+  locations: [
+    {
+      value: "ADWEN",
+      label: "ADWEN",
+      secondaryLabel: "Wien",
+      searchText: "ADWEN Wien",
+    },
+    {
+      value: "USLAX",
+      label: "USLAX",
+      secondaryLabel: "Los Angeles/Long Beach",
+      searchText: "USLAX Los Angeles Long Beach",
+    },
+  ],
+  sizeTypes: [
+    {
+      value: "20GP",
+      label: "20GP",
+      searchText: "20 GP 20GP",
+    },
+    {
+      value: "40HC",
+      label: "40HC",
+      searchText: "40 HC 40HC",
+    },
+  ],
+  conditions: [
+    {
+      value: "CW",
+      label: "CW",
+      searchText: "CW",
+    },
+  ],
+  colors: [
+    { value: "RAL1001", label: "RAL1001", searchText: "RAL1001" },
+    { value: "RAL5002", label: "RAL5002", searchText: "RAL5002" },
+  ],
   statuses: ["DRAFT", "CONFIRMED", "PARTIAL_RECEIVED", "COMPLETED", "CANCELLED"] as const,
 };
 
@@ -219,13 +261,38 @@ describe("PurchaseOrdersDashboard", () => {
     vi.clearAllMocks();
     installDownloadMocks();
     purchaseActions.getPurchaseOrders.mockImplementation(
-      async (params: { sortBy?: string; sortDirection?: string; page?: number }) =>
+      async (params: {
+        sortBy?: string;
+        sortDirection?: string;
+        page?: number;
+        vendorId?: string;
+        locationCityId?: string;
+        color?: string;
+        sizeType?: string;
+        conditionId?: string;
+        orderDateFrom?: string;
+        orderDateTo?: string;
+        orderStatus?: string;
+        quickFilter?: string;
+      }) =>
         purchaseResult({
           page: params.page ?? 1,
+          filters: {
+            vendorId: params.vendorId ?? "",
+            locationCityId: params.locationCityId ?? "",
+            color: params.color ?? "",
+            sizeType: params.sizeType ?? "",
+            conditionId: params.conditionId ?? "",
+            orderDateFrom: params.orderDateFrom ?? "",
+            orderDateTo: params.orderDateTo ?? "",
+            orderStatus: params.orderStatus ?? "",
+            quickFilter: (params.quickFilter ?? "") as "" | "today" | "last7" | "last30" | "thisMonth" | "lastMonth",
+          },
           sort: {
             sortBy: (params.sortBy ?? "orderDate") as
               | "orderDate"
               | "orderNo"
+              | "status"
               | "vendor"
               | "location"
               | "sizeType"
@@ -247,7 +314,7 @@ describe("PurchaseOrdersDashboard", () => {
     vi.restoreAllMocks();
   });
 
-  it("fills visible date fields when applying a quick filter", async () => {
+  it("fills visible date fields when applying a quick filter without collapsing filters", async () => {
     const user = userEvent.setup();
 
     render(
@@ -269,9 +336,272 @@ describe("PurchaseOrdersDashboard", () => {
         })
       )
     );
+    expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByText("Quick Filter")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Last 30 Days" })).toBeInTheDocument();
+  });
 
-    const dateInputs = screen.getAllByDisplayValue(/\d{4}-\d{2}-\d{2}/);
-    expect(dateInputs).toHaveLength(2);
+  it("toggles off the active quick filter and clears only the date filters", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult({
+          filters: {
+            vendorId: "VENDOR1",
+            locationCityId: "",
+            color: "",
+            sizeType: "",
+            conditionId: "",
+            orderDateFrom: "",
+            orderDateTo: "",
+            orderStatus: "",
+            quickFilter: "",
+          },
+        })}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    const todayButton = screen.getByRole("button", { name: "Today" });
+
+    await user.click(todayButton);
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          vendorId: "VENDOR1",
+          quickFilter: "today",
+          orderDateFrom: expect.any(String),
+          orderDateTo: expect.any(String),
+        })
+      )
+    );
+
+    await user.click(todayButton);
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          vendorId: "VENDOR1",
+          quickFilter: "",
+          orderDateFrom: "",
+          orderDateTo: "",
+        })
+      )
+    );
+
+    expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+  });
+
+  it("submits search from the keyboard when pressing Enter inside a filter field", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    const fromInput = document.querySelector('input[name="orderDateFrom"]') as HTMLInputElement;
+    await user.click(fromInput);
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+        })
+      )
+    );
+  });
+
+  it("collapses the search area after search and reopens from the header toggle", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByPlaceholderText("Vendor code or name")).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: /^Search$/i })[0]);
+
+    await waitFor(() => expect(purchaseActions.getPurchaseOrders).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+        "aria-expanded",
+        "false"
+      )
+    );
+    expect(screen.queryByPlaceholderText("Vendor code or name")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Search Filters/i }));
+
+    expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByPlaceholderText("Vendor code or name")).toBeInTheDocument();
+  });
+
+  it("shows a compact active filter summary when collapsed after search", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult({
+          filters: {
+            vendorId: "VENDOR1",
+            locationCityId: "ADWEN",
+            color: "",
+            sizeType: "20GP",
+            conditionId: "",
+            orderDateFrom: "",
+            orderDateTo: "",
+            orderStatus: "CONFIRMED",
+            quickFilter: "last30",
+          },
+        })}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    expect(screen.queryByText(/Vendor: VENDOR1/)).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: /^Search$/i })[0]);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+        "aria-expanded",
+        "false"
+      )
+    );
+
+    const summary = screen.getByText((content, node) => {
+      return (
+        node?.tagName === "DIV" &&
+        content.includes("Vendor: VENDOR1") &&
+        content.includes("Location: ADWEN") &&
+        content.includes("Size/Type: 20GP") &&
+        content.includes("Last 30 Days") &&
+        content.includes("Status: CONFIRMED")
+      );
+    });
+
+    expect(summary).toBeInTheDocument();
+    expect(summary).not.toHaveTextContent("Date:");
+  });
+
+  it("shows a manual date summary when no quick filter is active", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult({
+          filters: {
+            vendorId: "",
+            locationCityId: "",
+            color: "",
+            sizeType: "",
+            conditionId: "",
+            orderDateFrom: "2026-04-01",
+            orderDateTo: "2026-04-30",
+            orderStatus: "",
+            quickFilter: "",
+          },
+        })}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /^Search$/i })[0]);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+        "aria-expanded",
+        "false"
+      )
+    );
+
+    expect(
+      screen.getByText((content, node) => {
+        return node?.tagName === "DIV" && content.includes("Date: 2026-04-01 to 2026-04-30");
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("keeps reset visible in the header and reset does not collapse the search area", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /^Search$/i })[0]);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+        "aria-expanded",
+        "false"
+      )
+    );
+
+    expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.queryByPlaceholderText("Vendor code or name")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Reset/i }));
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          vendorId: "",
+          locationCityId: "",
+          color: "",
+          sizeType: "",
+          conditionId: "",
+          orderDateFrom: "",
+          orderDateTo: "",
+          orderStatus: "",
+          quickFilter: "",
+          sortBy: "orderDate",
+          sortDirection: "desc",
+          page: 1,
+          pageSize: 10,
+        })
+      )
+    );
+    expect(screen.getByRole("button", { name: /Search Filters/i })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByPlaceholderText("Vendor code or name")).toBeInTheDocument();
   });
 
   it("exposes a location sort control and requests sorted data", async () => {
@@ -291,6 +621,30 @@ describe("PurchaseOrdersDashboard", () => {
       expect(purchaseActions.getPurchaseOrders).toHaveBeenCalledWith(
         expect.objectContaining({
           sortBy: "location",
+          sortDirection: "desc",
+          page: 1,
+        })
+      )
+    );
+  });
+
+  it("exposes a status sort control and requests sorted data", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Status" }));
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sortBy: "status",
           sortDirection: "desc",
           page: 1,
         })
@@ -325,7 +679,7 @@ describe("PurchaseOrdersDashboard", () => {
     expect(anchorClick).toHaveBeenCalled();
   });
 
-  it("renders vendor, location, size/type, condition, and color in separate aligned columns", () => {
+  it("renders status in its own column, keeps qty centered, prepaid balance right-aligned, and actions sticky on the right", () => {
     render(
       <PurchaseOrdersDashboard
         initial={purchaseResult()}
@@ -352,7 +706,106 @@ describe("PurchaseOrdersDashboard", () => {
       "1",
       "0",
       "1200.00",
-      "CONFIRMEDViewEdit",
+      "CONFIRMED",
+      "ViewEdit",
     ]);
+
+    const prepaidBalanceCell = dataRow.querySelectorAll("td")[11];
+    expect(prepaidBalanceCell).toHaveClass("text-right");
+    expect(dataRow.querySelectorAll("td")[0]).not.toHaveClass("sticky");
+    expect(dataRow.querySelectorAll("td")[1]).not.toHaveClass("sticky");
+    expect(dataRow.querySelectorAll("td")[7]).toHaveClass("text-center");
+    expect(dataRow.querySelectorAll("td")[8]).toHaveClass("text-center");
+    expect(dataRow.querySelectorAll("td")[9]).toHaveClass("text-center");
+    expect(dataRow.querySelectorAll("td")[10]).toHaveClass("text-center");
+    expect(dataRow.querySelectorAll("td")[13]).toHaveClass("sticky", "right-0", "border-l", "bg-card");
+
+    const headCells = screen.getAllByRole("columnheader");
+    expect(headCells.at(-1)).toHaveClass("sticky", "right-0", "border-l", "bg-card");
+  });
+
+  it("shows matching location options and allows keyboard selection", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    const locationInput = screen.getByRole("combobox", { name: "Location" });
+    await user.type(locationInput, "a");
+
+    expect(screen.getByRole("option", { name: /ADWEN/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /USLAX/i })).toBeInTheDocument();
+
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(locationInput).toHaveValue("ADWEN")
+    );
+  });
+
+  it("requires selecting an autocomplete option before search uses that filter", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    await user.type(screen.getByRole("combobox", { name: "Location" }), "a");
+    await user.click(screen.getAllByRole("button", { name: /^Search$/i })[0]);
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          locationCityId: "",
+        })
+      )
+    );
+  });
+
+  it("submits selected autocomplete filters and exposes RAL color options", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    await user.type(screen.getByRole("combobox", { name: "Vendor" }), "ven");
+    await user.keyboard("{ArrowDown}{Enter}");
+    await user.type(screen.getByRole("combobox", { name: "Location" }), "a");
+    await user.keyboard("{Enter}");
+    await user.type(screen.getByRole("combobox", { name: "Size/Type" }), "gp");
+    await user.keyboard("{ArrowDown}{Enter}");
+    await user.type(screen.getByRole("combobox", { name: "Condition" }), "cw");
+    await user.keyboard("{ArrowDown}{Enter}");
+    await user.type(screen.getByRole("combobox", { name: "Color" }), "ral5");
+
+    expect(screen.getByRole("option", { name: /RAL5002/i })).toBeInTheDocument();
+    await user.keyboard("{ArrowDown}{Enter}");
+    await user.click(screen.getAllByRole("button", { name: /^Search$/i })[0]);
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vendorId: "VENDOR1",
+          locationCityId: "ADWEN",
+          sizeType: "20GP",
+          conditionId: "CW",
+          color: "RAL5002",
+        })
+      )
+    );
   });
 });

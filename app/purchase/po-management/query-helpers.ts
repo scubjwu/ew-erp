@@ -14,6 +14,11 @@ export type PurchaseItemFilterShape = {
   container_size_code_id: string | null;
   container_type_code_id: string | null;
   container_condition_code_id: string | null;
+  location_code?: string | null;
+  location_name?: string | null;
+  size_code?: string | null;
+  type_code?: string | null;
+  condition_code?: string | null;
 };
 
 export type PurchaseItemAggregateFilters = {
@@ -25,6 +30,12 @@ export type PurchaseItemAggregateFilters = {
 
 function normalizeText(value?: string | null) {
   return value?.trim() ?? "";
+}
+
+function includesNormalized(haystack?: string | null, needle?: string | null) {
+  const normalizedNeedle = normalizeText(needle).toLowerCase();
+  if (!normalizedNeedle) return true;
+  return normalizeText(haystack).toLowerCase().includes(normalizedNeedle);
 }
 
 export function applyQuickFilterDates(quickFilter: PurchaseQuickFilter, now = new Date()) {
@@ -89,19 +100,35 @@ export function purchaseItemMatchesAggregateFilters(
   filters: PurchaseItemAggregateFilters
 ) {
   if (!item) return false;
-  if (filters.locationCityId && item.location_city_id !== filters.locationCityId) return false;
+  if (
+    filters.locationCityId &&
+    !includesNormalized(item.location_code ?? item.location_city_id, filters.locationCityId) &&
+    !includesNormalized(item.location_name, filters.locationCityId)
+  )
+    return false;
   if (
     filters.color &&
-    normalizeText(item.color).toLowerCase() !== filters.color.toLowerCase()
-  ) {
+    !normalizeRalLikeSearch(item.color).includes(normalizeRalLikeSearch(filters.color))
+  )
     return false;
-  }
-  if (filters.conditionId && item.container_condition_code_id !== filters.conditionId) return false;
+  if (
+    filters.conditionId &&
+    !includesNormalized(item.condition_code ?? item.container_condition_code_id, filters.conditionId)
+  )
+    return false;
   if (filters.sizeType) {
-    const pair = `${item.container_size_code_id ?? ""}:${item.container_type_code_id ?? ""}`;
-    if (pair !== filters.sizeType) return false;
+    const query = filters.sizeType.toLowerCase();
+    const sizeValue = normalizeText(item.size_code ?? item.container_size_code_id).toLowerCase();
+    const typeValue = normalizeText(item.type_code ?? item.container_type_code_id).toLowerCase();
+    const combined = `${sizeValue}${typeValue}`;
+    if (!sizeValue.includes(query) && !typeValue.includes(query) && !combined.includes(query))
+      return false;
   }
   return true;
+}
+
+export function normalizeRalLikeSearch(value?: string | null) {
+  return normalizeText(value).replace(/\s+/g, "").toUpperCase();
 }
 
 export function rowMatchesAnyPurchaseItem(

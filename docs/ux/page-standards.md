@@ -20,6 +20,7 @@ Use it when implementing or reviewing:
 - Keep layouts compact, stable, and optimized for repetitive daily use.
 - Group information by business meaning instead of raw schema order.
 - Preserve consistent action placement across modules.
+- Unless a module-specific rule overrides it, future pages should follow the delivered `Purchase` page interaction baseline.
 
 ## Center Page Standard
 
@@ -46,9 +47,14 @@ They should include:
 - server-side filtering for applied search conditions
 - server-side pagination for the main dataset
 - sticky headers
-- a frozen first business column where useful
+- a right-sticky `Actions` column when row actions exist
 - lightweight row actions such as `View` and `Edit`
 - export based on the active business filter context
+- sorting for every visible list column
+- consistent alignment:
+  - text left
+  - quantities centered
+  - amounts right
 
 They should avoid:
 
@@ -56,20 +62,31 @@ They should avoid:
 - oversized inline row action buttons
 - auto-running search when a suggestion is selected
 - making users relearn search and reset behavior on each module
+- mixing status or other business data into the `Actions` column
 
 ## Search and Filter Standard
 
 - Search should run on explicit submit such as `Search` or `Enter`.
-- Suggestions should be lightweight and field-specific when they materially help.
+- Search fields should default to autocomplete/dropdown when the user is choosing from a bounded business value set.
+- Search autocomplete should support fuzzy matching, keyboard up/down navigation, `Enter` selection, and `Escape` close.
 - Selecting a suggestion should populate the input only.
+- Only selected autocomplete suggestions count as active filter values.
 - Search and reset controls should remain in a stable, predictable position.
 - Filter ordering should follow business usage frequency, not implementation convenience.
+- `Quick Filter` should sit on its own row above the main search filters when present.
+- `Search Filters` should support collapse.
+- Collapse behavior should follow the delivered `Purchase` rule:
+  - `Search` success collapses
+  - `Reset` does not collapse
+  - `Quick Filter` does not collapse
+- Collapsed filter areas must show a compact single-line active-filter summary.
 
 ## Sorting Standard
 
 - Backend default order should follow the main business key when practical.
-- Current-page header sorting may remain UI-only if that is the established module pattern.
+- Every visible list column should expose a sortable header.
 - Do not switch between local sorting and server sorting arbitrarily inside one page pattern.
+- Status columns are not exceptions; if visible in the list, they should also sort.
 
 ## Detail Page Standard
 
@@ -91,6 +108,8 @@ When a detail page becomes too dense:
 - Required fields should be marked clearly.
 - Readonly or system-derived fields should look intentionally locked.
 - Save and cancel actions should remain easy to find and consistent across modules.
+- Form action bars should default to sticky treatment.
+- Sticky action bars must use a clear background and boundary so underlying content does not bleed through visually.
 - Large forms should scroll internally rather than overflow the viewport.
 
 ## Tabbed Detail Standard
@@ -144,5 +163,6 @@ When reviewing a new or changed page, check:
 3. whether search, filter, sort, and export behavior matches repo standards
 4. whether the maturity of the feature is represented honestly
 5. whether the page reuses an existing delivered pattern where appropriate
-6. whether the success, empty, loading, and error states are usable
-
+6. whether collapsed search areas preserve context through an active-filter summary
+7. whether code-first fields remain consistent across list, detail, and filter surfaces
+8. whether the success, empty, loading, and error states are usable

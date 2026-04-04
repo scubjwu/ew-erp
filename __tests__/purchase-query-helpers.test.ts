@@ -4,6 +4,7 @@ import {
   applyQuickFilterDates,
   firstPurchaseItemByOrder,
   groupPurchaseItemsByOrder,
+  normalizeRalLikeSearch,
   rowMatchesAnyPurchaseItem,
 } from "@/app/purchase/po-management/query-helpers";
 
@@ -18,6 +19,11 @@ describe("purchase query helpers", () => {
         container_size_code_id: "size-2",
         container_type_code_id: "type-2",
         container_condition_code_id: "condition-2",
+        location_code: "USLAX",
+        location_name: "Los Angeles",
+        size_code: "40",
+        type_code: "HC",
+        condition_code: "ASIS",
       },
       {
         purchase_order_id: "po-1",
@@ -27,12 +33,17 @@ describe("purchase query helpers", () => {
         container_size_code_id: "size-1",
         container_type_code_id: "type-1",
         container_condition_code_id: "condition-1",
+        location_code: "ADWEN",
+        location_name: "Wien",
+        size_code: "20",
+        type_code: "GP",
+        condition_code: "CW",
       },
     ]);
 
     expect(
       rowMatchesAnyPurchaseItem(grouped.get("po-1"), {
-        locationCityId: "city-2",
+        locationCityId: "lax",
         color: "",
         sizeType: "",
         conditionId: "",
@@ -43,8 +54,17 @@ describe("purchase query helpers", () => {
       rowMatchesAnyPurchaseItem(grouped.get("po-1"), {
         locationCityId: "",
         color: "ral3020",
-        sizeType: "size-2:type-2",
-        conditionId: "condition-2",
+        sizeType: "hc",
+        conditionId: "asis",
+      })
+    ).toBe(true);
+
+    expect(
+      rowMatchesAnyPurchaseItem(grouped.get("po-1"), {
+        locationCityId: "",
+        color: "",
+        sizeType: "20gp",
+        conditionId: "cw",
       })
     ).toBe(true);
   });
@@ -90,5 +110,9 @@ describe("purchase query helpers", () => {
       orderDateFrom: "2026-03-01",
       orderDateTo: "2026-03-31",
     });
+  });
+
+  it("normalizes RAL-like input by stripping spaces and uppercasing", () => {
+    expect(normalizeRalLikeSearch(" ral 5002 ")).toBe("RAL5002");
   });
 });
