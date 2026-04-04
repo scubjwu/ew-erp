@@ -26,6 +26,7 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
 - [x] Sync docs to today's regression-workflow commit truth
 - [x] Separate system truth, module truth, and daily action items for the new regression process
 - [x] Classify all unfinished follow-up items as `Deferred` or `Carried Forward`
+- [x] Document delivered Purchase Milestones 0-2 and the new RAL static lookup coverage
 
 ### Action Items from conversations
 
@@ -71,6 +72,12 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Owner: Codex
   - Next concrete step: N/A
 
+- [ ] Topic: Start Purchase Milestone 3 development next
+  - Status: Carried Forward
+  - Source conversation/topic: Purchase module milestone rollout
+  - Owner: User + Codex
+  - Next concrete step: Begin Create PO draft flow on top of the delivered Purchase DB, management page, detail page, and RAL color lookup enforcement
+
 ### In Progress
 
 - [ ] None
@@ -85,6 +92,7 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
 - [x] Synced `docs/modules/system-codes.md` to the current `System Codes` regression scope
 - [x] Synced `docs/modules/partners.md` to the current `Partners` regression logging rule
 - [x] Kept regression execution details out of `daily-todo` and moved planning-only follow-up into classified items
+- [x] Synced docs to delivered Purchase Milestone 0, Milestone 1, Milestone 2, and static `RAL` color lookup reality
 
 ### Carry Forward to next day
 
@@ -99,6 +107,12 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Source conversation/topic: Purchase Milestone 1 validation follow-up
   - Owner: User + Codex
   - Next concrete step: Create a dedicated type-cleanup work item grouped by module so Purchase delivery can continue without losing track of the global TS debt
+
+- [ ] Start Purchase Milestone 3 development
+  - Status: Carried Forward
+  - Source conversation/topic: Purchase milestone rollout
+  - Owner: User + Codex
+  - Next concrete step: Implement Create PO draft flow and hook color input to `public.ral_color_codes`
 
 ### Deferred
 

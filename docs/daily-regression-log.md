@@ -192,6 +192,45 @@ Status vocabulary:
   - changed reset-safe tooling to default to `npm run db:reset` while preserving Purchase seed files across fallback/reset retry paths
 - Follow-up rule recorded in system doc: every new editable table must now be wired into migration, seed export, seed verify, seed load order, reset-safe fixture creation, restore assertions, and full regression in the same change
 
+### Additional Run: 2026-04-03 Purchase Milestone 1 and 2 Verification
+
+- Environment note: Purchase top-level navigation, management page, detail page, and item-container read-only subpage were verified against the active local dev server after Milestone 1 and Milestone 2 delivery
+- App URL attempted: `http://localhost:3001`
+- Commands rerun:
+  - `EW_ERP_BASE_URL=http://localhost:3001 npm run test:regression`
+  - `./node_modules/.bin/vitest run __tests__/purchase-orders-dashboard.test.tsx __tests__/purchase-order-detail.test.tsx __tests__/purchase-query-helpers.test.ts`
+- Result: Pass
+- Summary metrics:
+  - full regression passed with Purchase route coverage included
+  - local regression reached `routes_checked: 47` and `data_checks: 53`
+  - Purchase unit tests passed
+- Verification note:
+  - `PO Management` sorting, filtering, export, and code-only display rules were confirmed
+  - `PO Detail` was confirmed to stop at item level
+  - `View Containers` route was confirmed to show container-level records separately
+
+### Additional Run: 2026-04-03 RAL Color Lookup and Reset-Safe Verification
+
+- Environment note: this run completed the static `RAL` color lookup rollout and validated both local reset safety and Purchase test fixtures against the final user-provided code list
+- Commands rerun:
+  - `npm run db:reset`
+  - `./node_modules/.bin/vitest run __tests__/purchase-orders-dashboard.test.tsx __tests__/purchase-order-detail.test.tsx __tests__/purchase-query-helpers.test.ts`
+  - `npm run test:regression:reset-safe`
+- Result: Pass
+- Summary metrics:
+  - local `ral_color_codes` table restored with `66` rows after reset
+  - Purchase tests passed (`10/10`)
+  - reset-safe regression passed with `reset_safe_checks: 32`
+- Problems found during the rollout:
+  - initial static seed and demo/test fixtures used mixed color formats and values outside the final user-approved `RAL` list
+  - reset-safe verification initially failed because the script asserted a color code that did not exist in the final static table
+- Fix summary:
+  - normalized `ral_color_codes` seed to the final no-space format such as `RAL1000`
+  - normalized Purchase demo seeds, Purchase tests, and reset-safe Purchase fixtures to valid seeded `RAL` codes only
+  - updated reset-safe assertions to check the delivered static table contents directly
+- Verification note:
+  - `public.ral_color_codes` is now migration-backed, seed-backed, reset-safe, and ready to be promoted through the normal remote migration/seed flow
+
 ## Template
 
 Copy this section for each regression day.

@@ -27,6 +27,7 @@ Current top-level modules:
 - `Partners`
 - `Inventory`
 - `System Settings`
+- `Purchase`
 
 Current landing route:
 
@@ -176,6 +177,45 @@ Current system interaction is mostly built on this pattern:
 - `scripts/run_local_regression.mjs` and `scripts/run_reset_safe_regression.mjs` now surface actionable diagnostics when localhost or local Supabase HTTP access is blocked by a sandboxed environment, instead of failing with low-signal transport errors alone
 - `Purchase` database tables `purchase_order`, `purchase_order_item`, `purchase_order_container`, `purchase_order_material_type`, and `purchase_finance_record` are now part of the reset-safe seed workflow
 - current Purchase regression coverage is database-layer only: seed export, seed verify, reset-safe restore, derived finance-record sync, and material-vendor resolution are covered; route/UI CRUD regression is not yet part of the daily gate because the Purchase page family is not delivered yet
+- `Purchase` now has a delivered top-level navigation entry plus route family scaffolding under `/purchase`
+- Purchase Milestone 0 is complete:
+  - `purchase_order` now includes `freeday`, `vendor_release_number`, and `vendor_release_date`
+  - those fields are now part of local seed/reset-safe verification and the shared Purchase TypeScript shape
+- Purchase Milestone 1 is complete:
+  - `/purchase` resolves into `/purchase/po-management`
+  - `/purchase/po-management` is now a delivered read-only management page with server-side filtering, server-side sorting, pagination, CSV export, and `View` navigation
+  - supported management filters are now:
+    - vendor
+    - location
+    - color
+    - size/type
+    - condition
+    - order date range
+    - PO status
+    - quick date filters
+  - management cards and list now surface `Prepaid Balance`, which maps to `settlement_current_prepaid_balance`
+- Purchase Milestone 2 is complete:
+  - `/purchase/po-management/[id]` is now a delivered read-only PO detail page
+  - the main PO detail page intentionally stops at `purchase_order_item` level
+  - container-level records are viewed through `/purchase/po-management/[id]/items/[itemId]/containers`
+  - `PO Detail` now shows:
+    - business details
+    - material types
+    - item-level container information
+    - PO finance fields
+    - synced `purchase_finance_record` fields
+- Purchase display rules now explicitly favor compact business codes over descriptive names in management/detail views:
+  - `Location` shows `city_code`
+  - `Condition` shows `condition_code`
+  - `Color` shows the stored color code
+- `public.ral_color_codes` is now a delivered static lookup table for Purchase color input enforcement
+  - it is intentionally not part of `System Codes` UI maintenance
+  - the table currently stores only:
+    - `id`
+    - `color_code`
+  - current static seed coverage contains `66` valid `RAL` codes using the canonical no-space format such as `RAL1000`
+- Purchase demo seeds, Purchase UI tests, and reset-safe fixtures now use only `RAL` codes that exist in `public.ral_color_codes`
+- `Inventory` remains deprecated for future Purchase work; new Purchase delivery should not treat legacy inventory pages or the legacy `inventory` table as a dependency or truth source
 
 ## UI Standards
 
