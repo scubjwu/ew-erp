@@ -219,6 +219,24 @@ Current system interaction is mostly built on this pattern:
 
 ## UI Standards
 
+Canonical UX planning and design rules are defined in [`/Users/palayapan/Documents/ew-erp/docs/ux/ux-principles.md`](/Users/palayapan/Documents/ew-erp/docs/ux/ux-principles.md).
+
+Supporting UX references are:
+
+- UX docs index: [`/Users/palayapan/Documents/ew-erp/docs/ux/README.md`](/Users/palayapan/Documents/ew-erp/docs/ux/README.md)
+- information architecture: [`/Users/palayapan/Documents/ew-erp/docs/ux/information-architecture.md`](/Users/palayapan/Documents/ew-erp/docs/ux/information-architecture.md)
+- task flows: [`/Users/palayapan/Documents/ew-erp/docs/ux/task-flows.md`](/Users/palayapan/Documents/ew-erp/docs/ux/task-flows.md)
+- page standards: [`/Users/palayapan/Documents/ew-erp/docs/ux/page-standards.md`](/Users/palayapan/Documents/ew-erp/docs/ux/page-standards.md)
+
+That document is the required UX reference for:
+
+- planning new modules or major workflow changes
+- designing center pages, list pages, detail pages, and form flows
+- representing delivered versus placeholder module maturity honestly
+- deciding when to reuse an existing interaction pattern instead of inventing a new one
+
+All future plan, design, and development work should follow that UX principles document together with the current delivered system and module docs.
+
 ### List page standards
 
 All new list pages should follow these rules unless there is a stronger business reason not to.
@@ -283,6 +301,15 @@ New pages should copy delivered `System Codes` and `Customers` interaction patte
 Even though this document is English-first, English business names remain the standard for the UI unless business requirements explicitly say otherwise.
 
 ## Local Development Workflow
+
+Testing requirements for all development work are defined in [`/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md`](/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md).
+
+That document is the canonical answer for:
+
+- which tests are mandatory before a change is done
+- which touched modules require extra targeted tests beyond the shared gate
+- when manual verification is still required
+- what testing evidence must be recorded in reviews and handoffs
 
 ### Default local development flow
 
@@ -587,6 +614,14 @@ Required execution order:
 
 Delivered editable pages should also be covered by the repeatable daily regression workflow.
 
+The daily regression workflow is required, but it is not the only testing requirement.
+
+Important rule:
+
+- `npm run test:regression` is the shared baseline gate for delivered routes and reset-safe behavior
+- targeted module tests from [`/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md`](/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md) are still mandatory when the touched module requires them
+- a developer must not call a change done only because the shared regression gate is green
+
 Current required command sequence:
 
 1. `npm run db:start`
@@ -670,6 +705,15 @@ Required daily regression loop:
 5. rerun the gate
 6. commit fixes only after the gate is green
 
+Required development-testing loop for any non-trivial change:
+
+1. identify the touched module and required tests from [`/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md`](/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md)
+2. run the targeted tests for the touched behavior
+3. run `npm run db:reset` when migrations, seeds, RLS, or reset-sensitive tables changed
+4. run `npm run test:regression` when the change affects delivered pages, schema, exports, shared queries, or reset-safe behavior
+5. manually verify the touched workflow when adequate browser-path automation does not yet exist
+6. record commands run, manual verification performed, and any remaining testing gap in the handoff or review summary
+
 ## Definition of Done For New Master-Data Pages
 
 A page is not done until:
@@ -687,6 +731,7 @@ A page is not done until:
 - the required smoke-test suite has been completed after `npm run db:reset`
 - search, reset, and filtered export have been explicitly verified instead of inferred from page rendering
 - temporary smoke-test data has been removed or intentionally converted into managed seed data
+- required testing from [`/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md`](/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md) has been completed and recorded
 
 ## Plans and Target State
 

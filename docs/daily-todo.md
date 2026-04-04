@@ -27,6 +27,7 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
 - [x] Separate system truth, module truth, and daily action items for the new regression process
 - [x] Classify all unfinished follow-up items as `Deferred` or `Carried Forward`
 - [x] Document delivered Purchase Milestones 0-2 and the new RAL static lookup coverage
+- [x] Create the core UX documentation set and link it from the master system doc
 
 ### Action Items from conversations
 
@@ -78,6 +79,78 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Owner: User + Codex
   - Next concrete step: Begin Create PO draft flow on top of the delivered Purchase DB, management page, detail page, and RAL color lookup enforcement
 
+- [ ] Topic: Add targeted customer-form tests to the required shared testing workflow
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Decide whether to fold `npm run test:crm` into `npm run test:regression` or create a stricter top-level required testing command
+
+- [ ] Topic: Add targeted Purchase vitests to the required shared testing workflow
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Decide whether the three delivered Purchase vitest files should run inside `npm run test:regression` or a new required gate command
+
+- [ ] Topic: Introduce a browser-path CRUD smoke suite for delivered pages with weak UI automation coverage
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Pick the first two reference flows to automate, with `Customers` and one delivered `System Codes` page as the default starting point
+
+- [ ] Topic: Backlog minimal automated coverage for the current Inventory route
+  - Status: Carried Forward
+  - Source conversation/topic: Testing gap review
+  - Owner: User + Codex
+  - Next concrete step: Decide whether to add route/data smoke coverage for `Inventory` or explicitly mark it outside the supported regression scope
+
+- [ ] Topic: Add a compile-time TypeScript check to the required testing workflow after current repo-wide failures are triaged
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Triage the existing `tsc --noEmit` failures, then decide whether to add blocking or non-blocking type-check execution to the shared workflow
+
+- [ ] Topic: Define a standard manual-verification template for UI changes without adequate browser automation
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Add a short reusable handoff format for route, action, expected result, and residual testing gap
+
+- [x] Topic: Create a dedicated UX documentation set for planning, design, and implementation
+  - Status: Done
+  - Source conversation/topic: UX documentation and master-doc linkage
+  - Owner: Codex
+  - Next concrete step: N/A
+
+- [ ] Topic: Review the current top-level navigation against the new UX IA rules
+  - Status: Carried Forward
+  - Source conversation/topic: UX IA setup
+  - Owner: User + Codex
+  - Next concrete step: Decide whether the product navigation should be regrouped into `Master Data`, `Transactions`, and `Settings`, or keep the current module-first structure with clearer maturity cues
+
+- [ ] Topic: Define how partial and placeholder sections should be expressed in the UI
+  - Status: Carried Forward
+  - Source conversation/topic: UX principles rollout
+  - Owner: User + Codex
+  - Next concrete step: Choose the copy, visual treatment, and navigation behavior for scaffold-only or partial sections such as `Lessor`
+
+- [ ] Topic: Create a canonical Purchase UX flow before Milestone 3 implementation
+  - Status: Carried Forward
+  - Source conversation/topic: Purchase UX planning
+  - Owner: User + Codex
+  - Next concrete step: Define the end-to-end `Create Draft -> Edit Draft -> Review -> Confirm` flow and align route, page, and form structure before coding
+
+- [ ] Topic: Audit delivered modules against the new page standards for inconsistency
+  - Status: Carried Forward
+  - Source conversation/topic: UX standards rollout
+  - Owner: User + Codex
+  - Next concrete step: Review `System Codes`, `Partners`, `Users`, and `Purchase` for search behavior, action placement, detail-page structure, and maturity signaling gaps
+
+- [ ] Topic: Decide whether `basic-info-list-standard` should later be absorbed into the broader UX page standards
+  - Status: Deferred
+  - Source conversation/topic: UX doc consolidation
+  - Owner: User + Codex
+  - Next concrete step: Keep both docs for now, then decide later whether to merge the `Basic Info`-specific list standard into the shared page-standard doc after more modules are normalized
+
 ### In Progress
 
 - [ ] None
@@ -93,6 +166,8 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
 - [x] Synced `docs/modules/partners.md` to the current `Partners` regression logging rule
 - [x] Kept regression execution details out of `daily-todo` and moved planning-only follow-up into classified items
 - [x] Synced docs to delivered Purchase Milestone 0, Milestone 1, Milestone 2, and static `RAL` color lookup reality
+- [x] Created `docs/ux/` UX reference docs for principles, IA, task flows, and page standards
+- [x] Linked the master system doc to the canonical UX rules and supporting UX references
 
 ### Carry Forward to next day
 
@@ -114,6 +189,66 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Owner: User + Codex
   - Next concrete step: Implement Create PO draft flow and hook color input to `public.ral_color_codes`
 
+- [ ] Add targeted customer-form tests to the required shared testing workflow
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Decide whether to fold `npm run test:crm` into `npm run test:regression` or create a stricter top-level required testing command
+
+- [ ] Add targeted Purchase vitests to the required shared testing workflow
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Decide whether the three delivered Purchase vitest files should run inside `npm run test:regression` or a new required gate command
+
+- [ ] Introduce a browser-path CRUD smoke suite for delivered pages with weak UI automation coverage
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Pick the first two reference flows to automate, with `Customers` and one delivered `System Codes` page as the default starting point
+
+- [ ] Backlog minimal automated coverage for the current Inventory route
+  - Status: Carried Forward
+  - Source conversation/topic: Testing gap review
+  - Owner: User + Codex
+  - Next concrete step: Decide whether to add route/data smoke coverage for `Inventory` or explicitly mark it outside the supported regression scope
+
+- [ ] Add a compile-time TypeScript check to the required testing workflow after current repo-wide failures are triaged
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Triage the existing `tsc --noEmit` failures, then decide whether to add blocking or non-blocking type-check execution to the shared workflow
+
+- [ ] Define a standard manual-verification template for UI changes without adequate browser automation
+  - Status: Carried Forward
+  - Source conversation/topic: Testing requirements hardening
+  - Owner: User + Codex
+  - Next concrete step: Add a short reusable handoff format for route, action, expected result, and residual testing gap
+
+- [ ] Review the current top-level navigation against the new UX IA rules
+  - Status: Carried Forward
+  - Source conversation/topic: UX IA setup
+  - Owner: User + Codex
+  - Next concrete step: Decide whether the product navigation should be regrouped into `Master Data`, `Transactions`, and `Settings`, or keep the current module-first structure with clearer maturity cues
+
+- [ ] Define how partial and placeholder sections should be expressed in the UI
+  - Status: Carried Forward
+  - Source conversation/topic: UX principles rollout
+  - Owner: User + Codex
+  - Next concrete step: Choose the copy, visual treatment, and navigation behavior for scaffold-only or partial sections such as `Lessor`
+
+- [ ] Create a canonical Purchase UX flow before Milestone 3 implementation
+  - Status: Carried Forward
+  - Source conversation/topic: Purchase UX planning
+  - Owner: User + Codex
+  - Next concrete step: Define the end-to-end `Create Draft -> Edit Draft -> Review -> Confirm` flow and align route, page, and form structure before coding
+
+- [ ] Audit delivered modules against the new page standards for inconsistency
+  - Status: Carried Forward
+  - Source conversation/topic: UX standards rollout
+  - Owner: User + Codex
+  - Next concrete step: Review `System Codes`, `Partners`, `Users`, and `Purchase` for search behavior, action placement, detail-page structure, and maturity signaling gaps
+
 ### Deferred
 
 - [ ] Decide whether to add browser-level visual diffs to the daily gate
@@ -121,6 +256,12 @@ Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/pa
   - Source conversation/topic: Regression coverage hardening follow-up
   - Owner: User + Codex
   - Next concrete step: Approve or reject a screenshot-baseline strategy before expanding the gate
+
+- [ ] Decide whether `basic-info-list-standard` should later be absorbed into the broader UX page standards
+  - Status: Deferred
+  - Source conversation/topic: UX doc consolidation
+  - Owner: User + Codex
+  - Next concrete step: Keep both docs for now, then decide later whether to merge the `Basic Info`-specific list standard into the shared page-standard doc after more modules are normalized
 
 ## Template
 

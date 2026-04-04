@@ -11,6 +11,8 @@ Use it to keep local change review:
 - consistent in severity and output format
 - explicit about testing coverage expectations
 
+For the canonical testing bar itself, use [`/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md`](/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md). This review guide explains how to evaluate coverage in a review; the testing-requirements doc defines what developers were required to run before review.
+
 ## Review Goals
 
 Local change review should prioritize finding issues that can materially break delivered behavior or repository safety.
@@ -68,12 +70,15 @@ Every local review should check the following whenever relevant to the changed a
 
 Every review must explicitly assess whether the changed behavior is covered by current automated tests, regression scripts, or another repeatable verification path already used by the repo.
 
+Reviewers should check the submitted testing evidence against [`/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md`](/Users/palayapan/Documents/ew-erp/docs/testing-requirements.md), not against personal expectation or habit.
+
 Coverage review rules:
 
 - if coverage exists and is appropriate, note it briefly when it supports the review conclusion
 - if coverage is missing but the change is otherwise acceptable, raise the gap as a `P3`
 - if missing coverage prevents confidence in correctness, or hides a likely regression, escalate the finding to `P1` or `P2` based on impact
 - do not hide a testing gap inside summary prose; call it out explicitly when it matters
+- if a required targeted test from the testing-requirements doc was not run, treat that as a real coverage gap rather than assuming the shared regression gate was sufficient
 
 Examples of coverage that should be considered:
 
@@ -82,6 +87,7 @@ Examples of coverage that should be considered:
 - reset-safe coverage in `scripts/run_reset_safe_regression.mjs`
 - seed export and verification coverage
 - targeted smoke tests for delivered CRUD flows
+- required targeted module tests such as `npm run test:crm` for customer-form changes and the dedicated Purchase vitests for delivered Purchase UI/query changes
 
 ## Output Format
 
