@@ -443,7 +443,7 @@ async function createRegressionFixtures(supabase, stamp) {
         container_size_code_id: sizeCode.id,
         container_type_code_id: typeCode.id,
         container_condition_code_id: conditionCode.id,
-        color: "Blue",
+        color: "RAL1001",
         flp: true,
         lbx: false,
         locking_bars_count: 4,
@@ -475,7 +475,7 @@ async function createRegressionFixtures(supabase, stamp) {
         container_size_code_id: sizeCode.id,
         container_type_code_id: typeCode.id,
         container_condition_code_id: conditionCode.id,
-        color: "Blue",
+        color: "RAL1001",
         flp: true,
         lbx: false,
         yom: 2026,
@@ -633,6 +633,9 @@ async function assertBasicInfoRestored(supabase) {
   await assertTableCount(supabase, "container_number_rules", 2);
   await must(supabase.from("container_number_rules").select("id").eq("prefix", "EWLU").limit(1).single(), "verify number rule seed");
 
+  await assertTableCount(supabase, "ral_color_codes", 66);
+  await must(supabase.from("ral_color_codes").select("id").eq("color_code", "RAL1001").single(), "verify RAL color seed");
+
   await assertTableCount(supabase, "operation_price_configs", 2);
   await must(
     supabase.from("operation_price_configs").select("id").eq("currency", "USD").eq("addon_price", 20).limit(1).single(),
@@ -701,7 +704,7 @@ async function main() {
     await assertBasicInfoRestored(resetClient);
 
     console.log("Reset-safe regression passed.");
-    console.log(JSON.stringify({ reset_safe_checks: 30 }, null, 2));
+    console.log(JSON.stringify({ reset_safe_checks: 32 }, null, 2));
   } finally {
     if (markers) {
       await cleanupRestored(null, markers);

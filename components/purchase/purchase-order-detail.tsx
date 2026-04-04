@@ -82,7 +82,7 @@ function sizeTypeLabel(item: PurchaseOrderDetail["items"][number]) {
 
 function conditionLabel(item: PurchaseOrderDetail["items"][number]) {
   if (!item.condition) return "-";
-  return `${item.condition.condition_code} · ${item.condition.condition_name}`;
+  return item.condition.condition_code;
 }
 
 function bankInfoRows(order: PurchaseOrderDetail) {
@@ -241,9 +241,7 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                   order.items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        {item.location
-                          ? `${item.location.city_code} · ${item.location.city_name}`
-                          : "-"}
+                        {item.location?.city_code ?? "-"}
                       </TableCell>
                       <TableCell>
                         {item.depot

@@ -583,12 +583,8 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                     <TableRow key={row.id}>
                       <TableCell>{row.purchaseDate ?? "-"}</TableCell>
                       <TableCell className="font-medium">{row.orderNo}</TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div>{row.vendorLabel ?? "-"}</div>
-                          <div className="text-xs text-muted-foreground">{row.locationLabel ?? "-"}</div>
-                        </div>
-                      </TableCell>
+                      <TableCell>{row.vendorLabel ?? "-"}</TableCell>
+                      <TableCell>{row.locationLabel ?? "-"}</TableCell>
                       <TableCell>{row.sizeTypeLabel ?? "-"}</TableCell>
                       <TableCell>{row.conditionLabel ?? "-"}</TableCell>
                       <TableCell>{row.primaryColor ?? "-"}</TableCell>

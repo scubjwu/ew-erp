@@ -513,9 +513,7 @@ function mapPurchaseRow(
   const sizeCode = firstItem?.size?.size_code ?? null;
   const typeCode = firstItem?.type?.type_code ?? null;
   const sizeTypeLabel = sizeCode && typeCode ? `${sizeCode}${typeCode}` : null;
-  const locationLabel = firstItem?.location
-    ? `${firstItem.location.city_code} · ${firstItem.location.city_name}`
-    : null;
+  const locationLabel = firstItem?.location?.city_code ?? null;
   const vendorLabel =
     row.supplier?.company_name ??
     row.supplier?.legal_company_name ??
@@ -563,7 +561,7 @@ function mapPurchaseRow(
     supplier: row.supplier ?? null,
     owner: row.owner ?? null,
     buyer: row.buyer ?? null,
-    primaryLocation: firstItem?.location?.city_name ?? null,
+    primaryLocation: firstItem?.location?.city_code ?? null,
     primarySizeCode: sizeCode,
     primaryTypeCode: typeCode,
     primaryConditionCode: firstItem?.condition?.condition_code ?? null,
@@ -571,9 +569,7 @@ function mapPurchaseRow(
     locationLabel,
     vendorLabel,
     sizeTypeLabel,
-    conditionLabel: firstItem?.condition
-      ? `${firstItem.condition.condition_code} · ${firstItem.condition.condition_name}`
-      : null,
+    conditionLabel: firstItem?.condition?.condition_code ?? null,
     prepaidBalance,
     cancelledQty: 0,
     remainingQty,

@@ -54,7 +54,7 @@ function conditionLabel(
   row: PurchaseOrderItemContainersDetail["item"] | PurchaseOrderItemContainersDetail["containers"][number]
 ) {
   if (!row.condition) return "-";
-  return `${row.condition.condition_code} · ${row.condition.condition_name}`;
+  return row.condition.condition_code;
 }
 
 export function PurchaseItemContainersView({
@@ -71,7 +71,7 @@ export function PurchaseItemContainersView({
           <div className="space-y-1">
             <h1 className="text-xl font-semibold tracking-tight">Container Details</h1>
             <p className="text-sm text-muted-foreground">
-              {orderNo} · {item.location?.city_name ?? "Unknown Location"} · {sizeTypeLabel(item)}
+              {orderNo} · {item.location?.city_code ?? "Unknown Location"} · {sizeTypeLabel(item)}
             </p>
           </div>
           <Button asChild variant="outline">
@@ -89,9 +89,7 @@ export function PurchaseItemContainersView({
                 Location
               </div>
               <div className="mt-1 text-sm">
-                {item.location
-                  ? `${item.location.city_code} · ${item.location.city_name}`
-                  : "-"}
+                {item.location?.city_code ?? "-"}
               </div>
             </div>
             <div>
@@ -160,9 +158,7 @@ export function PurchaseItemContainersView({
                         {container.containerNumber ?? "-"}
                       </TableCell>
                       <TableCell>
-                        {container.location
-                          ? `${container.location.city_code} · ${container.location.city_name}`
-                          : "-"}
+                        {container.location?.city_code ?? "-"}
                       </TableCell>
                       <TableCell>
                         {container.depot

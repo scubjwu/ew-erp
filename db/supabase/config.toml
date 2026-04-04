@@ -79,6 +79,7 @@ sql_paths = [
   "./seeds/20260330_basic_info_depot_attachment_links.sql",
   "./seeds/20260330_basic_info_depot_additional_costs.sql",
   "./seeds/20260330_basic_info_container_number_rules.sql",
+  "./seeds/20260403_basic_info_ral_color_codes.sql",
   "./seeds/20260330_basic_info_operation_price_configs.sql",
   "./seeds/20260401_partner_master_users.sql",
   "./seeds/20260401_partner_master_vendors.sql",

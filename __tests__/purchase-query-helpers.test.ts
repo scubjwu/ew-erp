@@ -13,7 +13,7 @@ describe("purchase query helpers", () => {
       {
         purchase_order_id: "po-1",
         line_no: 2,
-        color: "Red",
+        color: "RAL3020",
         location_city_id: "city-2",
         container_size_code_id: "size-2",
         container_type_code_id: "type-2",
@@ -22,7 +22,7 @@ describe("purchase query helpers", () => {
       {
         purchase_order_id: "po-1",
         line_no: 1,
-        color: "Blue",
+        color: "RAL1001",
         location_city_id: "city-1",
         container_size_code_id: "size-1",
         container_type_code_id: "type-1",
@@ -42,7 +42,7 @@ describe("purchase query helpers", () => {
     expect(
       rowMatchesAnyPurchaseItem(grouped.get("po-1"), {
         locationCityId: "",
-        color: "red",
+        color: "ral3020",
         sizeType: "size-2:type-2",
         conditionId: "condition-2",
       })
@@ -54,7 +54,7 @@ describe("purchase query helpers", () => {
       {
         purchase_order_id: "po-1",
         line_no: 3,
-        color: "Green",
+        color: "RAL1018",
         location_city_id: "city-3",
         container_size_code_id: "size-3",
         container_type_code_id: "type-3",
@@ -63,7 +63,7 @@ describe("purchase query helpers", () => {
       {
         purchase_order_id: "po-1",
         line_no: 1,
-        color: "Blue",
+        color: "RAL1001",
         location_city_id: "city-1",
         container_size_code_id: "size-1",
         container_type_code_id: "type-1",

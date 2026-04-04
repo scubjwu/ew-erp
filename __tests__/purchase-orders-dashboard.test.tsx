@@ -165,11 +165,11 @@ function purchaseResult(
         primarySizeCode: "20",
         primaryTypeCode: "DV",
         primaryConditionCode: "CW",
-        primaryColor: "Blue",
+        primaryColor: "RAL1001",
         vendorLabel: "Vendor One",
-        locationLabel: "SHA · Shanghai",
+        locationLabel: "SHA",
         sizeTypeLabel: "20DV",
-        conditionLabel: "CW · Cargo Worthy",
+        conditionLabel: "CW",
         prepaidBalance: 1200,
         cancelledQty: 0,
         remainingQty: 1,
@@ -209,7 +209,7 @@ const filterOptions = {
   vendors: [{ id: "vendor-1", vendor_code: "SABCDE", company_name: "Vendor One", legal_company_name: null }],
   locations: [{ id: "city-1", city_code: "SHA", city_name: "Shanghai" }],
   conditions: [{ id: "condition-1", condition_code: "CW", condition_name: "Cargo Worthy" }],
-  colors: [{ value: "Blue" }],
+  colors: [{ value: "RAL1001" }],
   sizeTypes: [{ value: "size-1:type-1", sizeId: "size-1", typeId: "type-1", label: "20DV" }],
   statuses: ["DRAFT", "CONFIRMED", "PARTIAL_RECEIVED", "COMPLETED", "CANCELLED"] as const,
 };
@@ -323,5 +323,36 @@ describe("PurchaseOrdersDashboard", () => {
       )
     );
     expect(anchorClick).toHaveBeenCalled();
+  });
+
+  it("renders vendor, location, size/type, condition, and color in separate aligned columns", () => {
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    const dataRow = screen.getAllByRole("row")[1];
+    const cells = Array.from(dataRow.querySelectorAll("td")).map((cell) =>
+      cell.textContent?.replace(/\s+/g, " ").trim() ?? ""
+    );
+
+    expect(cells).toEqual([
+      "2026-04-10",
+      "PO-001",
+      "Vendor One",
+      "SHA",
+      "20DV",
+      "CW",
+      "RAL1001",
+      "2",
+      "1",
+      "1",
+      "0",
+      "1200.00",
+      "CONFIRMEDViewEdit",
+    ]);
   });
 });
