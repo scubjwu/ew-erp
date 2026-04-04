@@ -417,6 +417,9 @@ async function createRegressionFixtures(supabase, stamp) {
         payment_mode: "PREPAYMENT",
         payment_account: `RESET-SAFE-ACCOUNT-${stamp}`,
         due_date: "2026-05-03",
+        freeday: 7,
+        vendor_release_number: `VRN-${stamp}`,
+        vendor_release_date: "2026-04-12",
         order_status: "CONFIRMED",
         inbound_status: "PARTIAL",
         settlement_currency: "USD",
@@ -534,7 +537,7 @@ async function assertRestored(supabase, markers) {
   const purchaseOrder = await must(
     supabase
       .from("purchase_order")
-      .select("id, total_planned_qty, total_available_qty, grand_total, vendor_bank_information")
+      .select("id, total_planned_qty, total_available_qty, grand_total, vendor_bank_information, freeday, vendor_release_number, vendor_release_date")
       .eq("order_no", markers.purchaseOrderNo)
       .single(),
     "verify restored purchase order"
@@ -542,6 +545,9 @@ async function assertRestored(supabase, markers) {
   if (purchaseOrder.total_planned_qty !== 2) fail("Restored purchase order planned qty mismatch");
   if (purchaseOrder.total_available_qty !== 1) fail("Restored purchase order available qty mismatch");
   if (Number(purchaseOrder.grand_total) !== 2500) fail("Restored purchase order grand total mismatch");
+  if (purchaseOrder.freeday !== 7) fail("Restored purchase order freeday mismatch");
+  if (purchaseOrder.vendor_release_number !== `VRN-${markers.stamp}`) fail("Restored purchase order vendor release number mismatch");
+  if (purchaseOrder.vendor_release_date !== "2026-04-12") fail("Restored purchase order vendor release date mismatch");
 
   const purchaseItems = await must(
     supabase.from("purchase_order_item").select("id, yom, offline_date").eq("purchase_order_id", purchaseOrder.id),
