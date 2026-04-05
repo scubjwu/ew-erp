@@ -1,4 +1,5 @@
 import {
+  getUserFilterOptions,
   getUserRoleOptions,
   getUsers,
   getUserStatusOptions,
@@ -20,14 +21,17 @@ export default async function UserManagementPage() {
     fullName: "",
     role: "",
     status: "",
+    sortBy: "userCode",
+    sortDirection: "asc",
     page: 1,
     pageSize: PAGE_SIZE,
   };
 
-  const [initial, roleOptions, statusOptions] = await Promise.all([
+  const [initial, roleOptions, statusOptions, filterOptions] = await Promise.all([
     getUsers(initialParams),
     getUserRoleOptions(),
     getUserStatusOptions(),
+    getUserFilterOptions(),
   ]);
 
   return (
@@ -36,6 +40,7 @@ export default async function UserManagementPage() {
       pageSize={PAGE_SIZE}
       roleOptions={roleOptions}
       statusOptions={statusOptions}
+      filterOptions={filterOptions}
     />
   );
 }

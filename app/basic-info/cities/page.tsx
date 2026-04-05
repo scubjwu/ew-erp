@@ -1,4 +1,5 @@
 import {
+  DEFAULT_CITY_LOGISTICS_SORT,
   getCityLogistics,
   getRegionOptions,
   type CityLogisticsQuery,
@@ -21,6 +22,8 @@ export default async function CityLogisticsPage() {
     country: "",
     page: 1,
     pageSize: PAGE_SIZE,
+    sortBy: DEFAULT_CITY_LOGISTICS_SORT.sortBy,
+    sortDirection: DEFAULT_CITY_LOGISTICS_SORT.sortDirection,
   };
 
   const [initial, regionOptions] = await Promise.all([

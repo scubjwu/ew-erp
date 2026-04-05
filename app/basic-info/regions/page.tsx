@@ -1,4 +1,8 @@
-import { getRegionCodes, type RegionCodesQuery } from "@/app/basic-info/regions/actions";
+import {
+  getRegionCodes,
+  getRegionFilterOptions,
+  type RegionCodesQuery,
+} from "@/app/basic-info/regions/actions";
 import { RegionCodesDashboard } from "@/components/basic-info/region-codes-dashboard";
 
 export const metadata = {
@@ -12,11 +16,16 @@ const PAGE_SIZE = 10;
 export default async function RegionCodesPage() {
   const initialParams: RegionCodesQuery = {
     q: "",
+    sortBy: "regionCode",
+    sortDirection: "asc",
     page: 1,
     pageSize: PAGE_SIZE,
   };
 
-  const initial = await getRegionCodes(initialParams);
+  const [initial, filterOptions] = await Promise.all([
+    getRegionCodes(initialParams),
+    getRegionFilterOptions(),
+  ]);
 
-  return <RegionCodesDashboard initial={initial} pageSize={PAGE_SIZE} />;
+  return <RegionCodesDashboard initial={initial} pageSize={PAGE_SIZE} filterOptions={filterOptions} />;
 }

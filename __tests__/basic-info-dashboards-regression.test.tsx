@@ -18,6 +18,8 @@ const {
   anchorClick,
 } = vi.hoisted(() => ({
   regionsActions: {
+    exportRegionCodes: vi.fn(),
+    getRegionFilterOptions: vi.fn(),
     getRegionCodes: vi.fn(),
     getRegionCodeSuggestions: vi.fn(),
   },
@@ -222,15 +224,19 @@ function regionResult(overrides?: Partial<Parameters<typeof RegionCodesDashboard
         id: "region-1",
         region_code: "China",
         region_name: "China",
+        description: null,
         status: "ACTIVE",
         created_by: "Tester",
+        updated_by: null,
         created_at: "2026-04-01T00:00:00Z",
+        updated_at: "2026-04-01T00:00:00Z",
       },
     ],
     totalCount: 1,
     page: 1,
     pageSize: 20,
     filters: { q: "" },
+    sort: { sortBy: "regionCode", sortDirection: "asc" },
     ...overrides,
   };
 }
@@ -546,25 +552,52 @@ describe("Basic Info dashboard regression workflow", () => {
       })
     );
     regionsActions.getRegionCodes.mockResolvedValueOnce(regionResult());
-    regionsActions.getRegionCodeSuggestions.mockResolvedValue([]);
+    regionsActions.exportRegionCodes.mockResolvedValue(regionResult().rows);
 
-    render(<RegionCodesDashboard initial={regionResult()} pageSize={20} />);
+    render(
+      <RegionCodesDashboard
+        initial={regionResult()}
+        pageSize={20}
+        filterOptions={{
+          regions: [{ value: "China", label: "China", secondaryLabel: "China", searchText: "China" }],
+        }}
+      />
+    );
 
-    await user.clear(screen.getByPlaceholderText(/fuzzy match region/i));
-    await user.type(screen.getByPlaceholderText(/fuzzy match region/i), "USA");
+    await user.clear(screen.getByRole("combobox", { name: "Region" }));
+    await user.type(screen.getByRole("combobox", { name: "Region" }), "USA");
     await user.click(screen.getByRole("button", { name: /search/i }));
 
     await waitFor(() =>
-      expect(regionsActions.getRegionCodes).toHaveBeenCalledWith({ q: "USA", page: 1, pageSize: 20 })
+      expect(regionsActions.getRegionCodes).toHaveBeenCalledWith({
+        q: "USA",
+        sortBy: "regionCode",
+        sortDirection: "asc",
+        page: 1,
+        pageSize: 20,
+      })
     );
     expect(await screen.findByText("United States")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /reset/i }));
     await waitFor(() =>
-      expect(regionsActions.getRegionCodes).toHaveBeenLastCalledWith({ q: "", page: 1, pageSize: 20 })
+      expect(regionsActions.getRegionCodes).toHaveBeenLastCalledWith({
+        q: "",
+        sortBy: "regionCode",
+        sortDirection: "asc",
+        page: 1,
+        pageSize: 20,
+      })
     );
 
     await user.click(screen.getByRole("button", { name: /export csv/i }));
+    await waitFor(() =>
+      expect(regionsActions.exportRegionCodes).toHaveBeenCalledWith({
+        q: "",
+        sortBy: "regionCode",
+        sortDirection: "asc",
+      })
+    );
     expect(anchorClick).toHaveBeenCalled();
   });
 

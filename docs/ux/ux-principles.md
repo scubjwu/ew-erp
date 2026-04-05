@@ -91,7 +91,6 @@ This includes:
 
 Current delivered baseline from `Purchase` should now be treated as the default reference for future transaction-oriented page behavior, especially for:
 
-- sticky form action bars
 - right-sticky `Actions` columns in list pages
 - sortable visible list columns
 - autocomplete-first search fields with keyboard selection

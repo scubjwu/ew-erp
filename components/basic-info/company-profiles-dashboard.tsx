@@ -23,6 +23,10 @@ import {
 import { CompanyBankAccountsDialog } from "@/components/basic-info/company-bank-accounts-dialog";
 import { CompanyProfileFormDialog } from "@/components/basic-info/company-profile-form-dialog";
 import { CompanyProfileViewDialog } from "@/components/basic-info/company-profile-view-dialog";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -466,14 +470,14 @@ export function CompanyProfilesDashboard({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5">
-      <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
+      <div className="relative z-20 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
               Company Information Management
             </h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Maintain company master data. {rangeLabel}
             </p>
           </div>
@@ -496,7 +500,7 @@ export function CompanyProfilesDashboard({
             applySearch();
           }}
         >
-          <div className="grid items-end gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto_auto]">
+          <div className="grid items-end gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,1fr)]">
             <div className="min-w-0">
               <SearchAutocompleteField
                 label="Company Name"
@@ -597,6 +601,8 @@ export function CompanyProfilesDashboard({
                 }
               />
             </div>
+          </div>
+          <div className="flex items-center justify-end gap-2">
             <Button size="sm" type="submit" className="h-9 px-3">
               <Search className="mr-2 size-3.5" />
               Search
@@ -635,7 +641,7 @@ export function CompanyProfilesDashboard({
                   </button>
                 </TableHead>
               ))}
-              <TableHead className="sticky top-0 z-20 min-w-[220px] bg-card py-2 text-right text-xs uppercase tracking-wide">Actions</TableHead>
+              <TableHead className={`${ACTIONS_STICKY_HEAD_CLASS} top-0 w-[220px] min-w-[220px] py-2 text-right text-xs uppercase tracking-wide`}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -683,7 +689,7 @@ export function CompanyProfilesDashboard({
                     {row.created_by ?? "-"}
                   </TableCell>
                   <TableCell className="py-2 text-xs">{formatDateTime(row.created_at)}</TableCell>
-                  <TableCell className="py-2">
+                  <TableCell className={`${ACTIONS_STICKY_CELL_CLASS} w-[220px] min-w-[220px]`}>
                     <div className="flex justify-end gap-3 text-xs font-medium">
                       <button
                         type="button"
@@ -720,7 +726,7 @@ export function CompanyProfilesDashboard({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">
+        <div className="text-sm text-muted-foreground">
           Page {page} of {totalPages}
         </div>
         <div className="flex gap-2">

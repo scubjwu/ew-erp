@@ -2,6 +2,14 @@
 
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
+import {
+  USER_FILTER_OPTION_LIMIT,
+  USER_MANAGEMENT_SORT_COLUMN_MAP,
+  normalizeLike,
+  resolveUserManagementSort,
+  type UserManagementSortBy,
+  type UserManagementSortDirection,
+} from "@/app/settings/users/query-helpers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   USER_ROLE_OPTIONS,
@@ -10,6 +18,18 @@ import {
   type UserStatus,
 } from "@/types/system-user";
 
+export type UserAutocompleteOption = {
+  value: string;
+  label: string;
+  secondaryLabel?: string;
+  searchText?: string;
+};
+
+export type UserFilterOptions = {
+  userCodes: UserAutocompleteOption[];
+  fullNames: UserAutocompleteOption[];
+};
+
 export type UserManagementQuery = {
   userCode?: string;
   fullName?: string;
@@ -17,6 +37,8 @@ export type UserManagementQuery = {
   status?: string;
   page: number;
   pageSize: number;
+  sortBy?: UserManagementSortBy;
+  sortDirection?: UserManagementSortDirection;
 };
 
 export type UserManagementPageResult = {
@@ -30,13 +52,11 @@ export type UserManagementPageResult = {
     role: string;
     status: string;
   };
+  sort: {
+    sortBy: UserManagementSortBy;
+    sortDirection: UserManagementSortDirection;
+  };
 };
-
-function normalizeLike(value?: string) {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  return `%${trimmed}%`;
-}
 
 export async function getUsers(
   params: UserManagementQuery
@@ -54,6 +74,7 @@ export async function getUsers(
     role: params.role?.trim() ?? "",
     status: params.status?.trim() ?? "",
   };
+  const sort = resolveUserManagementSort(params.sortBy, params.sortDirection);
 
   const userCode = normalizeLike(filters.userCode);
   const fullName = normalizeLike(filters.fullName);
@@ -61,13 +82,15 @@ export async function getUsers(
   const supabase = createServerSupabaseClient();
   let query = supabase
     .from("users")
-    .select("*", { count: "exact" })
-    .order("user_code", { ascending: true });
+    .select("*", { count: "exact" });
 
   if (userCode) query = query.ilike("user_code", userCode);
   if (fullName) query = query.ilike("full_name", fullName);
   if (filters.role) query = query.eq("role", filters.role);
   if (filters.status) query = query.eq("status", filters.status);
+  query = query.order(USER_MANAGEMENT_SORT_COLUMN_MAP[sort.sortBy].column, {
+    ascending: sort.sortDirection === "asc",
+  });
 
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
@@ -78,6 +101,7 @@ export async function getUsers(
     page,
     pageSize,
     filters,
+    sort,
   };
 }
 
@@ -86,11 +110,14 @@ export async function exportUsers(filters: {
   fullName?: string;
   role?: string;
   status?: string;
+  sortBy?: UserManagementSortBy;
+  sortDirection?: UserManagementSortDirection;
 }): Promise<SystemUser[]> {
   noStore();
 
   const supabase = createServerSupabaseClient();
-  let query = supabase.from("users").select("*").order("user_code", { ascending: true });
+  const sort = resolveUserManagementSort(filters.sortBy, filters.sortDirection);
+  let query = supabase.from("users").select("*");
 
   const userCode = normalizeLike(filters.userCode);
   const fullName = normalizeLike(filters.fullName);
@@ -101,10 +128,67 @@ export async function exportUsers(filters: {
   if (fullName) query = query.ilike("full_name", fullName);
   if (role) query = query.eq("role", role);
   if (status) query = query.eq("status", status);
+  query = query.order(USER_MANAGEMENT_SORT_COLUMN_MAP[sort.sortBy].column, {
+    ascending: sort.sortDirection === "asc",
+  });
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown) as SystemUser[];
+}
+
+export async function getUserFilterOptions(): Promise<UserFilterOptions> {
+  noStore();
+
+  const supabase = createServerSupabaseClient();
+  const [{ data: userCodeRows, error: userCodeError }, { data: fullNameRows, error: fullNameError }] =
+    await Promise.all([
+      supabase
+        .from("users")
+        .select("user_code, full_name")
+        .order("user_code", { ascending: true })
+        .limit(USER_FILTER_OPTION_LIMIT),
+      supabase
+        .from("users")
+        .select("full_name, user_code")
+        .not("full_name", "is", null)
+        .order("full_name", { ascending: true })
+        .limit(USER_FILTER_OPTION_LIMIT),
+    ]);
+
+  if (userCodeError) throw new Error(userCodeError.message);
+  if (fullNameError) throw new Error(fullNameError.message);
+
+  return {
+    userCodes: Array.from(
+      new Map(
+        (userCodeRows ?? []).map((row) => [
+          row.user_code as string,
+          {
+            value: row.user_code as string,
+            label: row.user_code as string,
+            secondaryLabel: row.full_name ?? undefined,
+            searchText: `${row.user_code ?? ""} ${row.full_name ?? ""}`.trim(),
+          },
+        ])
+      ).values()
+    ),
+    fullNames: Array.from(
+      new Map(
+        (fullNameRows ?? [])
+          .filter((row) => Boolean(row.full_name))
+          .map((row) => [
+            row.full_name as string,
+            {
+              value: row.full_name as string,
+              label: row.full_name as string,
+              secondaryLabel: row.user_code ?? undefined,
+              searchText: `${row.full_name ?? ""} ${row.user_code ?? ""}`.trim(),
+            },
+          ])
+      ).values()
+    ),
+  };
 }
 
 export async function getUserById(id: string): Promise<SystemUser | null> {

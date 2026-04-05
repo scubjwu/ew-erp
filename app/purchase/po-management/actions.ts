@@ -1,19 +1,30 @@
 "use server";
 
-import { unstable_noStore as noStore } from "next/cache";
+import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
+  PurchaseBankInformationSnapshot,
   PurchaseFinanceRecord,
+  PurchaseMaterialType,
+  PurchaseOrderDraftInput,
   PurchaseOrderContainer,
   PurchaseOrderDetail,
   PurchaseOrderItem,
   PurchaseOrderItemContainersDetail,
   PurchaseOrderMaterialTypeRow,
+  PurchasePaymentMode,
   PurchaseOrderStatus,
   PurchaseOrderSummary,
   PurchaseType,
 } from "@/types/purchase";
+import {
+  computeLineAmount,
+  sanitizeMaterialTypesForSubmit,
+  shouldShowEstimatedOfflineTime,
+  shouldShowMaterialTypes,
+  shouldShowVendorReleaseFields,
+} from "@/app/purchase/po-management/create-helpers";
 import {
   applyQuickFilterDates,
   firstPurchaseItemByOrder,
@@ -116,6 +127,82 @@ export type PurchaseFilterOptions = {
   statuses: PurchaseOrderStatus[];
 };
 
+export type PurchaseDraftSupplierOption = PurchaseAutocompleteOption & {
+  id: string;
+  vendorCode: string | null;
+  vendorName: string | null;
+  settlementPaymentTerm: string | null;
+  settlementCreditDays: number | null;
+  settlementCreditLimit: number | null;
+  settlementAdvancePaymentPercentage: number | null;
+  settlementBalanceTriggerEvent: string | null;
+  settlementCurrency: string | null;
+  settlementPrepaymentPool: boolean | null;
+  settlementPrepaymentThreshold: number | null;
+  settlementCurrentPrepaidBalance: number | null;
+  vendorBankInformation: PurchaseBankInformationSnapshot | null;
+};
+
+export type PurchaseDraftOwnerOption = {
+  id: string;
+  label: string;
+};
+
+export type PurchaseDraftBuyerOption = {
+  id: string;
+  label: string;
+};
+
+export type PurchaseDraftLocationOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+export type PurchaseDraftDepotOption = {
+  id: string;
+  code: string;
+  name: string;
+  cityId: string | null;
+};
+
+export type PurchaseDraftSizeCodeOption = {
+  id: string;
+  code: string;
+};
+
+export type PurchaseDraftTypeCodeOption = {
+  id: string;
+  code: string;
+};
+
+export type PurchaseDraftConditionOption = {
+  id: string;
+  code: string;
+};
+
+export type PurchaseDraftMaterialVendorOption = {
+  id: string;
+  vendorCode: string | null;
+  vendorName: string | null;
+  materialCategory: PurchaseMaterialType | null;
+  isDefaultVendor: boolean;
+};
+
+export type PurchaseDraftFormOptions = {
+  suppliers: PurchaseDraftSupplierOption[];
+  owners: PurchaseDraftOwnerOption[];
+  buyers: PurchaseDraftBuyerOption[];
+  locations: PurchaseDraftLocationOption[];
+  depots: PurchaseDraftDepotOption[];
+  sizeCodes: PurchaseDraftSizeCodeOption[];
+  typeCodes: PurchaseDraftTypeCodeOption[];
+  conditions: PurchaseDraftConditionOption[];
+  colors: string[];
+  materialVendors: PurchaseDraftMaterialVendorOption[];
+  existingOrderNumbers: string[];
+};
+
 type PurchaseOrderRowRaw = {
   id: string;
   order_no: string;
@@ -145,6 +232,7 @@ type PurchaseOrderRowRaw = {
   total_amount_unpaid: number | null;
   settlement_payment_term: string | null;
   settlement_credit_days: number | null;
+  settlement_credit_limit: number | null;
   settlement_advance_payment_percentage: number | null;
   settlement_balance_trigger_event: string | null;
   settlement_currency: string | null;
@@ -340,6 +428,7 @@ type PurchaseFinanceRecordRaw = {
   due_date: string | null;
   settlement_payment_term: string | null;
   settlement_credit_days: number | null;
+  settlement_credit_limit: number | null;
   settlement_advance_payment_percentage: number | null;
   settlement_balance_trigger_event: string | null;
   settlement_currency: string | null;
@@ -373,6 +462,16 @@ function includesText(haystack?: string | null, needle?: string | null) {
   const normalizedNeedle = normalizeText(needle).toLowerCase();
   if (!normalizedNeedle) return true;
   return normalizeText(haystack).toLowerCase().includes(normalizedNeedle);
+}
+
+function normalizePurchasePaymentMode(value: string | null | undefined): PurchasePaymentMode | null {
+  if (!value) return null;
+  if (value === "DEPOSIT_BALANCE") return "ADVANCE_PAYMENT";
+  if (value === "VENDOR_CREDIT") return "CREDIT";
+  if (value === "PREPAYMENT" || value === "ADVANCE_PAYMENT" || value === "CREDIT") {
+    return value;
+  }
+  return null;
 }
 
 function getOrderDateValue(value: string | null | undefined) {
@@ -470,13 +569,14 @@ function mapPurchaseFinanceRecord(row: PurchaseFinanceRecordRaw): PurchaseFinanc
     purchaseOrderId: row.purchase_order_id,
     orderNo: row.order_no,
     supplierId: row.supplier_id,
-    paymentMode: row.payment_mode as PurchaseFinanceRecord["paymentMode"],
+    paymentMode: normalizePurchasePaymentMode(row.payment_mode),
     contractNumber: row.contract_number,
     invoiceNumber: row.invoice_number,
     paymentAccount: row.payment_account,
     dueDate: row.due_date,
     settlementPaymentTerm: row.settlement_payment_term,
     settlementCreditDays: row.settlement_credit_days,
+    settlementCreditLimit: row.settlement_credit_limit,
     settlementAdvancePaymentPercentage: row.settlement_advance_payment_percentage,
     settlementBalanceTriggerEvent: row.settlement_balance_trigger_event,
     settlementCurrency: row.settlement_currency,
@@ -530,7 +630,7 @@ function mapPurchaseRow(
     exchangeRate: row.exchange_rate,
     orderStatus: row.order_status,
     inboundStatus: row.inbound_status as PurchaseOrderSummary["inboundStatus"],
-    paymentMode: row.payment_mode as PurchaseOrderSummary["paymentMode"],
+    paymentMode: normalizePurchasePaymentMode(row.payment_mode),
     paymentAccount: row.payment_account,
     dueDate: row.due_date,
     totalPlannedQty,
@@ -541,6 +641,7 @@ function mapPurchaseRow(
     totalAmountUnpaid: row.total_amount_unpaid,
     settlementPaymentTerm: row.settlement_payment_term,
     settlementCreditDays: row.settlement_credit_days,
+    settlementCreditLimit: row.settlement_credit_limit,
     settlementAdvancePaymentPercentage: row.settlement_advance_payment_percentage,
     settlementBalanceTriggerEvent: row.settlement_balance_trigger_event,
     settlementCurrency: row.settlement_currency,
@@ -667,6 +768,7 @@ async function loadPurchaseRows(baseFilters: {
         total_amount_unpaid,
         settlement_payment_term,
         settlement_credit_days,
+        settlement_credit_limit,
         settlement_advance_payment_percentage,
         settlement_balance_trigger_event,
         settlement_currency,
@@ -1098,6 +1200,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           total_amount_unpaid,
           settlement_payment_term,
           settlement_credit_days,
+          settlement_credit_limit,
           settlement_advance_payment_percentage,
           settlement_balance_trigger_event,
           settlement_currency,
@@ -1183,6 +1286,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           due_date,
           settlement_payment_term,
           settlement_credit_days,
+          settlement_credit_limit,
           settlement_advance_payment_percentage,
           settlement_balance_trigger_event,
           settlement_currency,
@@ -1228,7 +1332,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     exchangeRate: order.exchange_rate,
     orderStatus: order.order_status,
     inboundStatus: order.inbound_status as PurchaseOrderDetail["inboundStatus"],
-    paymentMode: order.payment_mode as PurchaseOrderDetail["paymentMode"],
+    paymentMode: normalizePurchasePaymentMode(order.payment_mode),
     paymentAccount: order.payment_account,
     dueDate: order.due_date,
     totalPlannedQty: toNumber(order.total_planned_qty),
@@ -1239,6 +1343,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     totalAmountUnpaid: order.total_amount_unpaid,
     settlementPaymentTerm: order.settlement_payment_term,
     settlementCreditDays: order.settlement_credit_days,
+    settlementCreditLimit: order.settlement_credit_limit,
     settlementAdvancePaymentPercentage: order.settlement_advance_payment_percentage,
     settlementBalanceTriggerEvent: order.settlement_balance_trigger_event,
     settlementCurrency: order.settlement_currency,
@@ -1371,5 +1476,375 @@ export async function getPurchaseOrderItemContainers(
     containers: (
       ((containersResult.data ?? []) as unknown) as PurchaseOrderContainerRowRaw[]
     ).map(mapPurchaseOrderContainer),
+  };
+}
+
+export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOptions> {
+  noStore();
+  const supabase = createServerSupabaseClient();
+  const [
+    suppliersResult,
+    ownersResult,
+    buyersResult,
+    locationsResult,
+    depotsResult,
+    sizeCodesResult,
+    typeCodesResult,
+    conditionsResult,
+    colorsResult,
+    materialVendorsResult,
+    orderNosResult,
+  ] = await Promise.all([
+    supabase
+      .from("vendors")
+      .select(
+        `
+          id,
+          vendor_code,
+          company_name,
+          legal_company_name,
+          settlement_payment_term,
+          settlement_credit_days,
+          settlement_credit_limit,
+          settlement_advance_payment_percentage,
+          settlement_balance_trigger_event,
+          settlement_currency,
+          settlement_prepayment_pool,
+          settlement_prepayment_threshold,
+          settlement_current_prepaid_balance,
+          bank_name,
+          bank_code,
+          bank_account_name,
+          bank_account_number,
+          swift_code,
+          bank_address,
+          remark
+        `
+      )
+      .order("vendor_code", { ascending: true }),
+    supabase
+      .from("container_owners")
+      .select("id, container_owner_code, company_name, legal_company_name")
+      .order("container_owner_code", { ascending: true }),
+    supabase.from("users").select("id, user_code, full_name").order("user_code", { ascending: true }),
+    supabase.from("cities").select("id, city_code, city_name").order("city_code", { ascending: true }),
+    supabase.from("depots").select("id, depot_code, depot_name, city_id").order("depot_code", { ascending: true }),
+    supabase
+      .from("container_size_codes")
+      .select("id, size_code")
+      .order("size_code", { ascending: true }),
+    supabase
+      .from("container_type_codes")
+      .select("id, type_code")
+      .order("type_code", { ascending: true }),
+    supabase
+      .from("container_condition_codes")
+      .select("id, condition_code")
+      .order("condition_code", { ascending: true }),
+    supabase.from("ral_color_codes").select("color_code").order("color_code", { ascending: true }),
+    supabase
+      .from("material_vendors")
+      .select("id, vendor_code, company_name, legal_company_name, material_category, is_default_vendor")
+      .order("vendor_code", { ascending: true }),
+    supabase.from("purchase_order").select("order_no").order("order_no", { ascending: true }),
+  ]);
+
+  if (suppliersResult.error) throw new Error(suppliersResult.error.message);
+  if (ownersResult.error) throw new Error(ownersResult.error.message);
+  if (buyersResult.error) throw new Error(buyersResult.error.message);
+  if (locationsResult.error) throw new Error(locationsResult.error.message);
+  if (depotsResult.error) throw new Error(depotsResult.error.message);
+  if (sizeCodesResult.error) throw new Error(sizeCodesResult.error.message);
+  if (typeCodesResult.error) throw new Error(typeCodesResult.error.message);
+  if (conditionsResult.error) throw new Error(conditionsResult.error.message);
+  if (colorsResult.error) throw new Error(colorsResult.error.message);
+  if (materialVendorsResult.error) throw new Error(materialVendorsResult.error.message);
+  if (orderNosResult.error) throw new Error(orderNosResult.error.message);
+
+  const suppliers = ((suppliersResult.data ?? []) as Array<{
+    id: string;
+    vendor_code: string | null;
+    company_name: string | null;
+    legal_company_name: string | null;
+    settlement_payment_term: string | null;
+    settlement_credit_days: number | null;
+    settlement_credit_limit: number | null;
+    settlement_advance_payment_percentage: number | null;
+    settlement_balance_trigger_event: string | null;
+    settlement_currency: string | null;
+    settlement_prepayment_pool: boolean | null;
+    settlement_prepayment_threshold: number | null;
+    settlement_current_prepaid_balance: number | null;
+    bank_name: string | null;
+    bank_code: string | null;
+    bank_account_name: string | null;
+    bank_account_number: string | null;
+    swift_code: string | null;
+    bank_address: string | null;
+    remark: string | null;
+  }>).map((vendor) => {
+    const vendorName =
+      vendor.legal_company_name ?? vendor.company_name ?? vendor.vendor_code ?? vendor.id;
+    return {
+      id: vendor.id,
+      value: vendor.id,
+      label: [vendor.vendor_code, vendorName].filter(Boolean).join(" · "),
+      secondaryLabel: vendor.company_name && vendor.company_name !== vendorName ? vendor.company_name : undefined,
+      searchText: [
+        vendor.vendor_code,
+        vendor.legal_company_name,
+        vendor.company_name,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      vendorCode: vendor.vendor_code,
+      vendorName,
+      settlementPaymentTerm: vendor.settlement_payment_term,
+      settlementCreditDays: vendor.settlement_credit_days,
+      settlementCreditLimit: vendor.settlement_credit_limit,
+      settlementAdvancePaymentPercentage: vendor.settlement_advance_payment_percentage,
+      settlementBalanceTriggerEvent: vendor.settlement_balance_trigger_event,
+      settlementCurrency: vendor.settlement_currency,
+      settlementPrepaymentPool: vendor.settlement_prepayment_pool,
+      settlementPrepaymentThreshold: vendor.settlement_prepayment_threshold,
+      settlementCurrentPrepaidBalance: vendor.settlement_current_prepaid_balance,
+      vendorBankInformation: {
+        bank_name: vendor.bank_name,
+        bank_code: vendor.bank_code,
+        bank_account_name: vendor.bank_account_name,
+        bank_account_number: vendor.bank_account_number,
+        swift_code: vendor.swift_code,
+        bank_address: vendor.bank_address,
+        remark: vendor.remark,
+      },
+    } satisfies PurchaseDraftSupplierOption;
+  });
+
+  return {
+    suppliers,
+    owners: ((ownersResult.data ?? []) as Array<{
+      id: string;
+      container_owner_code: string | null;
+      company_name: string | null;
+      legal_company_name: string | null;
+    }>).map((owner) => ({
+      id: owner.id,
+      label: [owner.container_owner_code, owner.legal_company_name ?? owner.company_name].filter(Boolean).join(" · "),
+    })),
+    buyers: ((buyersResult.data ?? []) as Array<{
+      id: string;
+      user_code: string | null;
+      full_name: string | null;
+    }>).map((buyer) => ({
+      id: buyer.id,
+      label: [buyer.user_code, buyer.full_name].filter(Boolean).join(" · "),
+    })),
+    locations: ((locationsResult.data ?? []) as Array<{
+      id: string;
+      city_code: string;
+      city_name: string;
+    }>).map((location) => ({
+      id: location.id,
+      code: location.city_code,
+      name: location.city_name,
+    })),
+    depots: ((depotsResult.data ?? []) as Array<{
+      id: string;
+      depot_code: string;
+      depot_name: string;
+      city_id: string | null;
+    }>).map((depot) => ({
+      id: depot.id,
+      code: depot.depot_code,
+      name: depot.depot_name,
+      cityId: depot.city_id,
+    })),
+    sizeCodes: ((sizeCodesResult.data ?? []) as Array<{ id: string; size_code: string }>).map(
+      (size) => ({ id: size.id, code: size.size_code })
+    ),
+    typeCodes: ((typeCodesResult.data ?? []) as Array<{ id: string; type_code: string }>).map(
+      (type) => ({ id: type.id, code: type.type_code })
+    ),
+    conditions: ((conditionsResult.data ?? []) as Array<{ id: string; condition_code: string }>).map(
+      (condition) => ({ id: condition.id, code: condition.condition_code })
+    ),
+    colors: ((colorsResult.data ?? []) as Array<{ color_code: string }>).map((row) => row.color_code),
+    materialVendors: ((materialVendorsResult.data ?? []) as Array<{
+      id: string;
+      vendor_code: string | null;
+      company_name: string | null;
+      legal_company_name: string | null;
+      material_category: PurchaseMaterialType | null;
+      is_default_vendor: boolean | null;
+    }>).map((vendor) => ({
+      id: vendor.id,
+      vendorCode: vendor.vendor_code,
+      vendorName: vendor.legal_company_name ?? vendor.company_name,
+      materialCategory: vendor.material_category,
+      isDefaultVendor: Boolean(vendor.is_default_vendor),
+    })),
+    existingOrderNumbers: ((orderNosResult.data ?? []) as Array<{ order_no: string }>).map(
+      (row) => row.order_no
+    ),
+  };
+}
+
+export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): Promise<{
+  orderId: string;
+  orderNo: string;
+}> {
+  const supabase = createServerSupabaseClient();
+
+  if (!input.orderNo?.trim()) {
+    throw new Error("PO Number is required.");
+  }
+  if (!input.purchaseType) {
+    throw new Error("Purchase Type is required.");
+  }
+  if (!input.supplierId) {
+    throw new Error("Supplier is required.");
+  }
+  if (!input.ownerId) {
+    throw new Error("Owner is required.");
+  }
+  if (!input.purchaseDate) {
+    throw new Error("Purchase Date is required.");
+  }
+  if (!input.paymentMode) {
+    throw new Error("Payment Mode is required.");
+  }
+  if (input.items.length === 0) {
+    throw new Error("At least one purchase item is required.");
+  }
+
+  const cleanedMaterialTypes = sanitizeMaterialTypesForSubmit(input.purchaseType, input.materialTypes);
+  if (shouldShowMaterialTypes(input.purchaseType) && cleanedMaterialTypes.length === 0) {
+    throw new Error("At least one material type is required for factory orders.");
+  }
+
+  const colorValues = Array.from(
+    new Set(input.items.map((item) => normalizeText(item.color ?? "")).filter(Boolean))
+  );
+  if (colorValues.length > 0) {
+    const { data: validColors, error: colorError } = await supabase
+      .from("ral_color_codes")
+      .select("color_code")
+      .in("color_code", colorValues);
+    if (colorError) throw new Error(colorError.message);
+    const validColorSet = new Set((validColors ?? []).map((row) => normalizeText(row.color_code)));
+    const invalidColor = colorValues.find((value) => !validColorSet.has(normalizeText(value)));
+    if (invalidColor) {
+      throw new Error(`Invalid RAL color code: ${invalidColor}`);
+    }
+  }
+
+  const sanitizedOrderInput = {
+    order_no: input.orderNo.trim(),
+    purchase_type: input.purchaseType,
+    supplier_id: input.supplierId,
+    owner_id: input.ownerId,
+    buyer_id: input.buyerId || null,
+    purchase_date: input.purchaseDate,
+    estimated_offline_time: shouldShowEstimatedOfflineTime(input.purchaseType)
+      ? input.estimatedOfflineTime || null
+      : null,
+    contract_number: input.contractNumber?.trim() || null,
+    invoice_number: input.invoiceNumber?.trim() || null,
+    freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
+    vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
+      ? input.vendorReleaseNumber?.trim() || null
+      : null,
+    vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
+      ? input.vendorReleaseDate || null
+      : null,
+    payment_mode: input.paymentMode,
+    remark: input.remark?.trim() || null,
+    order_status: "DRAFT" as const,
+  };
+
+  const { data: orderRow, error: orderError } = await supabase
+    .from("purchase_order")
+    .insert(sanitizedOrderInput)
+    .select("id, order_no")
+    .single();
+
+  if (orderError) throw new Error(orderError.message);
+
+  const financeUpdate = {
+    payment_mode: input.paymentMode,
+    payment_account: input.paymentAccount?.trim() || null,
+    due_date: input.dueDate || null,
+    settlement_payment_term:
+      input.paymentMode === "CREDIT" ? input.settlementPaymentTerm?.trim() || null : null,
+    settlement_credit_days:
+      input.paymentMode === "CREDIT" ? input.settlementCreditDays : null,
+    settlement_credit_limit:
+      input.paymentMode === "CREDIT" ? input.settlementCreditLimit : null,
+    settlement_advance_payment_percentage:
+      input.paymentMode === "ADVANCE_PAYMENT"
+        ? input.settlementAdvancePaymentPercentage
+        : null,
+    settlement_balance_trigger_event:
+      input.paymentMode === "CREDIT"
+        ? input.settlementBalanceTriggerEvent?.trim() || null
+        : null,
+    settlement_currency: input.settlementCurrency?.trim() || null,
+    settlement_current_prepaid_balance: input.settlementCurrentPrepaidBalance,
+    vendor_bank_information: input.vendorBankInformation,
+  };
+
+  const { error: financeUpdateError } = await supabase
+    .from("purchase_order")
+    .update(financeUpdate)
+    .eq("id", orderRow.id);
+  if (financeUpdateError) throw new Error(financeUpdateError.message);
+
+  const itemRows = input.items.map((item, index) => ({
+    purchase_order_id: orderRow.id,
+    line_no: index + 1,
+    location_city_id: item.locationCityId,
+    depot_id: item.depotId,
+    container_size_code_id: item.containerSizeCodeId,
+    container_type_code_id: item.containerTypeCodeId,
+    container_condition_code_id: item.containerConditionCodeId,
+    color: item.color?.trim() || null,
+    flp: item.flp,
+    lbx: item.lbx,
+    locking_bars_count: item.lockingBarsCount,
+    vents_count: item.ventsCount,
+    machine_type: item.machineType?.trim() || null,
+    yom: item.yom,
+    offline_date: item.offlineDate || null,
+    planned_qty: item.plannedQty,
+    unit_price: item.unitPrice,
+    settlement_price: null,
+    financial_cost: null,
+    line_amount: computeLineAmount(item.plannedQty, item.unitPrice),
+    remark: item.remark?.trim() || null,
+  }));
+
+  const { error: itemsError } = await supabase.from("purchase_order_item").insert(itemRows);
+  if (itemsError) throw new Error(itemsError.message);
+
+  if (shouldShowMaterialTypes(input.purchaseType)) {
+    const { error: materialTypesError } = await supabase
+      .from("purchase_order_material_type")
+      .insert(
+        cleanedMaterialTypes.map((row) => ({
+          purchase_order_id: orderRow.id,
+          material_type: row.materialType,
+          material_vendor_id: row.materialVendorId,
+        }))
+      );
+    if (materialTypesError) throw new Error(materialTypesError.message);
+  }
+
+  revalidatePath("/purchase/po-management");
+  revalidatePath(`/purchase/po-management/${orderRow.id}`);
+  revalidatePath("/purchase");
+
+  return {
+    orderId: orderRow.id,
+    orderNo: orderRow.order_no,
   };
 }

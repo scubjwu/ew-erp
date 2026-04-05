@@ -21,6 +21,10 @@ import {
 } from "@/app/basic-info/depots/actions";
 import { DepotCodeFormDialog } from "@/components/basic-info/depot-code-form-dialog";
 import { DepotCodeViewDialog } from "@/components/basic-info/depot-code-view-dialog";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -540,12 +544,12 @@ export function DepotCodesDashboard({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5">
-      <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
+      <div className="relative z-20 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Depot Codes</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Maintain depot master data. {rangeLabel}
             </p>
           </div>
@@ -568,110 +572,114 @@ export function DepotCodesDashboard({
         </div>
 
         <form
-          className="grid items-end gap-2 xl:grid-cols-[150px_minmax(0,1.9fr)_120px_160px_140px_auto_auto]"
+          className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
             applySearch();
           }}
         >
-          <SuggestionInput
-            label="Depot Code"
-            placeholder="Fuzzy match depot code"
-            field="depotCode"
-            value={draftFilters.depotCode}
-            onChange={(value) => setDraftFilters((current) => ({ ...current, depotCode: value }))}
-            onSelectSuggestion={(value) =>
-              setDraftFilters((current) => ({ ...current, depotCode: value }))
-            }
-          />
-          <SuggestionInput
-            label="Depot Name"
-            placeholder="Fuzzy match depot name"
-            field="depotName"
-            value={draftFilters.depotName}
-            onChange={(value) => setDraftFilters((current) => ({ ...current, depotName: value }))}
-            onSelectSuggestion={(value) =>
-              setDraftFilters((current) => ({ ...current, depotName: value }))
-            }
-          />
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">City</label>
-            <Select
-              value={draftFilters.cityId || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  cityId: value === "__all__" ? "" : value,
-                }))
+          <div className="grid items-end gap-2 xl:grid-cols-[150px_minmax(0,1.9fr)_120px_160px_140px]">
+            <SuggestionInput
+              label="Depot Code"
+              placeholder="Fuzzy match depot code"
+              field="depotCode"
+              value={draftFilters.depotCode}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, depotCode: value }))}
+              onSelectSuggestion={(value) =>
+                setDraftFilters((current) => ({ ...current, depotCode: value }))
               }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select city code" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Cities</SelectItem>
-                {cityOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.city_code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Type</label>
-            <Select
-              value={draftFilters.depotType || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  depotType: value === "__all__" ? "" : value,
-                }))
+            />
+            <SuggestionInput
+              label="Depot Name"
+              placeholder="Fuzzy match depot name"
+              field="depotName"
+              value={draftFilters.depotName}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, depotName: value }))}
+              onSelectSuggestion={(value) =>
+                setDraftFilters((current) => ({ ...current, depotName: value }))
               }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Types</SelectItem>
-                <SelectItem value="CONTRACT">Contract</SelectItem>
-                <SelectItem value="FACTORY_YARD">Factory Yard</SelectItem>
-                <SelectItem value="SHIPPING_LINES">Shipping Lines</SelectItem>
-                <SelectItem value="TRADER">Trader</SelectItem>
-                <SelectItem value="CONSIGNMENT">Consignment</SelectItem>
-                <SelectItem value="OTHER">Other</SelectItem>
-              </SelectContent>
-            </Select>
+            />
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">City</label>
+              <Select
+                value={draftFilters.cityId || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    cityId: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select city code" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Cities</SelectItem>
+                  {cityOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.city_code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Type</label>
+              <Select
+                value={draftFilters.depotType || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    depotType: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Types</SelectItem>
+                  <SelectItem value="CONTRACT">Contract</SelectItem>
+                  <SelectItem value="FACTORY_YARD">Factory Yard</SelectItem>
+                  <SelectItem value="SHIPPING_LINES">Shipping Lines</SelectItem>
+                  <SelectItem value="TRADER">Trader</SelectItem>
+                  <SelectItem value="CONSIGNMENT">Consignment</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Status</label>
+              <Select
+                value={draftFilters.status || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    status: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Statuses</SelectItem>
+                  <SelectItem value="NORMAL">Normal</SelectItem>
+                  <SelectItem value="SUSPEND">Suspend</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Status</label>
-            <Select
-              value={draftFilters.status || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  status: value === "__all__" ? "" : value,
-                }))
-              }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Statuses</SelectItem>
-                <SelectItem value="NORMAL">Normal</SelectItem>
-                <SelectItem value="SUSPEND">Suspend</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" type="submit" className="h-9 px-3">
+              <Search className="mr-2 size-3.5" />
+              Search
+            </Button>
+            <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
+              <RotateCcw className="mr-2 size-3.5" />
+              Reset
+            </Button>
           </div>
-          <Button size="sm" type="submit" className="h-9 px-3">
-            <Search className="mr-2 size-3.5" />
-            Search
-          </Button>
-          <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
-            <RotateCcw className="mr-2 size-3.5" />
-            Reset
-          </Button>
         </form>
       </div>
 
@@ -734,7 +742,7 @@ export function DepotCodesDashboard({
                     <SortIcon field="depot_tel" />
                   </button>
                 </TableHead>
-                <TableHead className="sticky top-0 z-20 min-w-[140px] bg-card py-2 text-right text-xs uppercase tracking-wide">
+                <TableHead className={`${ACTIONS_STICKY_HEAD_CLASS} top-0 py-2 text-right text-xs uppercase tracking-wide`}>
                   Actions
                 </TableHead>
               </TableRow>
@@ -783,7 +791,7 @@ export function DepotCodesDashboard({
                       <div className="truncate">{gateContactEmailForRow(row)}</div>
                     </TableCell>
                     <TableCell className="py-2">{row.depot_tel ?? "-"}</TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className={ACTIONS_STICKY_CELL_CLASS}>
                       <div className="flex justify-end gap-3 text-xs font-medium">
                         <button
                           type="button"
@@ -818,7 +826,7 @@ export function DepotCodesDashboard({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">Page {page} of {totalPages}</div>
+        <div className="text-sm text-muted-foreground">Page {page} of {totalPages}</div>
         <div className="flex gap-2">
           <Button
             variant="outline"

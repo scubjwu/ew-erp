@@ -1,4 +1,5 @@
 import {
+  getVendorFilterOptions,
   getVendorRegionOptions,
   getVendors,
   type VendorQuery,
@@ -17,21 +18,24 @@ export default async function VendorsPage() {
   const initialParams: VendorQuery = {
     vendorCode: "",
     legalCompanyName: "",
-    regionId: "",
+    regionQuery: "",
+    selectedRegionId: "",
+    sortBy: "vendorCode",
+    sortDirection: "asc",
     page: 1,
     pageSize: PAGE_SIZE,
   };
 
-  const [initial, regionOptions] = await Promise.all([
+  const [initial, filterOptions] = await Promise.all([
     getVendors(initialParams),
-    getVendorRegionOptions(),
+    getVendorFilterOptions(),
   ]);
 
   return (
     <VendorsDashboard
       initial={initial}
       pageSize={PAGE_SIZE}
-      regionOptions={regionOptions}
+      filterOptions={filterOptions}
     />
   );
 }

@@ -10,6 +10,10 @@ import {
 } from "@/app/basic-info/size-codes/actions";
 import { SizeCodeFormDialog } from "@/components/basic-info/size-code-form-dialog";
 import { SizeCodeViewDialog } from "@/components/basic-info/size-code-view-dialog";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -276,12 +280,12 @@ export function SizeCodesDashboard({ initial, pageSize }: Props) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5">
-      <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
+      <div className="relative z-20 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Size Codes</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Maintain container size master data. {rangeLabel}
             </p>
           </div>
@@ -304,27 +308,31 @@ export function SizeCodesDashboard({ initial, pageSize }: Props) {
         </div>
 
         <form
-          className="grid items-end gap-2 xl:grid-cols-[minmax(0,420px)_auto_auto]"
+          className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
             applySearch();
           }}
         >
-          <SuggestionInput
-            label="Size Code"
-            placeholder="Fuzzy match size code"
-            value={draftFilters.code}
-            onChange={(value) => setDraftFilters({ code: value })}
-            onSelectSuggestion={(value) => setDraftFilters({ code: value })}
-          />
-          <Button size="sm" type="submit" className="h-9 px-3">
-            <Search className="mr-2 size-3.5" />
-            Search
-          </Button>
-          <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
-            <RotateCcw className="mr-2 size-3.5" />
-            Reset
-          </Button>
+          <div className="grid items-end gap-2 xl:grid-cols-[minmax(0,420px)]">
+            <SuggestionInput
+              label="Size Code"
+              placeholder="Fuzzy match size code"
+              value={draftFilters.code}
+              onChange={(value) => setDraftFilters({ code: value })}
+              onSelectSuggestion={(value) => setDraftFilters({ code: value })}
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" type="submit" className="h-9 px-3">
+              <Search className="mr-2 size-3.5" />
+              Search
+            </Button>
+            <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
+              <RotateCcw className="mr-2 size-3.5" />
+              Reset
+            </Button>
+          </div>
         </form>
       </div>
 
@@ -339,7 +347,7 @@ export function SizeCodesDashboard({ initial, pageSize }: Props) {
                 <TableHead className="sticky top-0 z-20 min-w-[220px] bg-card py-2 text-xs uppercase tracking-wide">
                   Size Name
                 </TableHead>
-                <TableHead className="sticky top-0 z-20 min-w-[120px] bg-card py-2 text-right text-xs uppercase tracking-wide">
+                <TableHead className={`${ACTIONS_STICKY_HEAD_CLASS} top-0 py-2 text-right text-xs uppercase tracking-wide`}>
                   Actions
                 </TableHead>
               </TableRow>
@@ -364,7 +372,7 @@ export function SizeCodesDashboard({ initial, pageSize }: Props) {
                       {row.code}
                     </TableCell>
                     <TableCell className="py-2">{row.name}</TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className={ACTIONS_STICKY_CELL_CLASS}>
                       <div className="flex justify-end gap-3 text-xs font-medium">
                         <button
                           type="button"
@@ -399,7 +407,7 @@ export function SizeCodesDashboard({ initial, pageSize }: Props) {
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">Page {page} of {totalPages}</div>
+        <div className="text-sm text-muted-foreground">Page {page} of {totalPages}</div>
         <div className="flex gap-2">
           <Button
             variant="outline"

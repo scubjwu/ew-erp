@@ -1099,7 +1099,7 @@ export function MaterialVendorForm({
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
                 <Button type="button" variant="outline" asChild>
-                  <Link href={initialVendor ? `/partners/material-vendors/${initialVendor.id}` : "/partners/material-vendors"}>
+                  <Link href="/partners/material-vendors">
                     Cancel
                   </Link>
                 </Button>

@@ -1,4 +1,5 @@
 import {
+  getMaterialVendorFilterOptions,
   getMaterialVendors,
   type MaterialVendorQuery,
 } from "@/app/partners/material-vendors/actions";
@@ -18,13 +19,18 @@ export default async function MaterialVendorsPage() {
     legalCompanyName: "",
     materialCategory: "",
     isDefaultVendor: "",
+    sortBy: "vendorCode",
+    sortDirection: "asc",
     page: 1,
     pageSize: PAGE_SIZE,
   };
 
-  const initial = await getMaterialVendors(initialParams);
+  const [initial, filterOptions] = await Promise.all([
+    getMaterialVendors(initialParams),
+    getMaterialVendorFilterOptions(),
+  ]);
 
   return (
-    <MaterialVendorsDashboard initial={initial} pageSize={PAGE_SIZE} />
+    <MaterialVendorsDashboard initial={initial} pageSize={PAGE_SIZE} filterOptions={filterOptions} />
   );
 }

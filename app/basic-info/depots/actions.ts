@@ -15,7 +15,21 @@ export type DepotCodesQuery = {
   status?: string;
   page: number;
   pageSize: number;
+  sortBy?: DepotCodesSortBy;
+  sortDirection?: DepotCodesSortDirection;
 };
+
+export type DepotCodesSortBy =
+  | "cityCode"
+  | "depotCode"
+  | "depotName"
+  | "depotType"
+  | "isPrimaryDepot"
+  | "address"
+  | "contactPerson"
+  | "contactEmail"
+  | "depotTel";
+export type DepotCodesSortDirection = "asc" | "desc";
 
 export type DepotCodesPageResult = {
   rows: DepotCodeRow[];
@@ -29,12 +43,116 @@ export type DepotCodesPageResult = {
     depotType: string;
     status: string;
   };
+  sort: {
+    sortBy: DepotCodesSortBy;
+    sortDirection: DepotCodesSortDirection;
+  };
+};
+
+export const DEFAULT_DEPOT_CODES_SORT = {
+  sortBy: "depotCode",
+  sortDirection: "asc",
+} satisfies {
+  sortBy: DepotCodesSortBy;
+  sortDirection: DepotCodesSortDirection;
 };
 
 function normalizeLike(value?: string) {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   return `%${trimmed}%`;
+}
+
+function resolveDepotCodesSort(
+  sortBy?: string,
+  sortDirection?: string
+): {
+  sortBy: DepotCodesSortBy;
+  sortDirection: DepotCodesSortDirection;
+} {
+  return {
+    sortBy:
+      sortBy === "cityCode" ||
+      sortBy === "depotName" ||
+      sortBy === "depotType" ||
+      sortBy === "isPrimaryDepot" ||
+      sortBy === "address" ||
+      sortBy === "contactPerson" ||
+      sortBy === "contactEmail" ||
+      sortBy === "depotTel"
+        ? sortBy
+        : DEFAULT_DEPOT_CODES_SORT.sortBy,
+    sortDirection:
+      sortDirection === "desc" ? "desc" : DEFAULT_DEPOT_CODES_SORT.sortDirection,
+  };
+}
+
+function applyDepotCodesSort(
+  query: ReturnType<typeof createServerSupabaseClient>["from"] extends never
+    ? never
+    : any,
+  sort: {
+    sortBy: DepotCodesSortBy;
+    sortDirection: DepotCodesSortDirection;
+  }
+) {
+  const ascending = sort.sortDirection === "asc";
+
+  if (sort.sortBy === "cityCode") {
+    return query.order("city_code", { ascending, foreignTable: "cities" });
+  }
+
+  const columnMap: Record<Exclude<DepotCodesSortBy, "cityCode">, string> = {
+    depotCode: "depot_code",
+    depotName: "depot_name",
+    depotType: "depot_type",
+    isPrimaryDepot: "is_primary_depot",
+    address: "depot_address",
+    contactPerson: "contact_person",
+    contactEmail: "gate_email",
+    depotTel: "depot_tel",
+  };
+
+  return query.order(columnMap[sort.sortBy], { ascending });
+}
+
+function buildDepotCodesQuery(
+  filters: DepotCodesPageResult["filters"],
+  sort: {
+    sortBy: DepotCodesSortBy;
+    sortDirection: DepotCodesSortDirection;
+  }
+) {
+  const depotCode = normalizeLike(filters.depotCode);
+  const depotName = normalizeLike(filters.depotName);
+
+  const supabase = createServerSupabaseClient();
+  let query = supabase
+    .from("depots")
+    .select(
+      "id, depot_code, depot_name, depot_name_cn, depot_type, depot_address, depot_address_cn, contact_person, contact_email, depot_tel, fax, gate_email, account_email, business_contact_person, country_code, country_name, status, is_primary_depot, working_hour, currency, free_days, gate_in_20_cost, gate_out_20_cost, gate_in_40_cost, gate_out_40_cost, lift_in_20_cost, lift_out_20_cost, lift_in_40_cost, lift_out_40_cost, storage_rate_20, storage_rate_40, storage_rate_45, storage_rate_53, digging_cost, pti_cost, labour_cost, min_repair_cost, survey_cost, inspection_cost, est_recovery_fee, user_return_surcharge_in, user_return_surcharge_out, settlement_cycle, payment_remark, other_terms_remark, data_updated_on, remark, depot_attachment_url, created_at, updated_at, city_id, region_id, depot_additional_costs(id, cost_item, rate, currency, remark), depot_attachment_links(id, url), cities(id, city_code, city_name, country, region_id, region, region_codes(id, region_code, region_name))",
+      { count: "exact" }
+    );
+
+  query = applyDepotCodesSort(query, sort);
+
+  if (depotCode) {
+    query = query.ilike("depot_code", depotCode);
+  }
+  if (depotName) {
+    query = query.or(`depot_name.ilike.${depotName},depot_name_cn.ilike.${depotName}`);
+  }
+  if (filters.cityId) {
+    query = query.eq("city_id", filters.cityId);
+  }
+  if (filters.depotType) {
+    query = query.eq("depot_type", filters.depotType);
+  }
+  if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  return query;
 }
 
 export async function getDepotCodes(
@@ -54,36 +172,8 @@ export async function getDepotCodes(
     depotType: params.depotType?.trim() ?? "",
     status: params.status?.trim() ?? "",
   };
-
-  const depotCode = normalizeLike(filters.depotCode);
-  const depotName = normalizeLike(filters.depotName);
-
-  const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("depots")
-    .select(
-      "id, depot_code, depot_name, depot_name_cn, depot_type, depot_address, depot_address_cn, contact_person, contact_email, depot_tel, fax, gate_email, account_email, business_contact_person, country_code, country_name, status, is_primary_depot, working_hour, currency, free_days, gate_in_20_cost, gate_out_20_cost, gate_in_40_cost, gate_out_40_cost, lift_in_20_cost, lift_out_20_cost, lift_in_40_cost, lift_out_40_cost, storage_rate_20, storage_rate_40, storage_rate_45, storage_rate_53, digging_cost, pti_cost, labour_cost, min_repair_cost, survey_cost, inspection_cost, est_recovery_fee, user_return_surcharge_in, user_return_surcharge_out, settlement_cycle, payment_remark, other_terms_remark, data_updated_on, remark, depot_attachment_url, created_at, updated_at, city_id, region_id, depot_additional_costs(id, cost_item, rate, currency, remark), depot_attachment_links(id, url), cities(id, city_code, city_name, country, region_id, region, region_codes(id, region_code, region_name))",
-      { count: "exact" }
-    )
-    .order("depot_code", { ascending: true });
-
-  if (depotCode) {
-    query = query.ilike("depot_code", depotCode);
-  }
-  if (depotName) {
-    query = query.or(
-      `depot_name.ilike.${depotName},depot_name_cn.ilike.${depotName}`
-    );
-  }
-  if (filters.cityId) {
-    query = query.eq("city_id", filters.cityId);
-  }
-  if (filters.depotType) {
-    query = query.eq("depot_type", filters.depotType);
-  }
-  if (filters.status) {
-    query = query.eq("status", filters.status);
-  }
+  const sort = resolveDepotCodesSort(params.sortBy, params.sortDirection);
+  const query = buildDepotCodesQuery(filters, sort);
 
   const { data, error, count } = await query.range(from, to);
   if (error) {
@@ -91,12 +181,38 @@ export async function getDepotCodes(
   }
 
   return {
-    rows: (data ?? []) as DepotCodeRow[],
+    rows: ((data ?? []) as unknown) as DepotCodeRow[],
     totalCount: count ?? 0,
     page,
     pageSize,
     filters,
+    sort,
   };
+}
+
+export async function exportDepotCodes(filters: {
+  depotCode?: string;
+  depotName?: string;
+  cityId?: string;
+  depotType?: string;
+  status?: string;
+  sortBy?: DepotCodesSortBy;
+  sortDirection?: DepotCodesSortDirection;
+}): Promise<DepotCodeRow[]> {
+  noStore();
+
+  const normalizedFilters = {
+    depotCode: filters.depotCode?.trim() ?? "",
+    depotName: filters.depotName?.trim() ?? "",
+    cityId: filters.cityId?.trim() ?? "",
+    depotType: filters.depotType?.trim() ?? "",
+    status: filters.status?.trim() ?? "",
+  };
+  const sort = resolveDepotCodesSort(filters.sortBy, filters.sortDirection);
+  const query = buildDepotCodesQuery(normalizedFilters, sort);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown) as DepotCodeRow[];
 }
 
 export async function getDepotSuggestions(params: {

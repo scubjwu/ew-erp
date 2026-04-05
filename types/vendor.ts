@@ -50,6 +50,7 @@ export interface Vendor {
   swift_code: string | null;
   settlement_payment_term: string | null;
   settlement_credit_days: number | null;
+  settlement_credit_limit: number | null;
   settlement_advance_payment_percentage: number | null;
   settlement_balance_trigger_event: VendorBalanceTriggerEvent | null;
   settlement_currency: string | null;

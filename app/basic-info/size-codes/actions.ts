@@ -9,7 +9,12 @@ export type SizeCodesQuery = {
   code?: string;
   page: number;
   pageSize: number;
+  sortBy?: SizeCodeSortBy;
+  sortDirection?: SizeCodeSortDirection;
 };
+
+export type SizeCodeSortBy = "code" | "name" | "status";
+export type SizeCodeSortDirection = "asc" | "desc";
 
 export type SizeCodesPageResult = {
   rows: SizeCodeRow[];
@@ -19,6 +24,24 @@ export type SizeCodesPageResult = {
   filters: {
     code: string;
   };
+  sort: {
+    sortBy: SizeCodeSortBy;
+    sortDirection: SizeCodeSortDirection;
+  };
+};
+
+export const DEFAULT_SIZE_CODE_SORT = {
+  sortBy: "code",
+  sortDirection: "asc",
+} satisfies {
+  sortBy: SizeCodeSortBy;
+  sortDirection: SizeCodeSortDirection;
+};
+
+const SIZE_CODE_SORT_COLUMN_MAP: Record<SizeCodeSortBy, string> = {
+  code: "size_code",
+  name: "size_name",
+  status: "status",
 };
 
 function normalizeLike(value?: string) {
@@ -38,6 +61,49 @@ function mapRows(rows: Array<Record<string, unknown>>): SizeCodeRow[] {
   }));
 }
 
+function resolveSizeCodeSort(
+  sortBy?: string,
+  sortDirection?: string
+): {
+  sortBy: SizeCodeSortBy;
+  sortDirection: SizeCodeSortDirection;
+} {
+  return {
+    sortBy:
+      sortBy && sortBy in SIZE_CODE_SORT_COLUMN_MAP
+        ? (sortBy as SizeCodeSortBy)
+        : DEFAULT_SIZE_CODE_SORT.sortBy,
+    sortDirection:
+      sortDirection === "desc" ? "desc" : DEFAULT_SIZE_CODE_SORT.sortDirection,
+  };
+}
+
+function buildSizeCodesQuery(
+  filters: SizeCodesPageResult["filters"],
+  sort: {
+    sortBy: SizeCodeSortBy;
+    sortDirection: SizeCodeSortDirection;
+  }
+) {
+  const code = normalizeLike(filters.code);
+
+  const supabase = createServerSupabaseClient();
+  let query = supabase
+    .from("container_size_codes")
+    .select("id, size_code, size_name, remark, status", {
+      count: "exact",
+    })
+    .order(SIZE_CODE_SORT_COLUMN_MAP[sort.sortBy], {
+      ascending: sort.sortDirection === "asc",
+    });
+
+  if (code) {
+    query = query.ilike("size_code", code);
+  }
+
+  return query;
+}
+
 export async function getSizeCodes(
   params: SizeCodesQuery
 ): Promise<SizeCodesPageResult> {
@@ -51,20 +117,8 @@ export async function getSizeCodes(
   const filters = {
     code: params.code?.trim() ?? "",
   };
-
-  const code = normalizeLike(filters.code);
-
-  const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("container_size_codes")
-    .select("id, size_code, size_name, remark, status", {
-      count: "exact",
-    })
-    .order("size_code", { ascending: true });
-
-  if (code) {
-    query = query.ilike("size_code", code);
-  }
+  const sort = resolveSizeCodeSort(params.sortBy, params.sortDirection);
+  const query = buildSizeCodesQuery(filters, sort);
 
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
@@ -75,7 +129,24 @@ export async function getSizeCodes(
     page,
     pageSize,
     filters,
+    sort,
   };
+}
+
+export async function exportSizeCodes(filters: {
+  code?: string;
+  sortBy?: SizeCodeSortBy;
+  sortDirection?: SizeCodeSortDirection;
+}): Promise<SizeCodeRow[]> {
+  noStore();
+  const normalizedFilters = {
+    code: filters.code?.trim() ?? "",
+  };
+  const sort = resolveSizeCodeSort(filters.sortBy, filters.sortDirection);
+  const query = buildSizeCodesQuery(normalizedFilters, sort);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return mapRows((data ?? []) as Array<Record<string, unknown>>);
 }
 
 export async function getSizeCodeSuggestions(params: {

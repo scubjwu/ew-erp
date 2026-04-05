@@ -1,5 +1,6 @@
 import {
   getLessees,
+  getLesseeFilterOptions,
   getLesseeRegionOptions,
   type LesseeQuery,
 } from "@/app/partners/lessee/actions";
@@ -17,15 +18,26 @@ export default async function LesseePage() {
   const initialParams: LesseeQuery = {
     lesseeCode: "",
     legalCompanyName: "",
-    regionId: "",
+    regionQuery: "",
+    selectedRegionId: "",
+    sortBy: "lesseeCode",
+    sortDirection: "asc",
     page: 1,
     pageSize: PAGE_SIZE,
   };
 
-  const [initial, regionOptions] = await Promise.all([
+  const [initial, filterOptions, regionOptions] = await Promise.all([
     getLessees(initialParams),
+    getLesseeFilterOptions(),
     getLesseeRegionOptions(),
   ]);
 
-  return <LesseesDashboard initial={initial} pageSize={PAGE_SIZE} regionOptions={regionOptions} />;
+  return (
+    <LesseesDashboard
+      initial={initial}
+      pageSize={PAGE_SIZE}
+      filterOptions={filterOptions}
+      regionOptions={regionOptions}
+    />
+  );
 }

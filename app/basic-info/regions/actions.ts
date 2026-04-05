@@ -2,13 +2,35 @@
 
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
+import {
+  DEFAULT_REGION_SORT,
+  normalizeLike,
+  REGION_FILTER_OPTION_LIMIT,
+  REGION_SORT_COLUMN_MAP,
+  resolveRegionSort,
+  type RegionSortBy,
+  type RegionSortDirection,
+} from "@/app/basic-info/regions/query-helpers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { RegionCode } from "@/types/region-code";
+
+export type RegionAutocompleteOption = {
+  value: string;
+  label: string;
+  secondaryLabel?: string;
+  searchText?: string;
+};
+
+export type RegionFilterOptions = {
+  regions: RegionAutocompleteOption[];
+};
 
 export type RegionCodesQuery = {
   q?: string;
   page: number;
   pageSize: number;
+  sortBy?: RegionSortBy;
+  sortDirection?: RegionSortDirection;
 };
 
 export type RegionCodesPageResult = {
@@ -19,13 +41,11 @@ export type RegionCodesPageResult = {
   filters: {
     q: string;
   };
+  sort: {
+    sortBy: RegionSortBy;
+    sortDirection: RegionSortDirection;
+  };
 };
-
-function normalizeLike(value?: string) {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  return `%${trimmed}%`;
-}
 
 export async function getRegionCodes(
   params: RegionCodesQuery
@@ -38,18 +58,21 @@ export async function getRegionCodes(
   const to = from + pageSize - 1;
   const q = params.q?.trim() ?? "";
   const pattern = normalizeLike(q);
+  const sort = resolveRegionSort(params.sortBy, params.sortDirection);
 
   const supabase = createServerSupabaseClient();
-  let query = supabase
+  let query: any = supabase
     .from("region_codes")
-    .select("*", { count: "exact" })
-    .order("region_code", { ascending: true });
+    .select("*", { count: "exact" });
 
   if (pattern) {
     query = query.or(
       `region_code.ilike.${pattern},region_name.ilike.${pattern},description.ilike.${pattern}`
     );
   }
+  query = query.order(REGION_SORT_COLUMN_MAP[sort.sortBy].column, {
+    ascending: sort.sortDirection === "asc",
+  });
 
   const { data, error, count } = await query.range(from, to);
   if (error) {
@@ -62,7 +85,39 @@ export async function getRegionCodes(
     page,
     pageSize,
     filters: { q },
+    sort,
   };
+}
+
+export async function exportRegionCodes(filters: {
+  q?: string;
+  sortBy?: RegionSortBy;
+  sortDirection?: RegionSortDirection;
+}): Promise<RegionCode[]> {
+  noStore();
+
+  const q = filters.q?.trim() ?? "";
+  const pattern = normalizeLike(q);
+  const sort = resolveRegionSort(filters.sortBy, filters.sortDirection);
+  const supabase = createServerSupabaseClient();
+  let query: any = supabase.from("region_codes").select("*");
+
+  if (pattern) {
+    query = query.or(
+      `region_code.ilike.${pattern},region_name.ilike.${pattern},description.ilike.${pattern}`
+    );
+  }
+
+  query = query.order(REGION_SORT_COLUMN_MAP[sort.sortBy].column, {
+    ascending: sort.sortDirection === "asc",
+  });
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as unknown) as RegionCode[];
 }
 
 export async function getRegionCodeSuggestions(params: {
@@ -97,6 +152,37 @@ export async function getRegionCodeSuggestions(params: {
         .filter((value) => value.toLowerCase().includes(q.toLowerCase()))
     )
   ).slice(0, limit);
+}
+
+export async function getRegionFilterOptions(): Promise<RegionFilterOptions> {
+  noStore();
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("region_codes")
+    .select("region_code, region_name")
+    .order("region_code", { ascending: true })
+    .limit(REGION_FILTER_OPTION_LIMIT);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    regions: Array.from(
+      new Map(
+        (data ?? []).map((row) => [
+          row.region_code as string,
+          {
+            value: row.region_code as string,
+            label: row.region_code as string,
+            secondaryLabel: row.region_name ?? undefined,
+            searchText: `${row.region_code ?? ""} ${row.region_name ?? ""}`.trim(),
+          },
+        ])
+      ).values()
+    ),
+  };
 }
 
 export async function revalidateRegionCodesPage() {

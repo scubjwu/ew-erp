@@ -1,4 +1,5 @@
 import {
+  DEFAULT_DEPOT_CODES_SORT,
   getDepotCityOptions,
   getDepotCodes,
   type DepotCodesQuery,
@@ -22,6 +23,8 @@ export default async function DepotCodesPage() {
     status: "",
     page: 1,
     pageSize: PAGE_SIZE,
+    sortBy: DEFAULT_DEPOT_CODES_SORT.sortBy,
+    sortDirection: DEFAULT_DEPOT_CODES_SORT.sortDirection,
   };
 
   const [initial, cityOptions] = await Promise.all([

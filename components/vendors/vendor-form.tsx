@@ -91,6 +91,7 @@ const vendorFormSchema = z.object({
   swift_code: z.string().trim(),
   settlement_payment_term: z.string().trim(),
   settlement_credit_days: z.coerce.number().min(0, "Credit days must be 0 or greater"),
+  settlement_credit_limit: z.coerce.number().min(0, "Credit limit must be 0 or greater"),
   settlement_advance_payment_percentage: z.coerce
     .number()
     .min(0, "Advance payment percentage must be 0 or greater")
@@ -148,6 +149,7 @@ function mapVendorToForm(vendor: Vendor): VendorFormValues {
     swift_code: vendor.swift_code ?? "",
     settlement_payment_term: vendor.settlement_payment_term ?? "",
     settlement_credit_days: Number(vendor.settlement_credit_days ?? 0),
+    settlement_credit_limit: Number(vendor.settlement_credit_limit ?? 0),
     settlement_advance_payment_percentage: Number(
       vendor.settlement_advance_payment_percentage ?? 0
     ),
@@ -190,6 +192,7 @@ function defaultValues(buyerId = ""): VendorFormValues {
     swift_code: "",
     settlement_payment_term: "",
     settlement_credit_days: 0,
+    settlement_credit_limit: 0,
     settlement_advance_payment_percentage: 0,
     settlement_balance_trigger_event: "",
     settlement_currency: "USD",
@@ -376,6 +379,7 @@ export function VendorForm({
         swift_code: values.swift_code || null,
         settlement_payment_term: values.settlement_payment_term || null,
         settlement_credit_days: values.settlement_credit_days,
+        settlement_credit_limit: values.settlement_credit_limit,
         settlement_advance_payment_percentage:
           values.settlement_advance_payment_percentage,
         settlement_balance_trigger_event:
@@ -807,6 +811,26 @@ export function VendorForm({
                             {...field}
                             type="number"
                             min="0"
+                            readOnly={readOnly}
+                            disabled={readOnly}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="settlement_credit_limit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Credit Limit</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            min="0"
+                            step="0.01"
                             readOnly={readOnly}
                             disabled={readOnly}
                           />

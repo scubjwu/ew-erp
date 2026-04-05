@@ -21,6 +21,10 @@ import {
 } from "@/app/basic-info/financial-codes/actions";
 import { FinancialCodeFormDialog } from "@/components/basic-info/financial-code-form-dialog";
 import { FinancialCodeViewDialog } from "@/components/basic-info/financial-code-view-dialog";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -370,12 +374,12 @@ export function FinancialCodeDashboard({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5">
-      <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
+      <div className="relative z-20 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">{labels.title}</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Maintain code master data. {rangeLabel}
             </p>
           </div>
@@ -398,80 +402,84 @@ export function FinancialCodeDashboard({
         </div>
 
         <form
-          className="grid items-end gap-2 xl:grid-cols-[180px_minmax(0,0.9fr)_minmax(0,1fr)_160px_auto_auto]"
+          className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
             applySearch();
           }}
         >
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Category</label>
-            <Select
-              value={draftFilters.category}
-              onValueChange={(value) => {
-                const nextCategory = value as FinancialCodeCategory;
-                const nextFilters = EMPTY_FILTERS(nextCategory);
-                setDraftFilters(nextFilters);
-                setAppliedFilters(nextFilters);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="INCOME">Revenue</SelectItem>
-                <SelectItem value="EXPENSE">Expense</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid items-end gap-2 xl:grid-cols-[180px_minmax(0,0.9fr)_minmax(0,1fr)_160px]">
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Category</label>
+              <Select
+                value={draftFilters.category}
+                onValueChange={(value) => {
+                  const nextCategory = value as FinancialCodeCategory;
+                  const nextFilters = EMPTY_FILTERS(nextCategory);
+                  setDraftFilters(nextFilters);
+                  setAppliedFilters(nextFilters);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="INCOME">Revenue</SelectItem>
+                  <SelectItem value="EXPENSE">Expense</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <SuggestionInput
+              label={draftLabels.code}
+              placeholder={`Fuzzy match ${draftLabels.code.toLowerCase()}`}
+              category={draftFilters.category}
+              field="code"
+              value={draftFilters.code}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, code: value }))}
+              onSelectSuggestion={(value) => setDraftFilters((current) => ({ ...current, code: value }))}
+            />
+            <SuggestionInput
+              label={draftLabels.name}
+              placeholder={`Fuzzy match ${draftLabels.name.toLowerCase()}`}
+              category={draftFilters.category}
+              field="name"
+              value={draftFilters.name}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, name: value }))}
+              onSelectSuggestion={(value) => setDraftFilters((current) => ({ ...current, name: value }))}
+            />
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Enabled</label>
+              <Select
+                value={draftFilters.enabled || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    enabled: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select enabled" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All</SelectItem>
+                  <SelectItem value="ENABLED">Enabled</SelectItem>
+                  <SelectItem value="DISABLED">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <SuggestionInput
-            label={draftLabels.code}
-            placeholder={`Fuzzy match ${draftLabels.code.toLowerCase()}`}
-            category={draftFilters.category}
-            field="code"
-            value={draftFilters.code}
-            onChange={(value) => setDraftFilters((current) => ({ ...current, code: value }))}
-            onSelectSuggestion={(value) => setDraftFilters((current) => ({ ...current, code: value }))}
-          />
-          <SuggestionInput
-            label={draftLabels.name}
-            placeholder={`Fuzzy match ${draftLabels.name.toLowerCase()}`}
-            category={draftFilters.category}
-            field="name"
-            value={draftFilters.name}
-            onChange={(value) => setDraftFilters((current) => ({ ...current, name: value }))}
-            onSelectSuggestion={(value) => setDraftFilters((current) => ({ ...current, name: value }))}
-          />
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Enabled</label>
-            <Select
-              value={draftFilters.enabled || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  enabled: value === "__all__" ? "" : value,
-                }))
-              }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select enabled" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All</SelectItem>
-                <SelectItem value="ENABLED">Enabled</SelectItem>
-                <SelectItem value="DISABLED">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" type="submit" className="h-9 px-3">
+              <Search className="mr-2 size-3.5" />
+              Search
+            </Button>
+            <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
+              <RotateCcw className="mr-2 size-3.5" />
+              Reset
+            </Button>
           </div>
-          <Button size="sm" type="submit" className="h-9 px-3">
-            <Search className="mr-2 size-3.5" />
-            Search
-          </Button>
-          <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
-            <RotateCcw className="mr-2 size-3.5" />
-            Reset
-          </Button>
         </form>
       </div>
 
@@ -504,7 +512,7 @@ export function FinancialCodeDashboard({
                     <SortIcon field="status" />
                   </button>
                 </TableHead>
-                <TableHead className="sticky top-0 z-20 min-w-[120px] bg-card py-2 text-right text-xs uppercase tracking-wide">
+                <TableHead className={`${ACTIONS_STICKY_HEAD_CLASS} top-0 py-2 text-right text-xs uppercase tracking-wide`}>
                   Actions
                 </TableHead>
               </TableRow>
@@ -535,7 +543,7 @@ export function FinancialCodeDashboard({
                         {row.status === "ACTIVE" ? "Enabled" : "Disabled"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className={ACTIONS_STICKY_CELL_CLASS}>
                       <div className="flex justify-end gap-3 text-xs font-medium">
                         <button
                           type="button"
@@ -570,7 +578,7 @@ export function FinancialCodeDashboard({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">Page {page} of {totalPages}</div>
+        <div className="text-sm text-muted-foreground">Page {page} of {totalPages}</div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))}>
             Previous

@@ -7,12 +7,22 @@ import type {
   MaterialVendor,
   MaterialVendorAttachmentLink,
 } from "@/types/material-vendor";
+import {
+  MATERIAL_VENDOR_FILTER_OPTION_LIMIT,
+  MATERIAL_VENDOR_SORT_COLUMN_MAP,
+  normalizeLike,
+  resolveMaterialVendorSort,
+  type MaterialVendorSortBy,
+  type MaterialVendorSortDirection,
+} from "@/app/partners/material-vendors/query-helpers";
 
 export type MaterialVendorQuery = {
   vendorCode?: string;
   legalCompanyName?: string;
   materialCategory?: string;
   isDefaultVendor?: string;
+  sortBy?: MaterialVendorSortBy;
+  sortDirection?: MaterialVendorSortDirection;
   page: number;
   pageSize: number;
 };
@@ -28,6 +38,10 @@ export type MaterialVendorPageResult = {
     materialCategory: string;
     isDefaultVendor: string;
   };
+  sort: {
+    sortBy: MaterialVendorSortBy;
+    sortDirection: MaterialVendorSortDirection;
+  };
 };
 
 export type MaterialVendorBuyerOption = {
@@ -36,17 +50,43 @@ export type MaterialVendorBuyerOption = {
   email: string;
 };
 
-function normalizeLike(value?: string) {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  return `%${trimmed}%`;
-}
+export type MaterialVendorAutocompleteOption = {
+  value: string;
+  label: string;
+  secondaryLabel?: string;
+  searchText?: string;
+};
+
+export type MaterialVendorFilterOptions = {
+  vendorCodes: MaterialVendorAutocompleteOption[];
+  legalCompanyNames: MaterialVendorAutocompleteOption[];
+};
 
 function baseMaterialVendorSelect() {
   return `
     *,
     pic_user:users(id, full_name)
   `;
+}
+
+function dedupeAutocompleteOptions(options: MaterialVendorAutocompleteOption[]) {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const key = `${option.value}::${option.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function applyMaterialVendorSort<T extends { order: (...args: unknown[]) => T }>(
+  query: T,
+  sort: { sortBy: MaterialVendorSortBy; sortDirection: MaterialVendorSortDirection }
+) {
+  const mapping = MATERIAL_VENDOR_SORT_COLUMN_MAP[sort.sortBy];
+  return query.order(mapping.column, {
+    ascending: sort.sortDirection === "asc",
+  });
 }
 
 export async function getMaterialVendors(
@@ -58,6 +98,7 @@ export async function getMaterialVendors(
   const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize)));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
+  const sort = resolveMaterialVendorSort(params.sortBy, params.sortDirection);
 
   const filters = {
     vendorCode: params.vendorCode?.trim() ?? "",
@@ -72,8 +113,7 @@ export async function getMaterialVendors(
   const supabase = createServerSupabaseClient();
   let query = supabase
     .from("material_vendors")
-    .select(baseMaterialVendorSelect(), { count: "exact" })
-    .order("vendor_code", { ascending: true });
+    .select(baseMaterialVendorSelect(), { count: "exact" });
 
   if (vendorCode) {
     query = query.ilike("vendor_code", vendorCode);
@@ -93,6 +133,7 @@ export async function getMaterialVendors(
     query = query.eq("is_default_vendor", false);
   }
 
+  query = applyMaterialVendorSort(query, sort);
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
 
@@ -102,6 +143,7 @@ export async function getMaterialVendors(
     page,
     pageSize,
     filters,
+    sort,
   };
 }
 
@@ -110,13 +152,13 @@ export async function exportMaterialVendors(filters: {
   legalCompanyName?: string;
   materialCategory?: string;
   isDefaultVendor?: string;
+  sortBy?: MaterialVendorSortBy;
+  sortDirection?: MaterialVendorSortDirection;
 }): Promise<MaterialVendor[]> {
   noStore();
+  const sort = resolveMaterialVendorSort(filters.sortBy, filters.sortDirection);
   const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("material_vendors")
-    .select(baseMaterialVendorSelect())
-    .order("vendor_code", { ascending: true });
+  let query = supabase.from("material_vendors").select(baseMaterialVendorSelect());
 
   const vendorCode = normalizeLike(filters.vendorCode);
   const legalCompanyName = normalizeLike(filters.legalCompanyName);
@@ -133,6 +175,7 @@ export async function exportMaterialVendors(filters: {
   if (isDefaultVendor === "yes") query = query.eq("is_default_vendor", true);
   if (isDefaultVendor === "no") query = query.eq("is_default_vendor", false);
 
+  query = applyMaterialVendorSort(query, sort);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
@@ -161,6 +204,49 @@ export async function exportMaterialVendors(filters: {
     ...row,
     attachment_links: attachmentMap.get(row.id) ?? [],
   }));
+}
+
+export async function getMaterialVendorFilterOptions(): Promise<MaterialVendorFilterOptions> {
+  noStore();
+
+  const supabase = createServerSupabaseClient();
+  const [vendorCodesResult, legalNamesResult] = await Promise.all([
+    supabase
+      .from("material_vendors")
+      .select("vendor_code, legal_company_name")
+      .order("vendor_code", { ascending: true })
+      .limit(MATERIAL_VENDOR_FILTER_OPTION_LIMIT),
+    supabase
+      .from("material_vendors")
+      .select("legal_company_name, company_name")
+      .order("legal_company_name", { ascending: true })
+      .limit(MATERIAL_VENDOR_FILTER_OPTION_LIMIT),
+  ]);
+
+  if (vendorCodesResult.error) throw new Error(vendorCodesResult.error.message);
+  if (legalNamesResult.error) throw new Error(legalNamesResult.error.message);
+
+  return {
+    vendorCodes: dedupeAutocompleteOptions(
+      (vendorCodesResult.data ?? []).map((row) => ({
+        value: row.vendor_code,
+        label: row.vendor_code,
+        secondaryLabel: row.legal_company_name ?? undefined,
+        searchText: [row.vendor_code, row.legal_company_name].filter(Boolean).join(" "),
+      }))
+    ),
+    legalCompanyNames: dedupeAutocompleteOptions(
+      (legalNamesResult.data ?? []).map((row) => ({
+        value: row.legal_company_name,
+        label: row.legal_company_name,
+        secondaryLabel:
+          row.company_name && row.company_name !== row.legal_company_name
+            ? row.company_name
+            : undefined,
+        searchText: [row.legal_company_name, row.company_name].filter(Boolean).join(" "),
+      }))
+    ),
+  };
 }
 
 export async function getMaterialVendorById(id: string): Promise<MaterialVendor | null> {

@@ -4,11 +4,23 @@ import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Lessee, LesseeAttachmentLink } from "@/types/lessee";
+import {
+  LESSEE_FILTER_OPTION_LIMIT,
+  LESSEE_SORT_COLUMN_MAP,
+  normalizeLike,
+  resolveLesseeSort,
+  resolveRegionFilter,
+  type LesseeSortBy,
+  type LesseeSortDirection,
+} from "@/app/partners/lessee/query-helpers";
 
 export type LesseeQuery = {
   lesseeCode?: string;
   legalCompanyName?: string;
-  regionId?: string;
+  regionQuery?: string;
+  selectedRegionId?: string;
+  sortBy?: LesseeSortBy;
+  sortDirection?: LesseeSortDirection;
   page: number;
   pageSize: number;
 };
@@ -21,7 +33,12 @@ export type LesseePageResult = {
   filters: {
     lesseeCode: string;
     legalCompanyName: string;
-    regionId: string;
+    regionQuery: string;
+    selectedRegionId: string;
+  };
+  sort: {
+    sortBy: LesseeSortBy;
+    sortDirection: LesseeSortDirection;
   };
 };
 
@@ -37,11 +54,18 @@ export type LesseePicOption = {
   email: string;
 };
 
-function normalizeLike(value?: string) {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  return `%${trimmed}%`;
-}
+export type LesseeAutocompleteOption = {
+  value: string;
+  label: string;
+  secondaryLabel?: string;
+  searchText?: string;
+};
+
+export type LesseeFilterOptions = {
+  lesseeCodes: LesseeAutocompleteOption[];
+  legalCompanyNames: LesseeAutocompleteOption[];
+  regions: LesseeAutocompleteOption[];
+};
 
 function baseLesseeSelect() {
   return `
@@ -51,6 +75,49 @@ function baseLesseeSelect() {
   `;
 }
 
+function dedupeAutocompleteOptions(options: LesseeAutocompleteOption[]) {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const key = `${option.value}::${option.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function resolveRegionIdsForQuery(regionQuery: string) {
+  const pattern = normalizeLike(regionQuery);
+  if (!pattern) return null;
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("region_codes")
+    .select("id")
+    .or(`region_code.ilike.${pattern},region_name.ilike.${pattern}`)
+    .order("region_code", { ascending: true })
+    .limit(LESSEE_FILTER_OPTION_LIMIT);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => row.id).filter(Boolean) as string[];
+}
+
+function applyLesseeSort<T extends { order: (...args: unknown[]) => T }>(
+  query: T,
+  sort: { sortBy: LesseeSortBy; sortDirection: LesseeSortDirection }
+) {
+  const mapping = LESSEE_SORT_COLUMN_MAP[sort.sortBy];
+  if (mapping.foreignTable) {
+    return query.order(mapping.column, {
+      ascending: sort.sortDirection === "asc",
+      foreignTable: mapping.foreignTable,
+    });
+  }
+  return query.order(mapping.column, {
+    ascending: sort.sortDirection === "asc",
+  });
+}
+
 export async function getLessees(params: LesseeQuery): Promise<LesseePageResult> {
   noStore();
 
@@ -58,11 +125,17 @@ export async function getLessees(params: LesseeQuery): Promise<LesseePageResult>
   const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize)));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
+  const sort = resolveLesseeSort(params.sortBy, params.sortDirection);
+  const regionFilter = resolveRegionFilter({
+    selectedRegionId: params.selectedRegionId,
+    regionQuery: params.regionQuery,
+  });
 
   const filters = {
     lesseeCode: params.lesseeCode?.trim() ?? "",
     legalCompanyName: params.legalCompanyName?.trim() ?? "",
-    regionId: params.regionId?.trim() ?? "",
+    regionQuery: params.regionQuery?.trim() ?? "",
+    selectedRegionId: regionFilter.selectedRegionId,
   };
 
   const lesseeCode = normalizeLike(filters.lesseeCode);
@@ -71,8 +144,7 @@ export async function getLessees(params: LesseeQuery): Promise<LesseePageResult>
   const supabase = createServerSupabaseClient();
   let query = supabase
     .from("lessees")
-    .select(baseLesseeSelect(), { count: "exact" })
-    .order("lessee_code", { ascending: true });
+    .select(baseLesseeSelect(), { count: "exact" });
 
   if (lesseeCode) query = query.ilike("lessee_code", lesseeCode);
   if (legalCompanyName) {
@@ -80,8 +152,24 @@ export async function getLessees(params: LesseeQuery): Promise<LesseePageResult>
       `legal_company_name.ilike.${legalCompanyName},company_name.ilike.${legalCompanyName}`
     );
   }
-  if (filters.regionId) query = query.eq("region_id", filters.regionId);
+  if (regionFilter.selectedRegionId) {
+    query = query.eq("region_id", regionFilter.selectedRegionId);
+  } else if (regionFilter.regionQuery) {
+    const regionIds = await resolveRegionIdsForQuery(regionFilter.regionQuery);
+    if (!regionIds || regionIds.length === 0) {
+      return {
+        rows: [],
+        totalCount: 0,
+        page,
+        pageSize,
+        filters,
+        sort,
+      };
+    }
+    query = query.in("region_id", regionIds);
+  }
 
+  query = applyLesseeSort(query, sort);
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
 
@@ -91,21 +179,29 @@ export async function getLessees(params: LesseeQuery): Promise<LesseePageResult>
     page,
     pageSize,
     filters,
+    sort,
   };
 }
 
 export async function exportLessees(filters: {
   lesseeCode?: string;
   legalCompanyName?: string;
-  regionId?: string;
+  regionQuery?: string;
+  selectedRegionId?: string;
+  sortBy?: LesseeSortBy;
+  sortDirection?: LesseeSortDirection;
 }): Promise<Lessee[]> {
   noStore();
+  const sort = resolveLesseeSort(filters.sortBy, filters.sortDirection);
   const supabase = createServerSupabaseClient();
-  let query = supabase.from("lessees").select(baseLesseeSelect()).order("lessee_code", { ascending: true });
+  let query = supabase.from("lessees").select(baseLesseeSelect());
 
   const lesseeCode = normalizeLike(filters.lesseeCode);
   const legalCompanyName = normalizeLike(filters.legalCompanyName);
-  const regionId = filters.regionId?.trim();
+  const regionFilter = resolveRegionFilter({
+    selectedRegionId: filters.selectedRegionId,
+    regionQuery: filters.regionQuery,
+  });
 
   if (lesseeCode) query = query.ilike("lessee_code", lesseeCode);
   if (legalCompanyName) {
@@ -113,8 +209,15 @@ export async function exportLessees(filters: {
       `legal_company_name.ilike.${legalCompanyName},company_name.ilike.${legalCompanyName}`
     );
   }
-  if (regionId) query = query.eq("region_id", regionId);
+  if (regionFilter.selectedRegionId) {
+    query = query.eq("region_id", regionFilter.selectedRegionId);
+  } else if (regionFilter.regionQuery) {
+    const regionIds = await resolveRegionIdsForQuery(regionFilter.regionQuery);
+    if (!regionIds || regionIds.length === 0) return [];
+    query = query.in("region_id", regionIds);
+  }
 
+  query = applyLesseeSort(query, sort);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
@@ -143,6 +246,63 @@ export async function exportLessees(filters: {
     ...row,
     attachment_links: attachmentMap.get(row.id) ?? [],
   }));
+}
+
+export async function getLesseeFilterOptions(): Promise<LesseeFilterOptions> {
+  noStore();
+
+  const supabase = createServerSupabaseClient();
+  const [codesResult, legalNamesResult, regionsResult] = await Promise.all([
+    supabase
+      .from("lessees")
+      .select("lessee_code, legal_company_name")
+      .order("lessee_code", { ascending: true })
+      .limit(LESSEE_FILTER_OPTION_LIMIT),
+    supabase
+      .from("lessees")
+      .select("legal_company_name, company_name")
+      .order("legal_company_name", { ascending: true })
+      .limit(LESSEE_FILTER_OPTION_LIMIT),
+    supabase
+      .from("region_codes")
+      .select("id, region_code, region_name")
+      .order("region_code", { ascending: true })
+      .limit(LESSEE_FILTER_OPTION_LIMIT),
+  ]);
+
+  if (codesResult.error) throw new Error(codesResult.error.message);
+  if (legalNamesResult.error) throw new Error(legalNamesResult.error.message);
+  if (regionsResult.error) throw new Error(regionsResult.error.message);
+
+  return {
+    lesseeCodes: dedupeAutocompleteOptions(
+      (codesResult.data ?? []).map((row) => ({
+        value: row.lessee_code,
+        label: row.lessee_code,
+        secondaryLabel: row.legal_company_name ?? undefined,
+        searchText: [row.lessee_code, row.legal_company_name].filter(Boolean).join(" "),
+      }))
+    ),
+    legalCompanyNames: dedupeAutocompleteOptions(
+      (legalNamesResult.data ?? []).map((row) => ({
+        value: row.legal_company_name,
+        label: row.legal_company_name,
+        secondaryLabel:
+          row.company_name && row.company_name !== row.legal_company_name
+            ? row.company_name
+            : undefined,
+        searchText: [row.legal_company_name, row.company_name].filter(Boolean).join(" "),
+      }))
+    ),
+    regions: dedupeAutocompleteOptions(
+      ((regionsResult.data ?? []) as LesseeRegionOption[]).map((row) => ({
+        value: row.id,
+        label: row.region_code,
+        secondaryLabel: row.region_name ?? undefined,
+        searchText: [row.region_code, row.region_name].filter(Boolean).join(" "),
+      }))
+    ),
+  };
 }
 
 export async function getLesseeById(id: string): Promise<Lessee | null> {

@@ -1,4 +1,5 @@
 import {
+  getContainerOwnerFilterOptions,
   getContainerOwnerRegionOptions,
   getContainerOwners,
   type ContainerOwnerQuery,
@@ -17,13 +18,17 @@ export default async function ContainerOwnersPage() {
   const initialParams: ContainerOwnerQuery = {
     containerOwnerCode: "",
     legalCompanyName: "",
-    regionId: "",
+    regionQuery: "",
+    selectedRegionId: "",
+    sortBy: "containerOwnerCode",
+    sortDirection: "asc",
     page: 1,
     pageSize: PAGE_SIZE,
   };
 
-  const [initial, regionOptions] = await Promise.all([
+  const [initial, filterOptions, regionOptions] = await Promise.all([
     getContainerOwners(initialParams),
+    getContainerOwnerFilterOptions(),
     getContainerOwnerRegionOptions(),
   ]);
 
@@ -31,6 +36,7 @@ export default async function ContainerOwnersPage() {
     <ContainerOwnersDashboard
       initial={initial}
       pageSize={PAGE_SIZE}
+      filterOptions={filterOptions}
       regionOptions={regionOptions}
     />
   );

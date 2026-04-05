@@ -789,7 +789,7 @@ export function LesseeForm({
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
                 <Button type="button" variant="outline" asChild>
-                  <Link href={initialLessee ? `/partners/lessee/${initialLessee.id}` : "/partners/lessee"}>
+                  <Link href="/partners/lessee">
                     Cancel
                   </Link>
                 </Button>

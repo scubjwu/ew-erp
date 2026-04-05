@@ -7,11 +7,23 @@ import type {
   ContainerOwner,
   ContainerOwnerAttachmentLink,
 } from "@/types/container-owner";
+import {
+  CONTAINER_OWNER_FILTER_OPTION_LIMIT,
+  CONTAINER_OWNER_SORT_COLUMN_MAP,
+  normalizeLike,
+  resolveContainerOwnerSort,
+  resolveRegionFilter,
+  type ContainerOwnerSortBy,
+  type ContainerOwnerSortDirection,
+} from "@/app/partners/container-owners/query-helpers";
 
 export type ContainerOwnerQuery = {
   containerOwnerCode?: string;
   legalCompanyName?: string;
-  regionId?: string;
+  regionQuery?: string;
+  selectedRegionId?: string;
+  sortBy?: ContainerOwnerSortBy;
+  sortDirection?: ContainerOwnerSortDirection;
   page: number;
   pageSize: number;
 };
@@ -24,7 +36,12 @@ export type ContainerOwnerPageResult = {
   filters: {
     containerOwnerCode: string;
     legalCompanyName: string;
-    regionId: string;
+    regionQuery: string;
+    selectedRegionId: string;
+  };
+  sort: {
+    sortBy: ContainerOwnerSortBy;
+    sortDirection: ContainerOwnerSortDirection;
   };
 };
 
@@ -40,11 +57,18 @@ export type ContainerOwnerPicOption = {
   email: string;
 };
 
-function normalizeLike(value?: string) {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  return `%${trimmed}%`;
-}
+export type ContainerOwnerAutocompleteOption = {
+  value: string;
+  label: string;
+  secondaryLabel?: string;
+  searchText?: string;
+};
+
+export type ContainerOwnerFilterOptions = {
+  containerOwnerCodes: ContainerOwnerAutocompleteOption[];
+  legalCompanyNames: ContainerOwnerAutocompleteOption[];
+  regions: ContainerOwnerAutocompleteOption[];
+};
 
 function baseContainerOwnerSelect() {
   return `
@@ -52,6 +76,49 @@ function baseContainerOwnerSelect() {
     region:region_codes(id, region_code, region_name),
     pic_user:users(id, full_name)
   `;
+}
+
+function dedupeAutocompleteOptions(options: ContainerOwnerAutocompleteOption[]) {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const key = `${option.value}::${option.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function resolveRegionIdsForQuery(regionQuery: string) {
+  const pattern = normalizeLike(regionQuery);
+  if (!pattern) return null;
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("region_codes")
+    .select("id")
+    .or(`region_code.ilike.${pattern},region_name.ilike.${pattern}`)
+    .order("region_code", { ascending: true })
+    .limit(CONTAINER_OWNER_FILTER_OPTION_LIMIT);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => row.id).filter(Boolean) as string[];
+}
+
+function applyContainerOwnerSort<T extends { order: (...args: unknown[]) => T }>(
+  query: T,
+  sort: { sortBy: ContainerOwnerSortBy; sortDirection: ContainerOwnerSortDirection }
+) {
+  const mapping = CONTAINER_OWNER_SORT_COLUMN_MAP[sort.sortBy];
+  if (mapping.foreignTable) {
+    return query.order(mapping.column, {
+      ascending: sort.sortDirection === "asc",
+      foreignTable: mapping.foreignTable,
+    });
+  }
+  return query.order(mapping.column, {
+    ascending: sort.sortDirection === "asc",
+  });
 }
 
 export async function getContainerOwners(
@@ -63,11 +130,17 @@ export async function getContainerOwners(
   const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize)));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
+  const sort = resolveContainerOwnerSort(params.sortBy, params.sortDirection);
+  const regionFilter = resolveRegionFilter({
+    selectedRegionId: params.selectedRegionId,
+    regionQuery: params.regionQuery,
+  });
 
   const filters = {
     containerOwnerCode: params.containerOwnerCode?.trim() ?? "",
     legalCompanyName: params.legalCompanyName?.trim() ?? "",
-    regionId: params.regionId?.trim() ?? "",
+    regionQuery: params.regionQuery?.trim() ?? "",
+    selectedRegionId: regionFilter.selectedRegionId,
   };
 
   const containerOwnerCode = normalizeLike(filters.containerOwnerCode);
@@ -76,8 +149,7 @@ export async function getContainerOwners(
   const supabase = createServerSupabaseClient();
   let query = supabase
     .from("container_owners")
-    .select(baseContainerOwnerSelect(), { count: "exact" })
-    .order("container_owner_code", { ascending: true });
+    .select(baseContainerOwnerSelect(), { count: "exact" });
 
   if (containerOwnerCode) query = query.ilike("container_owner_code", containerOwnerCode);
   if (legalCompanyName) {
@@ -85,8 +157,24 @@ export async function getContainerOwners(
       `legal_company_name.ilike.${legalCompanyName},company_name.ilike.${legalCompanyName}`
     );
   }
-  if (filters.regionId) query = query.eq("region_id", filters.regionId);
+  if (regionFilter.selectedRegionId) {
+    query = query.eq("region_id", regionFilter.selectedRegionId);
+  } else if (regionFilter.regionQuery) {
+    const regionIds = await resolveRegionIdsForQuery(regionFilter.regionQuery);
+    if (!regionIds || regionIds.length === 0) {
+      return {
+        rows: [],
+        totalCount: 0,
+        page,
+        pageSize,
+        filters,
+        sort,
+      };
+    }
+    query = query.in("region_id", regionIds);
+  }
 
+  query = applyContainerOwnerSort(query, sort);
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
 
@@ -96,24 +184,29 @@ export async function getContainerOwners(
     page,
     pageSize,
     filters,
+    sort,
   };
 }
 
 export async function exportContainerOwners(filters: {
   containerOwnerCode?: string;
   legalCompanyName?: string;
-  regionId?: string;
+  regionQuery?: string;
+  selectedRegionId?: string;
+  sortBy?: ContainerOwnerSortBy;
+  sortDirection?: ContainerOwnerSortDirection;
 }): Promise<ContainerOwner[]> {
   noStore();
+  const sort = resolveContainerOwnerSort(filters.sortBy, filters.sortDirection);
   const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("container_owners")
-    .select(baseContainerOwnerSelect())
-    .order("container_owner_code", { ascending: true });
+  let query = supabase.from("container_owners").select(baseContainerOwnerSelect());
 
   const containerOwnerCode = normalizeLike(filters.containerOwnerCode);
   const legalCompanyName = normalizeLike(filters.legalCompanyName);
-  const regionId = filters.regionId?.trim();
+  const regionFilter = resolveRegionFilter({
+    selectedRegionId: filters.selectedRegionId,
+    regionQuery: filters.regionQuery,
+  });
 
   if (containerOwnerCode) query = query.ilike("container_owner_code", containerOwnerCode);
   if (legalCompanyName) {
@@ -121,8 +214,15 @@ export async function exportContainerOwners(filters: {
       `legal_company_name.ilike.${legalCompanyName},company_name.ilike.${legalCompanyName}`
     );
   }
-  if (regionId) query = query.eq("region_id", regionId);
+  if (regionFilter.selectedRegionId) {
+    query = query.eq("region_id", regionFilter.selectedRegionId);
+  } else if (regionFilter.regionQuery) {
+    const regionIds = await resolveRegionIdsForQuery(regionFilter.regionQuery);
+    if (!regionIds || regionIds.length === 0) return [];
+    query = query.in("region_id", regionIds);
+  }
 
+  query = applyContainerOwnerSort(query, sort);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
@@ -151,6 +251,63 @@ export async function exportContainerOwners(filters: {
     ...row,
     attachment_links: attachmentMap.get(row.id) ?? [],
   }));
+}
+
+export async function getContainerOwnerFilterOptions(): Promise<ContainerOwnerFilterOptions> {
+  noStore();
+
+  const supabase = createServerSupabaseClient();
+  const [codesResult, legalNamesResult, regionsResult] = await Promise.all([
+    supabase
+      .from("container_owners")
+      .select("container_owner_code, legal_company_name")
+      .order("container_owner_code", { ascending: true })
+      .limit(CONTAINER_OWNER_FILTER_OPTION_LIMIT),
+    supabase
+      .from("container_owners")
+      .select("legal_company_name, company_name")
+      .order("legal_company_name", { ascending: true })
+      .limit(CONTAINER_OWNER_FILTER_OPTION_LIMIT),
+    supabase
+      .from("region_codes")
+      .select("id, region_code, region_name")
+      .order("region_code", { ascending: true })
+      .limit(CONTAINER_OWNER_FILTER_OPTION_LIMIT),
+  ]);
+
+  if (codesResult.error) throw new Error(codesResult.error.message);
+  if (legalNamesResult.error) throw new Error(legalNamesResult.error.message);
+  if (regionsResult.error) throw new Error(regionsResult.error.message);
+
+  return {
+    containerOwnerCodes: dedupeAutocompleteOptions(
+      (codesResult.data ?? []).map((row) => ({
+        value: row.container_owner_code,
+        label: row.container_owner_code,
+        secondaryLabel: row.legal_company_name ?? undefined,
+        searchText: [row.container_owner_code, row.legal_company_name].filter(Boolean).join(" "),
+      }))
+    ),
+    legalCompanyNames: dedupeAutocompleteOptions(
+      (legalNamesResult.data ?? []).map((row) => ({
+        value: row.legal_company_name,
+        label: row.legal_company_name,
+        secondaryLabel:
+          row.company_name && row.company_name !== row.legal_company_name
+            ? row.company_name
+            : undefined,
+        searchText: [row.legal_company_name, row.company_name].filter(Boolean).join(" "),
+      }))
+    ),
+    regions: dedupeAutocompleteOptions(
+      ((regionsResult.data ?? []) as ContainerOwnerRegionOption[]).map((row) => ({
+        value: row.id,
+        label: row.region_code,
+        secondaryLabel: row.region_name ?? undefined,
+        searchText: [row.region_code, row.region_name].filter(Boolean).join(" "),
+      }))
+    ),
+  };
 }
 
 export async function getContainerOwnerById(id: string): Promise<ContainerOwner | null> {

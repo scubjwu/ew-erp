@@ -10,6 +10,10 @@ import {
 } from "@/app/basic-info/container-number-rules/actions";
 import { ContainerNumberRuleFormDialog } from "@/components/basic-info/container-number-rule-form-dialog";
 import { ContainerNumberRuleViewDialog } from "@/components/basic-info/container-number-rule-view-dialog";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -320,12 +324,12 @@ export function ContainerNumberRulesDashboard({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5">
-      <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
+      <div className="relative z-20 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Container Number Rules</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Maintain prefix and serial rules used to generate container numbers. {rangeLabel}
             </p>
           </div>
@@ -348,77 +352,80 @@ export function ContainerNumberRulesDashboard({
         </div>
 
         <form
-          className="grid items-end gap-2 xl:grid-cols-[180px_minmax(0,260px)_180px_auto_auto]"
+          className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
             applySearch();
           }}
         >
-          <div className="relative z-40 min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Size</label>
-            <Select
-              value={draftFilters.sizeCodeId || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  sizeCodeId: value === "__all__" ? "" : value,
-                }))
+          <div className="grid items-end gap-2 xl:grid-cols-[180px_minmax(0,260px)_180px]">
+            <div className="relative z-40 min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Size</label>
+              <Select
+                value={draftFilters.sizeCodeId || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    sizeCodeId: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="All Sizes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Sizes</SelectItem>
+                  {sizeOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <PrefixSuggestionInput
+              value={draftFilters.prefix}
+              onChange={(value) =>
+                setDraftFilters((current) => ({ ...current, prefix: value }))
               }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="All Sizes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Sizes</SelectItem>
-                {sizeOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <PrefixSuggestionInput
-            value={draftFilters.prefix}
-            onChange={(value) =>
-              setDraftFilters((current) => ({ ...current, prefix: value }))
-            }
-            onSelectSuggestion={(value) =>
-              setDraftFilters((current) => ({ ...current, prefix: value }))
-            }
-          />
-
-          <div className="relative z-40 min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Status</label>
-            <Select
-              value={draftFilters.status || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  status: value === "__all__" ? "" : value,
-                }))
+              onSelectSuggestion={(value) =>
+                setDraftFilters((current) => ({ ...current, prefix: value }))
               }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Statuses</SelectItem>
-                <SelectItem value="ACTIVE">Enabled</SelectItem>
-                <SelectItem value="INACTIVE">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            />
 
-          <Button size="sm" type="submit" className="h-9 px-3">
-            <Search className="mr-2 size-3.5" />
-            Search
-          </Button>
-          <Button size="sm" type="button" variant="outline" className="h-9 px-3" onClick={resetSearch}>
-            <RotateCcw className="mr-2 size-3.5" />
-            Reset
-          </Button>
+            <div className="relative z-40 min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Status</label>
+              <Select
+                value={draftFilters.status || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    status: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Statuses</SelectItem>
+                  <SelectItem value="ACTIVE">Enabled</SelectItem>
+                  <SelectItem value="INACTIVE">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" type="submit" className="h-9 px-3">
+              <Search className="mr-2 size-3.5" />
+              Search
+            </Button>
+            <Button size="sm" type="button" variant="outline" className="h-9 px-3" onClick={resetSearch}>
+              <RotateCcw className="mr-2 size-3.5" />
+              Reset
+            </Button>
+          </div>
         </form>
       </div>
 
@@ -437,7 +444,7 @@ export function ContainerNumberRulesDashboard({
                 <TableHead className="min-w-[170px]">Example Container Number</TableHead>
                 <TableHead className="min-w-[110px]">Status</TableHead>
                 <TableHead className="min-w-[220px]">Remark</TableHead>
-                <TableHead className="min-w-[120px] text-right">Actions</TableHead>
+                <TableHead className={ACTIONS_STICKY_HEAD_CLASS}>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -468,7 +475,7 @@ export function ContainerNumberRulesDashboard({
                       </Badge>
                     </TableCell>
                     <TableCell className="max-w-[220px] truncate">{row.remark || "-"}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className={ACTIONS_STICKY_CELL_CLASS}>
                       <div className="flex justify-end gap-3 text-sm">
                         <button
                           type="button"

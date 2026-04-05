@@ -12,7 +12,12 @@ export type FinancialCodesQuery = {
   enabled?: string;
   page: number;
   pageSize: number;
+  sortBy?: FinancialCodeSortBy;
+  sortDirection?: FinancialCodeSortDirection;
 };
+
+export type FinancialCodeSortBy = "code" | "name" | "description" | "status";
+export type FinancialCodeSortDirection = "asc" | "desc";
 
 export type FinancialCodesPageResult = {
   rows: FinancialCodeRow[];
@@ -25,9 +30,21 @@ export type FinancialCodesPageResult = {
     name: string;
     enabled: string;
   };
+  sort: {
+    sortBy: FinancialCodeSortBy;
+    sortDirection: FinancialCodeSortDirection;
+  };
 };
 
 export type FinancialCodeSuggestionField = "code" | "name";
+
+export const DEFAULT_FINANCIAL_CODE_SORT = {
+  sortBy: "code",
+  sortDirection: "asc",
+} satisfies {
+  sortBy: FinancialCodeSortBy;
+  sortDirection: FinancialCodeSortDirection;
+};
 
 function normalizeLike(value?: string) {
   const trimmed = value?.trim();
@@ -45,6 +62,16 @@ function codeColumnForCategory(category: FinancialCodeCategory) {
 
 function nameColumnForCategory(category: FinancialCodeCategory) {
   return category === "INCOME" ? "revenue_name" : "cost_name";
+}
+
+function sortColumnForCategory(
+  category: FinancialCodeCategory,
+  sortBy: FinancialCodeSortBy
+) {
+  if (sortBy === "code") return codeColumnForCategory(category);
+  if (sortBy === "name") return nameColumnForCategory(category);
+  if (sortBy === "description") return "description";
+  return "status";
 }
 
 function mapRows(
@@ -65,26 +92,33 @@ function mapRows(
   }));
 }
 
-export async function getFinancialCodes(
-  params: FinancialCodesQuery
-): Promise<FinancialCodesPageResult> {
-  noStore();
+function resolveFinancialCodeSort(
+  sortBy?: string,
+  sortDirection?: string
+): {
+  sortBy: FinancialCodeSortBy;
+  sortDirection: FinancialCodeSortDirection;
+} {
+  return {
+    sortBy:
+      sortBy === "name" || sortBy === "description" || sortBy === "status"
+        ? sortBy
+        : DEFAULT_FINANCIAL_CODE_SORT.sortBy,
+    sortDirection:
+      sortDirection === "desc" ? "desc" : DEFAULT_FINANCIAL_CODE_SORT.sortDirection,
+  };
+}
 
-  const category = params.category;
-  const page = Math.max(1, Math.floor(params.page));
-  const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize)));
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+function buildFinancialCodesQuery(
+  filters: FinancialCodesPageResult["filters"],
+  sort: {
+    sortBy: FinancialCodeSortBy;
+    sortDirection: FinancialCodeSortDirection;
+  }
+) {
+  const category = filters.category;
   const codeColumn = codeColumnForCategory(category);
   const nameColumn = nameColumnForCategory(category);
-
-  const filters = {
-    category,
-    code: params.code?.trim() ?? "",
-    name: params.name?.trim() ?? "",
-    enabled: params.enabled?.trim() ?? "",
-  };
-
   const code = normalizeLike(filters.code);
   const name = normalizeLike(filters.name);
   const selectColumns =
@@ -98,7 +132,9 @@ export async function getFinancialCodes(
     .select(selectColumns, {
       count: "exact",
     })
-    .order(codeColumn, { ascending: true });
+    .order(sortColumnForCategory(category, sort.sortBy), {
+      ascending: sort.sortDirection === "asc",
+    });
 
   if (code) {
     query = query.ilike(codeColumn, code);
@@ -110,6 +146,29 @@ export async function getFinancialCodes(
     query = query.eq("status", filters.enabled === "ENABLED" ? "ACTIVE" : "INACTIVE");
   }
 
+  return query;
+}
+
+export async function getFinancialCodes(
+  params: FinancialCodesQuery
+): Promise<FinancialCodesPageResult> {
+  noStore();
+
+  const category = params.category;
+  const page = Math.max(1, Math.floor(params.page));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize)));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const filters = {
+    category,
+    code: params.code?.trim() ?? "",
+    name: params.name?.trim() ?? "",
+    enabled: params.enabled?.trim() ?? "",
+  };
+  const sort = resolveFinancialCodeSort(params.sortBy, params.sortDirection);
+  const query = buildFinancialCodesQuery(filters, sort);
+
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
 
@@ -119,7 +178,31 @@ export async function getFinancialCodes(
     page,
     pageSize,
     filters,
+    sort,
   };
+}
+
+export async function exportFinancialCodes(filters: {
+  category: FinancialCodeCategory;
+  code?: string;
+  name?: string;
+  enabled?: string;
+  sortBy?: FinancialCodeSortBy;
+  sortDirection?: FinancialCodeSortDirection;
+}): Promise<FinancialCodeRow[]> {
+  noStore();
+
+  const normalizedFilters = {
+    category: filters.category,
+    code: filters.code?.trim() ?? "",
+    name: filters.name?.trim() ?? "",
+    enabled: filters.enabled?.trim() ?? "",
+  };
+  const sort = resolveFinancialCodeSort(filters.sortBy, filters.sortDirection);
+  const query = buildFinancialCodesQuery(normalizedFilters, sort);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return mapRows(filters.category, (data ?? []) as Array<Record<string, unknown>>);
 }
 
 export async function getFinancialCodeSuggestions(params: {
@@ -154,8 +237,8 @@ export async function getFinancialCodeSuggestions(params: {
   return Array.from(
     new Set(
       (data ?? [])
-        .map((row) => row[column])
-        .filter((value): value is string => Boolean(value?.trim()))
+        .map((row) => (row as Record<string, unknown>)[column])
+        .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
     )
   ).slice(0, limit);
 }

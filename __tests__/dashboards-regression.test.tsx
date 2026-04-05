@@ -58,6 +58,9 @@ vi.mock("lucide-react", () => {
     <span data-testid="lucide-mock-icon" className={props.className} />
   );
   return {
+    ArrowDown: Icon,
+    ArrowUp: Icon,
+    ArrowUpDown: Icon,
     Check: Icon,
     ChevronDown: Icon,
     ChevronUp: Icon,
@@ -156,7 +159,12 @@ function vendorResult(overrides?: Partial<Parameters<typeof VendorsDashboard>[0]
     filters: {
       vendorCode: "",
       legalCompanyName: "",
-      regionId: "",
+      regionQuery: "",
+      selectedRegionId: "",
+    },
+    sort: {
+      sortBy: "vendorCode",
+      sortDirection: "asc",
     },
     ...overrides,
   };
@@ -209,6 +217,10 @@ function materialVendorResult(
       materialCategory: "",
       isDefaultVendor: "",
     },
+    sort: {
+      sortBy: "vendorCode",
+      sortDirection: "asc",
+    },
     ...overrides,
   };
 }
@@ -252,7 +264,12 @@ function lesseeResult(overrides?: Partial<Parameters<typeof LesseesDashboard>[0]
     filters: {
       lesseeCode: "",
       legalCompanyName: "",
-      regionId: "",
+      regionQuery: "",
+      selectedRegionId: "",
+    },
+    sort: {
+      sortBy: "lesseeCode",
+      sortDirection: "asc",
     },
     ...overrides,
   };
@@ -299,7 +316,12 @@ function containerOwnerResult(
     filters: {
       containerOwnerCode: "",
       legalCompanyName: "",
-      regionId: "",
+      regionQuery: "",
+      selectedRegionId: "",
+    },
+    sort: {
+      sortBy: "containerOwnerCode",
+      sortDirection: "asc",
     },
     ...overrides,
   };
@@ -333,6 +355,10 @@ function usersResult(overrides?: Partial<Parameters<typeof UsersDashboard>[0]["i
       role: "",
       status: "",
     },
+    sort: {
+      sortBy: "userCode",
+      sortDirection: "asc",
+    },
     ...overrides,
   };
 }
@@ -354,7 +380,12 @@ describe("Dashboard regression workflow", () => {
         rows: [
           { ...vendorResult().rows[0], id: "vendor-2", vendor_code: "SZZ999", legal_company_name: "Filtered Vendor" },
         ],
-        filters: { vendorCode: "SZZ999", legalCompanyName: "", regionId: "" },
+        filters: {
+          vendorCode: "SZZ999",
+          legalCompanyName: "",
+          regionQuery: "",
+          selectedRegionId: "",
+        },
       })
     );
     vendorsActions.getVendors.mockResolvedValueOnce(vendorResult());
@@ -364,19 +395,28 @@ describe("Dashboard regression workflow", () => {
       <VendorsDashboard
         initial={vendorResult()}
         pageSize={20}
-        regionOptions={[{ id: "region-1", region_code: "China", region_name: "China" }]}
+        filterOptions={{
+          vendorCodes: [],
+          legalCompanyNames: [],
+          regions: [
+            { value: "region-1", label: "China", secondaryLabel: "China", searchText: "China" },
+          ],
+        }}
       />
     );
 
-    await user.clear(screen.getByPlaceholderText(/search vendor code/i));
-    await user.type(screen.getByPlaceholderText(/search vendor code/i), "SZZ999");
+    await user.clear(screen.getByRole("combobox", { name: "Vendor Code" }));
+    await user.type(screen.getByRole("combobox", { name: "Vendor Code" }), "SZZ999");
     await user.click(screen.getByRole("button", { name: /search/i }));
 
     await waitFor(() =>
       expect(vendorsActions.getVendors).toHaveBeenCalledWith({
         vendorCode: "SZZ999",
         legalCompanyName: "",
-        regionId: "",
+        regionQuery: "",
+        selectedRegionId: "",
+        sortBy: "vendorCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -388,13 +428,16 @@ describe("Dashboard regression workflow", () => {
       expect(vendorsActions.getVendors).toHaveBeenLastCalledWith({
         vendorCode: "",
         legalCompanyName: "",
-        regionId: "",
+        regionQuery: "",
+        selectedRegionId: "",
+        sortBy: "vendorCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
     );
     await waitFor(() =>
-      expect(screen.getByPlaceholderText(/search vendor code/i)).toHaveValue("")
+      expect(screen.getByRole("combobox", { name: "Vendor Code" })).toHaveValue("")
     );
 
     await user.click(screen.getByRole("button", { name: /export csv/i }));
@@ -425,7 +468,13 @@ describe("Dashboard regression workflow", () => {
     materialVendorsActions.getMaterialVendors.mockResolvedValueOnce(materialVendorResult());
     materialVendorsActions.exportMaterialVendors.mockResolvedValue(materialVendorResult().rows);
 
-    render(<MaterialVendorsDashboard initial={materialVendorResult()} pageSize={20} />);
+    render(
+      <MaterialVendorsDashboard
+        initial={materialVendorResult()}
+        pageSize={20}
+        filterOptions={{ vendorCodes: [], legalCompanyNames: [] }}
+      />
+    );
 
     await user.clear(screen.getByPlaceholderText(/search vendor code/i));
     await user.type(screen.getByPlaceholderText(/search vendor code/i), "DB9999");
@@ -437,6 +486,8 @@ describe("Dashboard regression workflow", () => {
         legalCompanyName: "",
         materialCategory: "",
         isDefaultVendor: "",
+        sortBy: "vendorCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -450,6 +501,8 @@ describe("Dashboard regression workflow", () => {
         legalCompanyName: "",
         materialCategory: "",
         isDefaultVendor: "",
+        sortBy: "vendorCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -477,7 +530,8 @@ describe("Dashboard regression workflow", () => {
         filters: {
           lesseeCode: "BZZ999",
           legalCompanyName: "",
-          regionId: "",
+          regionQuery: "",
+          selectedRegionId: "",
         },
       })
     );
@@ -488,19 +542,27 @@ describe("Dashboard regression workflow", () => {
       <LesseesDashboard
         initial={lesseeResult()}
         pageSize={20}
+        filterOptions={{
+          lesseeCodes: [],
+          legalCompanyNames: [],
+          regions: [{ value: "region-1", label: "China", secondaryLabel: "China", searchText: "China" }],
+        }}
         regionOptions={[{ id: "region-1", region_code: "China", region_name: "China" }]}
       />
     );
 
-    await user.clear(screen.getByPlaceholderText(/search lessee code/i));
-    await user.type(screen.getByPlaceholderText(/search lessee code/i), "BZZ999");
+    await user.clear(screen.getByRole("combobox", { name: "Lessee Code" }));
+    await user.type(screen.getByRole("combobox", { name: "Lessee Code" }), "BZZ999");
     await user.click(screen.getByRole("button", { name: /search/i }));
 
     await waitFor(() =>
       expect(lesseesActions.getLessees).toHaveBeenCalledWith({
         lesseeCode: "BZZ999",
         legalCompanyName: "",
-        regionId: "",
+        regionQuery: "",
+        selectedRegionId: "",
+        sortBy: "lesseeCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -512,7 +574,10 @@ describe("Dashboard regression workflow", () => {
       expect(lesseesActions.getLessees).toHaveBeenLastCalledWith({
         lesseeCode: "",
         legalCompanyName: "",
-        regionId: "",
+        regionQuery: "",
+        selectedRegionId: "",
+        sortBy: "lesseeCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -538,7 +603,8 @@ describe("Dashboard regression workflow", () => {
         filters: {
           containerOwnerCode: "OZZ999",
           legalCompanyName: "",
-          regionId: "",
+          regionQuery: "",
+          selectedRegionId: "",
         },
       })
     );
@@ -551,19 +617,27 @@ describe("Dashboard regression workflow", () => {
       <ContainerOwnersDashboard
         initial={containerOwnerResult()}
         pageSize={20}
+        filterOptions={{
+          containerOwnerCodes: [],
+          legalCompanyNames: [],
+          regions: [{ value: "region-1", label: "China", secondaryLabel: "China", searchText: "China" }],
+        }}
         regionOptions={[{ id: "region-1", region_code: "China", region_name: "China" }]}
       />
     );
 
-    await user.clear(screen.getByPlaceholderText(/search owner code/i));
-    await user.type(screen.getByPlaceholderText(/search owner code/i), "OZZ999");
+    await user.clear(screen.getByRole("combobox", { name: "Container Owner Code" }));
+    await user.type(screen.getByRole("combobox", { name: "Container Owner Code" }), "OZZ999");
     await user.click(screen.getByRole("button", { name: /search/i }));
 
     await waitFor(() =>
       expect(containerOwnersActions.getContainerOwners).toHaveBeenCalledWith({
         containerOwnerCode: "OZZ999",
         legalCompanyName: "",
-        regionId: "",
+        regionQuery: "",
+        selectedRegionId: "",
+        sortBy: "containerOwnerCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -575,7 +649,10 @@ describe("Dashboard regression workflow", () => {
       expect(containerOwnersActions.getContainerOwners).toHaveBeenLastCalledWith({
         containerOwnerCode: "",
         legalCompanyName: "",
-        regionId: "",
+        regionQuery: "",
+        selectedRegionId: "",
+        sortBy: "containerOwnerCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -612,13 +689,17 @@ describe("Dashboard regression workflow", () => {
     usersActions.exportUsers.mockResolvedValue(usersResult().rows);
 
     render(
-      <UsersDashboard
-        initial={usersResult()}
-        pageSize={20}
-        roleOptions={["Admin", "Sales", "Operations"]}
-        statusOptions={["Active", "Inactive"]}
-      />
-    );
+        <UsersDashboard
+          initial={usersResult()}
+          pageSize={20}
+          roleOptions={["Admin", "Sales", "Operations"]}
+          statusOptions={["Active", "Inactive"]}
+          filterOptions={{
+            userCodes: [],
+            fullNames: [],
+          }}
+        />
+      );
 
     await user.clear(screen.getByPlaceholderText(/search full name/i));
     await user.type(screen.getByPlaceholderText(/search full name/i), "Filtered User");
@@ -630,6 +711,8 @@ describe("Dashboard regression workflow", () => {
         fullName: "Filtered User",
         role: "",
         status: "",
+        sortBy: "userCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
@@ -643,13 +726,24 @@ describe("Dashboard regression workflow", () => {
         fullName: "",
         role: "",
         status: "",
+        sortBy: "userCode",
+        sortDirection: "asc",
         page: 1,
         pageSize: 20,
       })
     );
 
     await user.click(screen.getByRole("button", { name: /export csv/i }));
-    await waitFor(() => expect(usersActions.exportUsers).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(usersActions.exportUsers).toHaveBeenCalledWith({
+        userCode: "",
+        fullName: "",
+        role: "",
+        status: "",
+        sortBy: "userCode",
+        sortDirection: "asc",
+      })
+    );
     expect(anchorClick).toHaveBeenCalled();
   });
 });

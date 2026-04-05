@@ -145,6 +145,30 @@ async function waitForSupabaseReady(supabase) {
   throw new Error(`Supabase API did not become ready after reset: ${String(lastError)}`);
 }
 
+async function generateUniqueResetSafeUserCode(supabase) {
+  const rows = await must(
+    supabase
+      .from("users")
+      .select("user_code")
+      .like("user_code", "RS%")
+      .order("user_code", { ascending: false })
+      .limit(200),
+    "load reset-safe user codes"
+  );
+
+  const maxSequence = (rows ?? []).reduce((highest, row) => {
+    const value = Number.parseInt(String(row.user_code ?? "").slice(2), 10);
+    return Number.isFinite(value) ? Math.max(highest, value) : highest;
+  }, 0);
+
+  const nextSequence = maxSequence + 1;
+  if (nextSequence > 9999) {
+    fail("Reset-safe user code sequence exhausted");
+  }
+
+  return `RS${String(nextSequence).padStart(4, "0")}`;
+}
+
 function buildClient(env) {
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -190,11 +214,13 @@ async function createRegressionFixtures(supabase, stamp) {
   const china = regions.find((row) => row.region_code === "China") ?? regions[0];
   if (!china?.id) fail("Could not resolve China region id");
 
+  const nextResetSafeUserCode = await generateUniqueResetSafeUserCode(supabase);
+
   const createdUser = await must(
     supabase
       .from("users")
       .insert({
-        user_code: `RS${last4}`,
+        user_code: nextResetSafeUserCode,
         full_name: `Reset Safe User ${stamp}`,
         email: `reset.safe.user.${stamp}@example.com`,
         role: "Operations",

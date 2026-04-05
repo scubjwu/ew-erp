@@ -1,4 +1,5 @@
 import {
+  DEFAULT_OPERATION_PRICES_SORT,
   getOperationPriceFormOptions,
   getOperationPrices,
   type OperationPricesQuery,
@@ -20,6 +21,8 @@ export default async function OperationPricesPage() {
     status: "",
     page: 1,
     pageSize: PAGE_SIZE,
+    sortBy: DEFAULT_OPERATION_PRICES_SORT.sortBy,
+    sortDirection: DEFAULT_OPERATION_PRICES_SORT.sortDirection,
   };
 
   const [initial, options] = await Promise.all([

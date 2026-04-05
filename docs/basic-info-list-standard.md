@@ -12,13 +12,14 @@ All Basic Info list pages must follow this performance and interaction standard.
 
 ## Sorting
 
-- Table header sorting is UI-only and applies to the current page rows already loaded in memory.
-- Do not trigger a new database request when the user clicks a sortable column header.
-- Initial local sort state should match the backend default ordering for the first page.
+- Table header sorting should follow the same sorting mode used by the page query contract.
+- For delivered `System Codes` pages, sorting now follows the applied page query and should stay aligned with export output.
+- Do not mix current-page-only sorting and query-backed sorting within the same page pattern.
+- Default sort should still follow the page's primary business key when practical.
 
 ## Search
 
-- Search toolbar stays in a single compact ERP-style row when space allows.
+- Search toolbar keeps fields grouped together and places `Search` / `Reset` as a stable right-aligned action group.
 - Text search uses fuzzy matching on the server for applied filters.
 - Search suggestions are lightweight, field-specific queries limited to a small result set.
 - Suggestions support keyboard up/down navigation.
@@ -30,6 +31,7 @@ All Basic Info list pages must follow this performance and interaction standard.
 - Do not show a leading `No.` index column.
 - Use sticky table headers.
 - Freeze the first business column on the left.
+- Keep the `Actions` column fixed on the far right when row actions exist.
 - Use compact row height and text-link style actions.
 - Keep empty and loading states inside the table body.
 

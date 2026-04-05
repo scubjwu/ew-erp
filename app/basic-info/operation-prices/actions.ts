@@ -14,7 +14,20 @@ export type OperationPricesQuery = {
   status?: string;
   page: number;
   pageSize: number;
+  sortBy?: OperationPricesSortBy;
+  sortDirection?: OperationPricesSortDirection;
 };
+
+export type OperationPricesSortBy =
+  | "size"
+  | "condition"
+  | "addonPrice"
+  | "currency"
+  | "effectiveFrom"
+  | "effectiveTo"
+  | "status"
+  | "remark";
+export type OperationPricesSortDirection = "asc" | "desc";
 
 export type OperationPricesPageResult = {
   rows: OperationPriceRow[];
@@ -26,6 +39,18 @@ export type OperationPricesPageResult = {
     conditionId: string;
     status: string;
   };
+  sort: {
+    sortBy: OperationPricesSortBy;
+    sortDirection: OperationPricesSortDirection;
+  };
+};
+
+export const DEFAULT_OPERATION_PRICES_SORT = {
+  sortBy: "size",
+  sortDirection: "asc",
+} satisfies {
+  sortBy: OperationPricesSortBy;
+  sortDirection: OperationPricesSortDirection;
 };
 
 function mapRows(rows: Array<Record<string, unknown>>): OperationPriceRow[] {
@@ -49,6 +74,94 @@ function mapRows(rows: Array<Record<string, unknown>>): OperationPriceRow[] {
   }));
 }
 
+function resolveOperationPricesSort(
+  sortBy?: string,
+  sortDirection?: string
+): {
+  sortBy: OperationPricesSortBy;
+  sortDirection: OperationPricesSortDirection;
+} {
+  return {
+    sortBy:
+      sortBy === "condition" ||
+      sortBy === "addonPrice" ||
+      sortBy === "currency" ||
+      sortBy === "effectiveFrom" ||
+      sortBy === "effectiveTo" ||
+      sortBy === "status" ||
+      sortBy === "remark"
+        ? sortBy
+        : DEFAULT_OPERATION_PRICES_SORT.sortBy,
+    sortDirection:
+      sortDirection === "desc" ? "desc" : DEFAULT_OPERATION_PRICES_SORT.sortDirection,
+  };
+}
+
+function applyOperationPricesSort(
+  query: any,
+  sort: {
+    sortBy: OperationPricesSortBy;
+    sortDirection: OperationPricesSortDirection;
+  }
+) {
+  const ascending = sort.sortDirection === "asc";
+  if (sort.sortBy === "size") {
+    return query
+      .order("size_code", { ascending, foreignTable: "container_size_codes" })
+      .order("condition_code", { ascending: true, foreignTable: "container_condition_codes" })
+      .order("effective_from", { ascending: false });
+  }
+  if (sort.sortBy === "condition") {
+    return query
+      .order("condition_code", {
+        ascending,
+        foreignTable: "container_condition_codes",
+      })
+      .order("size_code", { ascending: true, foreignTable: "container_size_codes" })
+      .order("effective_from", { ascending: false });
+  }
+
+  const columnMap: Record<Exclude<OperationPricesSortBy, "size" | "condition">, string> = {
+    addonPrice: "addon_price",
+    currency: "currency",
+    effectiveFrom: "effective_from",
+    effectiveTo: "effective_to",
+    status: "status",
+    remark: "remark",
+  };
+  return query.order(columnMap[sort.sortBy], { ascending });
+}
+
+function buildOperationPricesQuery(
+  filters: OperationPricesPageResult["filters"],
+  sort: {
+    sortBy: OperationPricesSortBy;
+    sortDirection: OperationPricesSortDirection;
+  }
+) {
+  const supabase = createServerSupabaseClient();
+  let query = supabase
+    .from("operation_price_configs")
+    .select(
+      "id, container_size_code_id, container_condition_code_id, addon_price, currency, effective_from, effective_to, status, remark, container_size_codes(id, size_code, remark), container_condition_codes(id, condition_code, condition_name)",
+      { count: "exact" }
+    );
+
+  query = applyOperationPricesSort(query, sort);
+
+  if (filters.sizeId) {
+    query = query.eq("container_size_code_id", filters.sizeId);
+  }
+  if (filters.conditionId) {
+    query = query.eq("container_condition_code_id", filters.conditionId);
+  }
+  if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  return query;
+}
+
 export async function getOperationPrices(
   params: OperationPricesQuery
 ): Promise<OperationPricesPageResult> {
@@ -64,27 +177,8 @@ export async function getOperationPrices(
     conditionId: params.conditionId?.trim() ?? "",
     status: params.status?.trim() ?? "",
   };
-
-  const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("operation_price_configs")
-    .select(
-      "id, container_size_code_id, container_condition_code_id, addon_price, currency, effective_from, effective_to, status, remark, container_size_codes(id, size_code, remark), container_condition_codes(id, condition_code, condition_name)",
-      { count: "exact" }
-    )
-    .order("container_size_code_id", { ascending: true })
-    .order("container_condition_code_id", { ascending: true })
-    .order("effective_from", { ascending: false });
-
-  if (filters.sizeId) {
-    query = query.eq("container_size_code_id", filters.sizeId);
-  }
-  if (filters.conditionId) {
-    query = query.eq("container_condition_code_id", filters.conditionId);
-  }
-  if (filters.status) {
-    query = query.eq("status", filters.status);
-  }
+  const sort = resolveOperationPricesSort(params.sortBy, params.sortDirection);
+  const query = buildOperationPricesQuery(filters, sort);
 
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
@@ -95,7 +189,29 @@ export async function getOperationPrices(
     page,
     pageSize,
     filters,
+    sort,
   };
+}
+
+export async function exportOperationPrices(filters: {
+  sizeId?: string;
+  conditionId?: string;
+  status?: string;
+  sortBy?: OperationPricesSortBy;
+  sortDirection?: OperationPricesSortDirection;
+}): Promise<OperationPriceRow[]> {
+  noStore();
+
+  const normalizedFilters = {
+    sizeId: filters.sizeId?.trim() ?? "",
+    conditionId: filters.conditionId?.trim() ?? "",
+    status: filters.status?.trim() ?? "",
+  };
+  const sort = resolveOperationPricesSort(filters.sortBy, filters.sortDirection);
+  const query = buildOperationPricesQuery(normalizedFilters, sort);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return mapRows((data ?? []) as Array<Record<string, unknown>>);
 }
 
 export async function getOperationPriceFormOptions(): Promise<{

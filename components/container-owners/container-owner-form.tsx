@@ -1058,7 +1058,7 @@ export function ContainerOwnerForm({
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
                 <Button type="button" variant="outline" asChild>
-                  <Link href={initialContainerOwner ? `/partners/container-owners/${initialContainerOwner.id}` : "/partners/container-owners"}>
+                  <Link href="/partners/container-owners">
                     Cancel
                   </Link>
                 </Button>

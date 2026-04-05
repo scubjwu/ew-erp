@@ -9,7 +9,7 @@ export type PurchaseOrderStatus =
 
 export type PurchaseInboundStatus = "NOT_STARTED" | "PARTIAL" | "COMPLETED";
 
-export type PurchasePaymentMode = "DEPOSIT_BALANCE" | "PREPAYMENT" | "VENDOR_CREDIT";
+export type PurchasePaymentMode = "PREPAYMENT" | "ADVANCE_PAYMENT" | "CREDIT";
 
 export type PurchaseMaterialType =
   | "油漆"
@@ -80,6 +80,7 @@ export interface PurchaseMaterialVendorRef {
 
 export interface PurchaseBankInformationSnapshot {
   bank_name?: string | null;
+  bank_code?: string | null;
   bank_account_name?: string | null;
   bank_account_number?: string | null;
   swift_code?: string | null;
@@ -117,6 +118,7 @@ export interface PurchaseOrderBase {
   totalAmountUnpaid: number | null;
   settlementPaymentTerm: string | null;
   settlementCreditDays: number | null;
+  settlementCreditLimit: number | null;
   settlementAdvancePaymentPercentage: number | null;
   settlementBalanceTriggerEvent: string | null;
   settlementCurrency: string | null;
@@ -228,6 +230,7 @@ export interface PurchaseFinanceRecord {
   dueDate: string | null;
   settlementPaymentTerm: string | null;
   settlementCreditDays: number | null;
+  settlementCreditLimit: number | null;
   settlementAdvancePaymentPercentage: number | null;
   settlementBalanceTriggerEvent: string | null;
   settlementCurrency: string | null;
@@ -258,4 +261,58 @@ export interface PurchaseOrderItemContainersDetail {
   orderNo: string;
   item: PurchaseOrderItem;
   containers: PurchaseOrderContainer[];
+}
+
+export interface PurchaseOrderDraftItemInput {
+  locationCityId: string | null;
+  depotId: string | null;
+  containerSizeCodeId: string | null;
+  containerTypeCodeId: string | null;
+  containerConditionCodeId: string | null;
+  color: string | null;
+  flp: boolean;
+  lbx: boolean;
+  lockingBarsCount: number | null;
+  ventsCount: number | null;
+  machineType: string | null;
+  yom: number | null;
+  offlineDate: string | null;
+  plannedQty: number;
+  unitPrice: number | null;
+  lineAmount: number | null;
+  remark: string | null;
+}
+
+export interface PurchaseDraftMaterialTypeInput {
+  materialType: PurchaseMaterialType | "";
+  materialVendorId: string | null;
+}
+
+export interface PurchaseOrderDraftInput {
+  orderNo: string;
+  purchaseType: PurchaseType;
+  supplierId: string | null;
+  ownerId: string | null;
+  buyerId: string | null;
+  purchaseDate: string | null;
+  estimatedOfflineTime: string | null;
+  contractNumber: string | null;
+  invoiceNumber: string | null;
+  freeday: number | null;
+  vendorReleaseNumber: string | null;
+  vendorReleaseDate: string | null;
+  paymentMode: PurchasePaymentMode | null;
+  paymentAccount: string | null;
+  dueDate: string | null;
+  settlementPaymentTerm: string | null;
+  settlementCreditDays: number | null;
+  settlementCreditLimit: number | null;
+  settlementAdvancePaymentPercentage: number | null;
+  settlementBalanceTriggerEvent: string | null;
+  settlementCurrency: string | null;
+  settlementCurrentPrepaidBalance: number | null;
+  vendorBankInformation: PurchaseBankInformationSnapshot | null;
+  remark: string | null;
+  items: PurchaseOrderDraftItemInput[];
+  materialTypes: PurchaseDraftMaterialTypeInput[];
 }

@@ -10,7 +10,12 @@ export type ConditionCodesQuery = {
   name?: string;
   page: number;
   pageSize: number;
+  sortBy?: ConditionCodeSortBy;
+  sortDirection?: ConditionCodeSortDirection;
 };
+
+export type ConditionCodeSortBy = "code" | "name" | "description" | "status";
+export type ConditionCodeSortDirection = "asc" | "desc";
 
 export type ConditionCodesPageResult = {
   rows: ConditionCodeRow[];
@@ -21,9 +26,28 @@ export type ConditionCodesPageResult = {
     code: string;
     name: string;
   };
+  sort: {
+    sortBy: ConditionCodeSortBy;
+    sortDirection: ConditionCodeSortDirection;
+  };
 };
 
 export type ConditionCodeSuggestionField = "code" | "name";
+
+export const DEFAULT_CONDITION_CODE_SORT = {
+  sortBy: "code",
+  sortDirection: "asc",
+} satisfies {
+  sortBy: ConditionCodeSortBy;
+  sortDirection: ConditionCodeSortDirection;
+};
+
+const CONDITION_CODE_SORT_COLUMN_MAP: Record<ConditionCodeSortBy, string> = {
+  code: "condition_code",
+  name: "condition_name",
+  description: "description",
+  status: "status",
+};
 
 function normalizeLike(value?: string) {
   const trimmed = value?.trim();
@@ -43,6 +67,53 @@ function mapRows(rows: Array<Record<string, unknown>>): ConditionCodeRow[] {
   }));
 }
 
+function resolveConditionCodeSort(
+  sortBy?: string,
+  sortDirection?: string
+): {
+  sortBy: ConditionCodeSortBy;
+  sortDirection: ConditionCodeSortDirection;
+} {
+  return {
+    sortBy:
+      sortBy && sortBy in CONDITION_CODE_SORT_COLUMN_MAP
+        ? (sortBy as ConditionCodeSortBy)
+        : DEFAULT_CONDITION_CODE_SORT.sortBy,
+    sortDirection:
+      sortDirection === "desc" ? "desc" : DEFAULT_CONDITION_CODE_SORT.sortDirection,
+  };
+}
+
+function buildConditionCodesQuery(
+  filters: ConditionCodesPageResult["filters"],
+  sort: {
+    sortBy: ConditionCodeSortBy;
+    sortDirection: ConditionCodeSortDirection;
+  }
+) {
+  const code = normalizeLike(filters.code);
+  const name = normalizeLike(filters.name);
+
+  const supabase = createServerSupabaseClient();
+  let query = supabase
+    .from("container_condition_codes")
+    .select("id, condition_code, condition_name, description, status", {
+      count: "exact",
+    })
+    .order(CONDITION_CODE_SORT_COLUMN_MAP[sort.sortBy], {
+      ascending: sort.sortDirection === "asc",
+    });
+
+  if (code) {
+    query = query.ilike("condition_code", code);
+  }
+  if (name) {
+    query = query.ilike("condition_name", name);
+  }
+
+  return query;
+}
+
 export async function getConditionCodes(
   params: ConditionCodesQuery
 ): Promise<ConditionCodesPageResult> {
@@ -57,24 +128,8 @@ export async function getConditionCodes(
     code: params.code?.trim() ?? "",
     name: params.name?.trim() ?? "",
   };
-
-  const code = normalizeLike(filters.code);
-  const name = normalizeLike(filters.name);
-
-  const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("container_condition_codes")
-    .select("id, condition_code, condition_name, description, status", {
-      count: "exact",
-    })
-    .order("condition_code", { ascending: true });
-
-  if (code) {
-    query = query.ilike("condition_code", code);
-  }
-  if (name) {
-    query = query.ilike("condition_name", name);
-  }
+  const sort = resolveConditionCodeSort(params.sortBy, params.sortDirection);
+  const query = buildConditionCodesQuery(filters, sort);
 
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
@@ -85,7 +140,27 @@ export async function getConditionCodes(
     page,
     pageSize,
     filters,
+    sort,
   };
+}
+
+export async function exportConditionCodes(filters: {
+  code?: string;
+  name?: string;
+  sortBy?: ConditionCodeSortBy;
+  sortDirection?: ConditionCodeSortDirection;
+}): Promise<ConditionCodeRow[]> {
+  noStore();
+
+  const normalizedFilters = {
+    code: filters.code?.trim() ?? "",
+    name: filters.name?.trim() ?? "",
+  };
+  const sort = resolveConditionCodeSort(filters.sortBy, filters.sortDirection);
+  const query = buildConditionCodesQuery(normalizedFilters, sort);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return mapRows((data ?? []) as Array<Record<string, unknown>>);
 }
 
 export async function getConditionCodeSuggestions(params: {
@@ -116,8 +191,8 @@ export async function getConditionCodeSuggestions(params: {
   return Array.from(
     new Set(
       (data ?? [])
-        .map((row) => row[column])
-        .filter((value): value is string => Boolean(value?.trim()))
+        .map((row) => (row as Record<string, unknown>)[column])
+        .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
     )
   ).slice(0, limit);
 }
@@ -126,4 +201,3 @@ export async function revalidateConditionCodePages() {
   revalidatePath("/basic-info/condition-codes");
   revalidatePath("/basic-info");
 }
-

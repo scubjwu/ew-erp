@@ -13,7 +13,21 @@ export type CompanyProfilesQuery = {
   email?: string;
   page: number;
   pageSize: number;
+  sortBy?: CompanyProfilesSortBy;
+  sortDirection?: CompanyProfilesSortDirection;
 };
+
+export type CompanyProfilesSortBy =
+  | "companyNameCn"
+  | "companyNameEn"
+  | "address"
+  | "phone"
+  | "email"
+  | "locationCode"
+  | "status"
+  | "createdBy"
+  | "createdAt";
+export type CompanyProfilesSortDirection = "asc" | "desc";
 
 export type CompanyProfilesPageResult = {
   rows: CompanyProfile[];
@@ -21,6 +35,10 @@ export type CompanyProfilesPageResult = {
   page: number;
   pageSize: number;
   filters: Omit<CompanyProfilesQuery, "page" | "pageSize">;
+  sort: {
+    sortBy: CompanyProfilesSortBy;
+    sortDirection: CompanyProfilesSortDirection;
+  };
 };
 
 export type CompanySuggestionField =
@@ -30,10 +48,98 @@ export type CompanySuggestionField =
   | "phone"
   | "email";
 
+export const DEFAULT_COMPANY_PROFILES_SORT = {
+  sortBy: "companyNameEn",
+  sortDirection: "asc",
+} satisfies {
+  sortBy: CompanyProfilesSortBy;
+  sortDirection: CompanyProfilesSortDirection;
+};
+
 function normalizeLike(value?: string) {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   return `%${trimmed}%`;
+}
+
+function resolveCompanyProfilesSort(
+  sortBy?: string,
+  sortDirection?: string
+): {
+  sortBy: CompanyProfilesSortBy;
+  sortDirection: CompanyProfilesSortDirection;
+} {
+  return {
+    sortBy:
+      sortBy === "companyNameCn" ||
+      sortBy === "address" ||
+      sortBy === "phone" ||
+      sortBy === "email" ||
+      sortBy === "locationCode" ||
+      sortBy === "status" ||
+      sortBy === "createdBy" ||
+      sortBy === "createdAt"
+        ? sortBy
+        : DEFAULT_COMPANY_PROFILES_SORT.sortBy,
+    sortDirection:
+      sortDirection === "desc" ? "desc" : DEFAULT_COMPANY_PROFILES_SORT.sortDirection,
+  };
+}
+
+function companyProfilesSortColumn(sortBy: CompanyProfilesSortBy) {
+  const map: Record<CompanyProfilesSortBy, string> = {
+    companyNameCn: "company_name_cn",
+    companyNameEn: "company_name_en",
+    address: "address_en",
+    phone: "phone",
+    email: "email",
+    locationCode: "location_code",
+    status: "status",
+    createdBy: "created_by",
+    createdAt: "created_at",
+  };
+  return map[sortBy];
+}
+
+function buildCompanyProfilesQuery(
+  filters: CompanyProfilesPageResult["filters"],
+  sort: {
+    sortBy: CompanyProfilesSortBy;
+    sortDirection: CompanyProfilesSortDirection;
+  }
+) {
+  const supabase = createServerSupabaseClient();
+  let query = supabase
+    .from("company_profiles")
+    .select("*", { count: "exact" })
+    .order(companyProfilesSortColumn(sort.sortBy), {
+      ascending: sort.sortDirection === "asc",
+      nullsFirst: false,
+    });
+
+  const companyNameCn = normalizeLike(filters.companyNameCn);
+  const companyNameEn = normalizeLike(filters.companyNameEn);
+  const address = normalizeLike(filters.address);
+  const phone = normalizeLike(filters.phone);
+  const email = normalizeLike(filters.email);
+
+  if (companyNameCn) {
+    query = query.ilike("company_name_cn", companyNameCn);
+  }
+  if (companyNameEn) {
+    query = query.ilike("company_name_en", companyNameEn);
+  }
+  if (address) {
+    query = query.or(`address_cn.ilike.${address},address_en.ilike.${address}`);
+  }
+  if (phone) {
+    query = query.ilike("phone", phone);
+  }
+  if (email) {
+    query = query.ilike("email", email);
+  }
+
+  return query;
 }
 
 export async function getCompanyProfiles(
@@ -53,36 +159,8 @@ export async function getCompanyProfiles(
     phone: params.phone?.trim() ?? "",
     email: params.email?.trim() ?? "",
   };
-
-  const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("company_profiles")
-    .select("*", { count: "exact" })
-    .order("company_name_en", { ascending: true, nullsFirst: false });
-
-  const companyNameCn = normalizeLike(filters.companyNameCn);
-  const companyNameEn = normalizeLike(filters.companyNameEn);
-  const address = normalizeLike(filters.address);
-  const phone = normalizeLike(filters.phone);
-  const email = normalizeLike(filters.email);
-
-  if (companyNameCn) {
-    query = query.ilike("company_name_cn", companyNameCn);
-  }
-  if (companyNameEn) {
-    query = query.ilike("company_name_en", companyNameEn);
-  }
-  if (address) {
-    query = query.or(
-      `address_cn.ilike.${address},address_en.ilike.${address}`
-    );
-  }
-  if (phone) {
-    query = query.ilike("phone", phone);
-  }
-  if (email) {
-    query = query.ilike("email", email);
-  }
+  const sort = resolveCompanyProfilesSort(params.sortBy, params.sortDirection);
+  const query = buildCompanyProfilesQuery(filters, sort);
 
   const { data, error, count } = await query.range(from, to);
 
@@ -96,7 +174,33 @@ export async function getCompanyProfiles(
     page,
     pageSize,
     filters,
+    sort,
   };
+}
+
+export async function exportCompanyProfiles(filters: {
+  companyNameCn?: string;
+  companyNameEn?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  sortBy?: CompanyProfilesSortBy;
+  sortDirection?: CompanyProfilesSortDirection;
+}): Promise<CompanyProfile[]> {
+  noStore();
+
+  const normalizedFilters = {
+    companyNameCn: filters.companyNameCn?.trim() ?? "",
+    companyNameEn: filters.companyNameEn?.trim() ?? "",
+    address: filters.address?.trim() ?? "",
+    phone: filters.phone?.trim() ?? "",
+    email: filters.email?.trim() ?? "",
+  };
+  const sort = resolveCompanyProfilesSort(filters.sortBy, filters.sortDirection);
+  const query = buildCompanyProfilesQuery(normalizedFilters, sort);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CompanyProfile[];
 }
 
 export async function revalidateCompanyProfilesPage() {

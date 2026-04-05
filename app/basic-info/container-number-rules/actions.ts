@@ -14,7 +14,22 @@ export type ContainerNumberRulesQuery = {
   status?: string;
   page: number;
   pageSize: number;
+  sortBy?: ContainerNumberRulesSortBy;
+  sortDirection?: ContainerNumberRulesSortDirection;
 };
+
+export type ContainerNumberRulesSortBy =
+  | "sizeCode"
+  | "prefix"
+  | "serialLength"
+  | "startSerial"
+  | "endSerial"
+  | "currentSerial"
+  | "remainingAvailable"
+  | "exampleContainerNumber"
+  | "status"
+  | "remark";
+export type ContainerNumberRulesSortDirection = "asc" | "desc";
 
 export type ContainerNumberRulesPageResult = {
   rows: ContainerNumberRuleRow[];
@@ -26,12 +41,49 @@ export type ContainerNumberRulesPageResult = {
     prefix: string;
     status: string;
   };
+  sort: {
+    sortBy: ContainerNumberRulesSortBy;
+    sortDirection: ContainerNumberRulesSortDirection;
+  };
+};
+
+export const DEFAULT_CONTAINER_NUMBER_RULES_SORT = {
+  sortBy: "sizeCode",
+  sortDirection: "asc",
+} satisfies {
+  sortBy: ContainerNumberRulesSortBy;
+  sortDirection: ContainerNumberRulesSortDirection;
 };
 
 function normalizeLike(value?: string) {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   return `%${trimmed}%`;
+}
+
+function resolveContainerNumberRulesSort(
+  sortBy?: string,
+  sortDirection?: string
+): {
+  sortBy: ContainerNumberRulesSortBy;
+  sortDirection: ContainerNumberRulesSortDirection;
+} {
+  return {
+    sortBy:
+      sortBy === "prefix" ||
+      sortBy === "serialLength" ||
+      sortBy === "startSerial" ||
+      sortBy === "endSerial" ||
+      sortBy === "currentSerial" ||
+      sortBy === "remainingAvailable" ||
+      sortBy === "exampleContainerNumber" ||
+      sortBy === "status" ||
+      sortBy === "remark"
+        ? sortBy
+        : DEFAULT_CONTAINER_NUMBER_RULES_SORT.sortBy,
+    sortDirection:
+      sortDirection === "desc" ? "desc" : DEFAULT_CONTAINER_NUMBER_RULES_SORT.sortDirection,
+  };
 }
 
 function padSerial(serial: number, serialLength: number) {
@@ -65,6 +117,73 @@ function mapRows(rows: Array<Record<string, unknown>>): ContainerNumberRuleRow[]
         | "INACTIVE",
     };
   });
+}
+
+function applyContainerNumberRulesSort(
+  query: any,
+  sort: {
+    sortBy: ContainerNumberRulesSortBy;
+    sortDirection: ContainerNumberRulesSortDirection;
+  }
+) {
+  const ascending = sort.sortDirection === "asc";
+  if (sort.sortBy === "sizeCode") {
+    return query.order("size_code", {
+      ascending,
+      foreignTable: "container_size_codes",
+    });
+  }
+
+  const columnMap: Record<Exclude<ContainerNumberRulesSortBy, "sizeCode" | "remainingAvailable">, string> = {
+    prefix: "prefix",
+    serialLength: "serial_length",
+    startSerial: "start_serial",
+    endSerial: "end_serial",
+    currentSerial: "current_serial",
+    exampleContainerNumber: "example_container_number",
+    status: "status",
+    remark: "remark",
+  };
+
+  if (sort.sortBy === "remainingAvailable") {
+    return query.order("end_serial", { ascending }).order("current_serial", {
+      ascending,
+    });
+  }
+
+  return query.order(columnMap[sort.sortBy], { ascending });
+}
+
+function buildContainerNumberRulesQuery(
+  filters: ContainerNumberRulesPageResult["filters"],
+  sort: {
+    sortBy: ContainerNumberRulesSortBy;
+    sortDirection: ContainerNumberRulesSortDirection;
+  }
+) {
+  const prefix = normalizeLike(filters.prefix);
+
+  const supabase = createServerSupabaseClient();
+  let query = supabase
+    .from("container_number_rules")
+    .select(
+      "id, prefix, serial_length, start_serial, end_serial, current_serial, status, example_container_number, remark, container_size_code_id, container_size_codes!inner(size_code)",
+      { count: "exact" }
+    );
+
+  query = applyContainerNumberRulesSort(query, sort);
+
+  if (filters.sizeCodeId) {
+    query = query.eq("container_size_code_id", filters.sizeCodeId);
+  }
+  if (prefix) {
+    query = query.ilike("prefix", prefix);
+  }
+  if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  return query;
 }
 
 export async function getContainerNumberRuleSizeOptions(): Promise<
@@ -103,28 +222,8 @@ export async function getContainerNumberRules(
     prefix: params.prefix?.trim() ?? "",
     status: params.status?.trim() ?? "",
   };
-
-  const prefix = normalizeLike(filters.prefix);
-
-  const supabase = createServerSupabaseClient();
-  let query = supabase
-    .from("container_number_rules")
-    .select(
-      "id, prefix, serial_length, start_serial, end_serial, current_serial, status, example_container_number, remark, container_size_code_id, container_size_codes!inner(size_code)",
-      { count: "exact" }
-    )
-    .order("size_code", { ascending: true, foreignTable: "container_size_codes" })
-    .order("prefix", { ascending: true });
-
-  if (filters.sizeCodeId) {
-    query = query.eq("container_size_code_id", filters.sizeCodeId);
-  }
-  if (prefix) {
-    query = query.ilike("prefix", prefix);
-  }
-  if (filters.status) {
-    query = query.eq("status", filters.status);
-  }
+  const sort = resolveContainerNumberRulesSort(params.sortBy, params.sortDirection);
+  const query = buildContainerNumberRulesQuery(filters, sort);
 
   const { data, error, count } = await query.range(from, to);
   if (error) throw new Error(error.message);
@@ -143,7 +242,36 @@ export async function getContainerNumberRules(
     page,
     pageSize,
     filters,
+    sort,
   };
+}
+
+export async function exportContainerNumberRules(filters: {
+  sizeCodeId?: string;
+  prefix?: string;
+  status?: string;
+  sortBy?: ContainerNumberRulesSortBy;
+  sortDirection?: ContainerNumberRulesSortDirection;
+}): Promise<ContainerNumberRuleRow[]> {
+  noStore();
+
+  const normalizedFilters = {
+    sizeCodeId: filters.sizeCodeId?.trim() ?? "",
+    prefix: filters.prefix?.trim() ?? "",
+    status: filters.status?.trim() ?? "",
+  };
+  const sort = resolveContainerNumberRulesSort(filters.sortBy, filters.sortDirection);
+  const query = buildContainerNumberRulesQuery(normalizedFilters, sort);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  const rows = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    ...row,
+    size_code:
+      ((row.container_size_codes as Record<string, unknown> | null)?.size_code as
+        | string
+        | undefined) ?? "",
+  }));
+  return mapRows(rows);
 }
 
 export async function getContainerNumberRulePrefixSuggestions(params: {

@@ -1,4 +1,5 @@
 import {
+  DEFAULT_SIZE_CODE_SORT,
   getSizeCodes,
   type SizeCodesQuery,
 } from "@/app/basic-info/size-codes/actions";
@@ -17,6 +18,8 @@ export default async function SizeCodesPage() {
     code: "",
     page: 1,
     pageSize: PAGE_SIZE,
+    sortBy: DEFAULT_SIZE_CODE_SORT.sortBy,
+    sortDirection: DEFAULT_SIZE_CODE_SORT.sortDirection,
   };
 
   const initial = await getSizeCodes(initialParams);

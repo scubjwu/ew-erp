@@ -72,6 +72,7 @@ They should avoid:
 - Selecting a suggestion should populate the input only.
 - Only selected autocomplete suggestions count as active filter values.
 - Search and reset controls should remain in a stable, predictable position.
+- Default list-page pattern places `Search` and `Reset` as a right-aligned action group below or beside the filter fields, depending on density.
 - Filter ordering should follow business usage frequency, not implementation convenience.
 - `Quick Filter` should sit on its own row above the main search filters when present.
 - `Search Filters` should support collapse.
@@ -108,8 +109,9 @@ When a detail page becomes too dense:
 - Required fields should be marked clearly.
 - Readonly or system-derived fields should look intentionally locked.
 - Save and cancel actions should remain easy to find and consistent across modules.
-- Form action bars should default to sticky treatment.
-- Sticky action bars must use a clear background and boundary so underlying content does not bleed through visually.
+- Form action areas should stay visually attached to the form they control unless there is a strong workflow reason to separate them.
+- Sticky treatment is optional, not the default. Use it only when a long form clearly benefits from persistent actions.
+- If sticky treatment is used, it must stay inside the main content column and use a clear background and boundary.
 - Large forms should scroll internally rather than overflow the viewport.
 
 ## Tabbed Detail Standard

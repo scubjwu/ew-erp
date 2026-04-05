@@ -9,6 +9,10 @@ import {
 } from "@/app/basic-info/operation-prices/actions";
 import { OperationPriceFormDialog } from "@/components/basic-info/operation-price-form-dialog";
 import { OperationPriceViewDialog } from "@/components/basic-info/operation-price-view-dialog";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -183,12 +187,12 @@ export function OperationPricesDashboard({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5">
-      <div className="relative z-20 flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
+      <div className="relative z-20 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Operation Price Configs</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Maintain operation price configs. {rangeLabel}
             </p>
           </div>
@@ -211,92 +215,95 @@ export function OperationPricesDashboard({
         </div>
 
         <form
-          className="grid items-end gap-2 xl:grid-cols-[180px_220px_180px_auto_auto]"
+          className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
             applySearch();
           }}
         >
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Size</label>
-            <Select
-              value={draftFilters.sizeId || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  sizeId: value === "__all__" ? "" : value,
-                }))
-              }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select size" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Sizes</SelectItem>
-                {sizeOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="grid items-end gap-2 xl:grid-cols-[180px_220px_180px]">
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Size</label>
+              <Select
+                value={draftFilters.sizeId || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    sizeId: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Sizes</SelectItem>
+                  {sizeOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Condition</label>
-            <Select
-              value={draftFilters.conditionId || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  conditionId: value === "__all__" ? "" : value,
-                }))
-              }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select condition" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Conditions</SelectItem>
-                {conditionOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Condition</label>
+              <Select
+                value={draftFilters.conditionId || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    conditionId: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select condition" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Conditions</SelectItem>
+                  {conditionOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="min-w-0">
-            <label className="mb-1.5 block text-xs font-medium">Status</label>
-            <Select
-              value={draftFilters.status || "__all__"}
-              onValueChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  status: value === "__all__" ? "" : value,
-                }))
-              }
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Statuses</SelectItem>
-                <SelectItem value="ACTIVE">Enabled</SelectItem>
-                <SelectItem value="INACTIVE">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-xs font-medium">Status</label>
+              <Select
+                value={draftFilters.status || "__all__"}
+                onValueChange={(value) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    status: value === "__all__" ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Statuses</SelectItem>
+                  <SelectItem value="ACTIVE">Enabled</SelectItem>
+                  <SelectItem value="INACTIVE">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-
-          <Button size="sm" type="submit" className="h-9 px-3">
-            <Search className="mr-2 size-3.5" />
-            Search
-          </Button>
-          <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
-            <RotateCcw className="mr-2 size-3.5" />
-            Reset
-          </Button>
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" type="submit" className="h-9 px-3">
+              <Search className="mr-2 size-3.5" />
+              Search
+            </Button>
+            <Button size="sm" type="button" variant="outline" onClick={resetSearch} className="h-9 px-3">
+              <RotateCcw className="mr-2 size-3.5" />
+              Reset
+            </Button>
+          </div>
         </form>
       </div>
 
@@ -329,7 +336,7 @@ export function OperationPricesDashboard({
                 <TableHead className="sticky top-0 z-20 min-w-[220px] bg-card py-2 text-xs uppercase tracking-wide">
                   Remark
                 </TableHead>
-                <TableHead className="sticky top-0 z-20 min-w-[120px] bg-card py-2 text-right text-xs uppercase tracking-wide">
+                <TableHead className={`${ACTIONS_STICKY_HEAD_CLASS} top-0 py-2 text-right text-xs uppercase tracking-wide`}>
                   Actions
                 </TableHead>
               </TableRow>
@@ -368,7 +375,7 @@ export function OperationPricesDashboard({
                     <TableCell className="max-w-[220px] py-2">
                       <div className="line-clamp-2">{row.remark ?? "-"}</div>
                     </TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className={ACTIONS_STICKY_CELL_CLASS}>
                       <div className="flex justify-end gap-3 text-xs font-medium">
                         <button
                           type="button"
@@ -403,7 +410,7 @@ export function OperationPricesDashboard({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">Page {page} of {totalPages}</div>
+        <div className="text-sm text-muted-foreground">Page {page} of {totalPages}</div>
         <div className="flex gap-2">
           <Button
             variant="outline"

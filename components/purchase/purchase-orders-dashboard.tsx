@@ -46,6 +46,10 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
 import { applyQuickFilterDates } from "@/app/purchase/po-management/query-helpers";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 
 type Props = {
   initial: PurchaseOrderManagementResult;
@@ -101,11 +105,6 @@ const SORTABLE_COLUMNS: Array<{
   { key: "cancelledQty", label: "Cancelled Qty", align: "center", widthClass: "min-w-[120px]" },
   { key: "prepaidBalance", label: "Prepaid Balance", align: "right", widthClass: "min-w-[160px]" },
 ];
-
-const ACTIONS_STICKY_HEAD_CLASS =
-  "sticky right-0 z-30 w-[150px] min-w-[150px] bg-card border-l border-border shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.24)]";
-const ACTIONS_STICKY_CELL_CLASS =
-  "sticky right-0 z-20 w-[150px] min-w-[150px] bg-card border-l border-border shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]";
 
 type AutocompleteInputState = {
   vendorId: string;
@@ -404,11 +403,14 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
             <div className="flex flex-col gap-1">
               <h1 className="text-xl font-semibold tracking-tight">PO Management</h1>
               <p className="text-sm text-muted-foreground">
-                Search and review purchase orders before create, edit, and detail flows land in later milestones.
+                Search, create, and review purchase orders across draft and confirmed workflows.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
+              <Button asChild>
+                <Link href="/purchase/po-management/new">Create PO</Link>
+              </Button>
               <Button variant="outline" onClick={() => void handleExport()} disabled={exporting}>
                 <Download className="size-4" />
                 Export CSV
