@@ -1,5 +1,4 @@
 import {
-  DEFAULT_TYPE_CODE_SORT,
   getTypeCodes,
   type TypeCodesQuery,
 } from "@/app/basic-info/type-codes/actions";
@@ -18,8 +17,8 @@ export default async function TypeCodesPage() {
     code: "",
     page: 1,
     pageSize: PAGE_SIZE,
-    sortBy: DEFAULT_TYPE_CODE_SORT.sortBy,
-    sortDirection: DEFAULT_TYPE_CODE_SORT.sortDirection,
+    sortBy: "code",
+    sortDirection: "asc",
   };
 
   const initial = await getTypeCodes(initialParams);

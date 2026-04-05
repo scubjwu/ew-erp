@@ -43,7 +43,7 @@ export type CityLogisticsPageResult = {
   };
 };
 
-export const DEFAULT_CITY_LOGISTICS_SORT = {
+const DEFAULT_CITY_LOGISTICS_SORT = {
   sortBy: "cityCode",
   sortDirection: "asc",
 } satisfies {

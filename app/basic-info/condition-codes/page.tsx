@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CONDITION_CODE_SORT,
   getConditionCodes,
   type ConditionCodesQuery,
 } from "@/app/basic-info/condition-codes/actions";
@@ -19,8 +18,8 @@ export default async function ConditionCodesPage() {
     name: "",
     page: 1,
     pageSize: PAGE_SIZE,
-    sortBy: DEFAULT_CONDITION_CODE_SORT.sortBy,
-    sortDirection: DEFAULT_CONDITION_CODE_SORT.sortDirection,
+    sortBy: "code",
+    sortDirection: "asc",
   };
 
   const initial = await getConditionCodes(initialParams);

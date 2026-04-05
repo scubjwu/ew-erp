@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CONTAINER_NUMBER_RULES_SORT,
   getContainerNumberRuleSizeOptions,
   getContainerNumberRules,
   type ContainerNumberRulesQuery,
@@ -21,8 +20,8 @@ export default async function ContainerNumberRulesPage() {
     status: "",
     page: 1,
     pageSize: PAGE_SIZE,
-    sortBy: DEFAULT_CONTAINER_NUMBER_RULES_SORT.sortBy,
-    sortDirection: DEFAULT_CONTAINER_NUMBER_RULES_SORT.sortDirection,
+    sortBy: "sizeCode",
+    sortDirection: "asc",
   };
 
   const [initial, sizeOptions] = await Promise.all([

@@ -47,7 +47,7 @@ export type ContainerNumberRulesPageResult = {
   };
 };
 
-export const DEFAULT_CONTAINER_NUMBER_RULES_SORT = {
+const DEFAULT_CONTAINER_NUMBER_RULES_SORT = {
   sortBy: "sizeCode",
   sortDirection: "asc",
 } satisfies {

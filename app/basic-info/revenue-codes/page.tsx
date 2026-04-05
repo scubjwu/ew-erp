@@ -1,5 +1,4 @@
 import {
-  DEFAULT_FINANCIAL_CODE_SORT,
   getFinancialCodes,
   type FinancialCodesQuery,
 } from "@/app/basic-info/financial-codes/actions";
@@ -21,8 +20,8 @@ export default async function RevenueCodesPage() {
     enabled: "",
     page: 1,
     pageSize: PAGE_SIZE,
-    sortBy: DEFAULT_FINANCIAL_CODE_SORT.sortBy,
-    sortDirection: DEFAULT_FINANCIAL_CODE_SORT.sortDirection,
+    sortBy: "code",
+    sortDirection: "asc",
   };
 
   const initial = await getFinancialCodes(initialParams);

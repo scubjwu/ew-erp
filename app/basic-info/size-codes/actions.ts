@@ -30,7 +30,7 @@ export type SizeCodesPageResult = {
   };
 };
 
-export const DEFAULT_SIZE_CODE_SORT = {
+const DEFAULT_SIZE_CODE_SORT = {
   sortBy: "code",
   sortDirection: "asc",
 } satisfies {

@@ -49,7 +49,7 @@ export type DepotCodesPageResult = {
   };
 };
 
-export const DEFAULT_DEPOT_CODES_SORT = {
+const DEFAULT_DEPOT_CODES_SORT = {
   sortBy: "depotCode",
   sortDirection: "asc",
 } satisfies {

@@ -1,5 +1,4 @@
 import {
-  DEFAULT_COMPANY_PROFILES_SORT,
   getCompanyProfiles,
   type CompanyProfilesQuery,
 } from "@/app/basic-info/companies/actions";
@@ -22,8 +21,8 @@ export default async function CompanyProfilesPage() {
     email: "",
     page: 1,
     pageSize: PAGE_SIZE,
-    sortBy: DEFAULT_COMPANY_PROFILES_SORT.sortBy,
-    sortDirection: DEFAULT_COMPANY_PROFILES_SORT.sortDirection,
+    sortBy: "companyNameEn",
+    sortDirection: "asc",
   };
 
   const initial = await getCompanyProfiles(initialParams);

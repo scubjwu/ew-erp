@@ -30,7 +30,7 @@ export type TypeCodesPageResult = {
   };
 };
 
-export const DEFAULT_TYPE_CODE_SORT = {
+const DEFAULT_TYPE_CODE_SORT = {
   sortBy: "code",
   sortDirection: "asc",
 } satisfies {

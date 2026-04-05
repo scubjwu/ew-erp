@@ -48,7 +48,7 @@ export type CompanySuggestionField =
   | "phone"
   | "email";
 
-export const DEFAULT_COMPANY_PROFILES_SORT = {
+const DEFAULT_COMPANY_PROFILES_SORT = {
   sortBy: "companyNameEn",
   sortDirection: "asc",
 } satisfies {

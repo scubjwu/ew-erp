@@ -34,7 +34,7 @@ export type ConditionCodesPageResult = {
 
 export type ConditionCodeSuggestionField = "code" | "name";
 
-export const DEFAULT_CONDITION_CODE_SORT = {
+const DEFAULT_CONDITION_CODE_SORT = {
   sortBy: "code",
   sortDirection: "asc",
 } satisfies {

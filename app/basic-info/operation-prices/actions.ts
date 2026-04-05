@@ -45,7 +45,7 @@ export type OperationPricesPageResult = {
   };
 };
 
-export const DEFAULT_OPERATION_PRICES_SORT = {
+const DEFAULT_OPERATION_PRICES_SORT = {
   sortBy: "size",
   sortDirection: "asc",
 } satisfies {

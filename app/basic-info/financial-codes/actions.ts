@@ -38,7 +38,7 @@ export type FinancialCodesPageResult = {
 
 export type FinancialCodeSuggestionField = "code" | "name";
 
-export const DEFAULT_FINANCIAL_CODE_SORT = {
+const DEFAULT_FINANCIAL_CODE_SORT = {
   sortBy: "code",
   sortDirection: "asc",
 } satisfies {
