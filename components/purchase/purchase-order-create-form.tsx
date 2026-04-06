@@ -2,16 +2,22 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
   createPurchaseOrderDraft,
+  createPurchaseOrderSubmit,
+  submitPurchaseOrderPending,
+  submitPurchaseOrderDraftUpdate,
   type PurchaseDraftFormOptions,
   type PurchaseDraftMaterialVendorOption,
   type PurchaseDraftSupplierOption,
+  updatePurchaseOrderDraft,
+  updatePurchaseOrderPending,
 } from "@/app/purchase/po-management/actions";
 import {
+  buildDefaultDraftContainersForItem,
   computeLineAmount,
   computeTotals,
   generatePurchaseOrderNumber,
@@ -49,6 +55,8 @@ import { cn } from "@/lib/utils";
 import type {
   PurchaseBankInformationSnapshot,
   PurchaseDraftMaterialTypeInput,
+  PurchaseOrderDetail,
+  PurchaseOrderDraftContainerInput,
   PurchaseOrderDraftInput,
   PurchaseOrderDraftItemInput,
   PurchasePaymentMode,
@@ -57,6 +65,9 @@ import type {
 
 type Props = {
   options: PurchaseDraftFormOptions;
+  initialOrder?: PurchaseOrderDetail | null;
+  mode?: "create" | "edit";
+  editMode?: "draft" | "pending";
 };
 
 type DraftItemRow = PurchaseOrderDraftItemInput & {
@@ -66,6 +77,10 @@ type DraftItemRow = PurchaseOrderDraftItemInput & {
   lbxDirty: boolean;
   lockingBarsDirty: boolean;
   yomDirty: boolean;
+};
+
+type DraftContainerRow = PurchaseOrderDraftContainerInput & {
+  key: string;
 };
 
 type DraftMaterialTypeRow = PurchaseDraftMaterialTypeInput & {
@@ -91,6 +106,17 @@ type EditableCellKey = {
     | "offlineDate";
 };
 
+const PENDING_EDITABLE_ITEM_COLUMNS = new Set<EditableCellKey["column"]>([
+  "sizeType",
+  "color",
+  "flp",
+  "lbx",
+  "lockingBars",
+  "vents",
+  "plannedQty",
+  "offlineDate",
+]);
+
 type DraftFormState = Omit<
   PurchaseOrderDraftInput,
   "orderNo" | "items" | "materialTypes" | "vendorBankInformation"
@@ -108,6 +134,13 @@ function parseNumberInput(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+const MANUAL_CONTAINER_NUMBER_PATTERN = /^[A-Z]{4}\d{7}$/;
+
+function isValidManualContainerNumber(value: string | null | undefined) {
+  if (!value) return true;
+  return MANUAL_CONTAINER_NUMBER_PATTERN.test(value.trim().toUpperCase());
+}
+
 function findConditionIdByCode(options: PurchaseDraftFormOptions["conditions"], code: string) {
   return options.find((option) => option.code === code)?.id ?? null;
 }
@@ -116,13 +149,15 @@ function createEmptyItem(
   purchaseType: PurchaseType,
   conditions: PurchaseDraftFormOptions["conditions"]
 ): DraftItemRow {
+  const key = makeKey();
   const defaultYear =
     purchaseType === "FACTORY_ORDER" || purchaseType === "NEW_CONTAINER"
       ? new Date().getFullYear()
       : null;
   const defaultToggle = purchaseType === "FACTORY_ORDER" || purchaseType === "NEW_CONTAINER";
   return {
-    key: makeKey(),
+    key,
+    itemKey: key,
     locationCityId: null,
     depotId: null,
     containerSizeCodeId: null,
@@ -178,9 +213,67 @@ function getDefaultLockingBars(purchaseType: PurchaseType) {
   return purchaseType === "FACTORY_ORDER" ? 3 : null;
 }
 
+function createDraftContainerRow(input: PurchaseOrderDraftContainerInput): DraftContainerRow {
+  return {
+    ...input,
+    key: makeKey(),
+  };
+}
+
+function syncContainersWithItems(input: {
+  current: DraftContainerRow[];
+  items: DraftItemRow[];
+  purchaseType: PurchaseType;
+  vendorReleaseDate: string | null;
+}) {
+  const next: DraftContainerRow[] = [];
+  for (const item of input.items) {
+    const existing = input.current.filter((row) => row.itemKey === item.itemKey);
+    const defaults = buildDefaultDraftContainersForItem({
+      itemKey: item.itemKey,
+      item,
+      purchaseType: input.purchaseType,
+      vendorReleaseDate: input.vendorReleaseDate,
+    });
+    const count = defaults.length;
+    for (let index = 0; index < count; index += 1) {
+      const base = defaults[index];
+      const prior = existing[index];
+      next.push(
+        prior
+          ? {
+              ...prior,
+              itemKey: item.itemKey,
+              offlineDate:
+                input.purchaseType === "FACTORY_ORDER"
+                  ? prior.offlineDate ?? base.offlineDate
+                  : input.vendorReleaseDate ?? null,
+            }
+          : createDraftContainerRow(base)
+      );
+    }
+  }
+  return next;
+}
+
 function displayValue(value?: string | number | null, placeholder = "-") {
   if (value == null || value === "") return placeholder;
   return String(value);
+}
+
+function RequiredLabel({
+  children,
+  required = false,
+}: {
+  children: ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <Label>
+      {children}
+      {required ? <span className="ml-0.5 text-current">*</span> : null}
+    </Label>
+  );
 }
 
 const PURCHASE_ITEM_COLUMNS = [
@@ -199,13 +292,31 @@ const PURCHASE_ITEM_COLUMNS = [
   { key: "unitPrice", label: "Unit Price", width: 130 },
   { key: "lineAmount", label: "Line Amount", width: 140 },
   { key: "offlineDate", label: "Offline Date / Release Date", width: 170 },
-  { key: "actions", label: "Actions", width: 90 },
+  { key: "actions", label: "Actions", width: 180 },
 ] as const;
 
 const PURCHASE_ITEM_TABLE_MIN_WIDTH = PURCHASE_ITEM_COLUMNS.reduce(
   (total, column) => total + column.width,
   0
 );
+
+function isRequiredItemColumn(
+  column: (typeof PURCHASE_ITEM_COLUMNS)[number]["key"],
+  purchaseType: PurchaseType
+) {
+  if (
+    ["location", "depot", "sizeType", "condition", "plannedQty", "unitPrice"].includes(column)
+  ) {
+    return true;
+  }
+  if (
+    purchaseType !== "USED_CONTAINER" &&
+    ["color", "flp", "lbx", "lockingBars", "vents"].includes(column)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 function normalizeText(value?: string | null) {
   return value?.trim().toLowerCase() ?? "";
@@ -305,6 +416,7 @@ function EditableInputCell({
   display,
   type = "text",
   disableSpinner = false,
+  preventWheelChange = false,
   onChange,
   onActivate,
   onDeactivate,
@@ -314,6 +426,7 @@ function EditableInputCell({
   display: string;
   type?: "text" | "number" | "date";
   disableSpinner?: boolean;
+  preventWheelChange?: boolean;
   onChange: (value: string) => void;
   onActivate: () => void;
   onDeactivate: () => void;
@@ -329,6 +442,14 @@ function EditableInputCell({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onBlur={onDeactivate}
+      onWheel={
+        preventWheelChange
+          ? (event) => {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+          : undefined
+      }
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === "Escape") {
           event.preventDefault();
@@ -371,10 +492,10 @@ function EditableAutocompleteCell({
 
   useEffect(() => {
     if (!active) return;
-    setQuery(display);
+    setQuery(value ? display : "");
     setOpen(true);
     setHighlightedIndex(0);
-  }, [active, display]);
+  }, [active, display, value]);
 
   useEffect(() => {
     if (active) {
@@ -472,7 +593,7 @@ function EditableAutocompleteCell({
         sideOffset={2}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
-        className="z-[120] max-h-52 w-[var(--radix-popover-trigger-width)] overflow-auto rounded-none border border-border bg-popover p-0 shadow-md"
+        className="z-[40] max-h-52 w-[var(--radix-popover-trigger-width)] overflow-auto rounded-none border border-border bg-popover p-0 shadow-md"
       >
         {filteredOptions.length === 0 ? (
           <div className="px-3 py-2 text-center text-sm text-muted-foreground">
@@ -552,23 +673,158 @@ function buildFactoryMaterialTypeRows(
   });
 }
 
-export function PurchaseOrderCreateForm({ options }: Props) {
+function buildFormStateFromOrder(order: PurchaseOrderDetail): DraftFormState {
+  return {
+    purchaseType: order.purchaseType,
+    supplierId: order.supplierId,
+    ownerId: order.ownerId,
+    buyerId: order.buyerId,
+    purchaseDate: order.purchaseDate,
+    estimatedOfflineTime: order.estimatedOfflineTime,
+    contractNumber: order.contractNumber,
+    invoiceNumber: order.invoiceNumber,
+    freeday: order.freeday,
+    vendorReleaseNumber: order.vendorReleaseNumber,
+    vendorReleaseDate: order.vendorReleaseDate,
+    paymentMode: order.paymentMode,
+    paymentAccount: order.paymentAccount,
+    dueDate: order.dueDate,
+    settlementPaymentTerm: order.settlementPaymentTerm,
+    settlementCreditDays: order.settlementCreditDays,
+    settlementCreditLimit: order.settlementCreditLimit,
+    settlementAdvancePaymentPercentage: order.settlementAdvancePaymentPercentage,
+    settlementBalanceTriggerEvent: order.settlementBalanceTriggerEvent,
+    settlementCurrency: order.settlementCurrency,
+    settlementPrepaymentPool: order.settlementPrepaymentPool,
+    settlementPrepaymentThreshold: order.settlementPrepaymentThreshold,
+    settlementCurrentPrepaidBalance: order.settlementCurrentPrepaidBalance,
+    vendorBankInformation: order.vendorBankInformation,
+    remark: order.remark,
+  };
+}
+
+function buildDraftItemsFromOrder(order: PurchaseOrderDetail): DraftItemRow[] {
+  return order.items.map((item) => ({
+    key: item.id,
+    itemKey: item.id,
+    locationCityId: item.locationCityId,
+    depotId: item.depotId,
+    containerSizeCodeId: item.containerSizeCodeId,
+    containerTypeCodeId: item.containerTypeCodeId,
+    containerConditionCodeId: item.containerConditionCodeId,
+    color: item.color,
+    flp: item.flp,
+    lbx: item.lbx,
+    lockingBarsCount: item.lockingBarsCount,
+    ventsCount: item.ventsCount,
+    machineType: item.machineType,
+    yom: item.yom,
+    offlineDate: item.offlineDate,
+    plannedQty: item.plannedQty,
+    unitPrice: item.unitPrice,
+    lineAmount: item.lineAmount,
+    remark: item.remark,
+    conditionDirty: false,
+    flpDirty: false,
+    lbxDirty: false,
+    lockingBarsDirty: false,
+    yomDirty: false,
+  }));
+}
+
+function buildDraftContainersFromOrder(order: PurchaseOrderDetail): DraftContainerRow[] {
+  return order.containers.map((container) => ({
+    key: container.id,
+    itemKey: container.purchaseOrderItemId ?? "",
+    containerNumber: container.containerNumber,
+    color: container.color,
+    flp: container.flp,
+    lbx: container.lbx,
+    lockingBarsCount: container.lockingBarsCount,
+    ventsCount: container.ventsCount,
+    machineType: container.machineType,
+    yom: container.yom,
+    offlineDate: container.offlineDate,
+  }));
+}
+
+function buildDraftMaterialTypesFromOrder(order: PurchaseOrderDetail): DraftMaterialTypeRow[] {
+  return order.materialTypes.map((row) => ({
+    key: row.id,
+    materialType: row.materialType,
+    materialVendorId: row.materialVendorId,
+  }));
+}
+
+export function PurchaseOrderCreateForm({
+  options,
+  initialOrder = null,
+  mode = "create",
+  editMode,
+}: Props) {
+  const initialItem = useMemo(
+    () =>
+      initialOrder
+        ? buildDraftItemsFromOrder(initialOrder)[0] ?? createEmptyItem(initialOrder.purchaseType, options.conditions)
+        : createEmptyItem("FACTORY_ORDER", options.conditions),
+    [initialOrder, options.conditions]
+  );
   const router = useRouter();
-  const [form, setForm] = useState<DraftFormState>(buildInitialFinanceState);
-  const [supplierInput, setSupplierInput] = useState("");
-  const [items, setItems] = useState<DraftItemRow[]>([
-    createEmptyItem("FACTORY_ORDER", options.conditions),
-  ]);
-  const [materialTypes, setMaterialTypes] = useState<DraftMaterialTypeRow[]>(
-    buildFactoryMaterialTypeRows(options.materialVendors)
+  const isEditMode = mode === "edit" && Boolean(initialOrder);
+  const isPendingEdit = isEditMode && editMode === "pending";
+  const [form, setForm] = useState<DraftFormState>(() =>
+    initialOrder ? buildFormStateFromOrder(initialOrder) : buildInitialFinanceState()
+  );
+  const [supplierInput, setSupplierInput] = useState(() =>
+    initialOrder?.supplier
+      ? [initialOrder.supplier.vendor_code, companyLabel(initialOrder.supplier)].filter(Boolean).join(" · ")
+      : ""
+  );
+  const [items, setItems] = useState<DraftItemRow[]>(() =>
+    initialOrder ? buildDraftItemsFromOrder(initialOrder) : [initialItem]
+  );
+  const [containers, setContainers] = useState<DraftContainerRow[]>(() =>
+    initialOrder
+      ? initialOrder.containers.length > 0
+        ? buildDraftContainersFromOrder(initialOrder)
+        : syncContainersWithItems({
+            current: [],
+            items: buildDraftItemsFromOrder(initialOrder),
+            purchaseType: initialOrder.purchaseType,
+            vendorReleaseDate: initialOrder.vendorReleaseDate,
+          })
+      : buildDefaultDraftContainersForItem({
+          itemKey: initialItem.itemKey,
+          item: initialItem,
+          purchaseType: "FACTORY_ORDER",
+          vendorReleaseDate: null,
+        }).map((row) => ({ ...row, key: makeKey() }))
+  );
+  const [materialTypes, setMaterialTypes] = useState<DraftMaterialTypeRow[]>(() =>
+    initialOrder
+      ? buildDraftMaterialTypesFromOrder(initialOrder)
+      : buildFactoryMaterialTypeRows(options.materialVendors)
   );
   const [editingCell, setEditingCell] = useState<EditableCellKey | null>(null);
+  const [expandedItemKey, setExpandedItemKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const selectedSupplier = useMemo(
     () => options.suppliers.find((option) => option.id === form.supplierId),
     [form.supplierId, options.suppliers]
   );
+
+  useEffect(() => {
+    setContainers((current) =>
+      syncContainersWithItems({
+        current,
+        items,
+        purchaseType: form.purchaseType,
+        vendorReleaseDate: form.vendorReleaseDate,
+      })
+    );
+  }, [form.purchaseType, form.vendorReleaseDate, items]);
 
   const totals = useMemo(
     () =>
@@ -612,6 +868,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
   );
 
   const generatedOrderNo = useMemo(() => {
+    if (initialOrder) return initialOrder.orderNo;
     if (!selectedSupplier) return "PO___00001";
     const sequence = getNextPurchaseOrderSequence({
       existingOrderNumbers: options.existingOrderNumbers,
@@ -625,7 +882,14 @@ export function PurchaseOrderCreateForm({ options }: Props) {
       purchaseDate: form.purchaseDate,
       sequence,
     });
-  }, [form.purchaseDate, options.existingOrderNumbers, selectedSupplier]);
+  }, [form.purchaseDate, initialOrder, options.existingOrderNumbers, selectedSupplier]);
+
+  const itemStructureLocked = isPendingEdit;
+
+  function canEditItemColumn(column: EditableCellKey["column"]) {
+    if (!isPendingEdit) return true;
+    return PENDING_EDITABLE_ITEM_COLUMNS.has(column);
+  }
 
   function updateForm<K extends keyof DraftFormState>(key: K, value: DraftFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -712,14 +976,19 @@ export function PurchaseOrderCreateForm({ options }: Props) {
   }
 
   function addItem() {
+    if (itemStructureLocked) return;
     setItems((current) => [...current, createEmptyItem(form.purchaseType, options.conditions)]);
   }
 
   function removeItem(key: string) {
+    if (itemStructureLocked) return;
     setItems((current) => (current.length === 1 ? current : current.filter((item) => item.key !== key)));
+    setContainers((current) => current.filter((row) => row.itemKey !== key));
+    setExpandedItemKey((current) => (current === key ? null : current));
   }
 
   function activateCell(rowKey: string, column: EditableCellKey["column"]) {
+    if (!canEditItemColumn(column)) return;
     setEditingCell({ rowKey, column });
   }
 
@@ -727,9 +996,29 @@ export function PurchaseOrderCreateForm({ options }: Props) {
     setEditingCell(null);
   }
 
+  function updateContainer(
+    key: string,
+    updater: (current: DraftContainerRow) => DraftContainerRow
+  ) {
+    setContainers((current) =>
+      current.map((row) => (row.key === key ? updater(row) : row))
+    );
+  }
+
+  function validateManualContainerNumbers() {
+    if (form.purchaseType === "FACTORY_ORDER") return;
+    const invalidContainer = containers.find(
+      (container) => !isValidManualContainerNumber(container.containerNumber)
+    );
+    if (invalidContainer) {
+      throw new Error("Container Number must match 4 letters followed by 7 digits.");
+    }
+  }
+
   async function handleSaveDraft() {
     setSaving(true);
     try {
+      validateManualContainerNumbers();
       const payload: PurchaseOrderDraftInput = {
         ...form,
         orderNo: generatedOrderNo,
@@ -737,12 +1026,23 @@ export function PurchaseOrderCreateForm({ options }: Props) {
           ...item,
           lineAmount: computeLineAmount(item.plannedQty, item.unitPrice),
         })),
+        containers: [],
         materialTypes,
       };
-      const result = await createPurchaseOrderDraft(payload);
+      const result =
+        isEditMode && initialOrder
+          ? await (isPendingEdit
+              ? updatePurchaseOrderPending(initialOrder.id, {
+                  ...payload,
+                  containers: containers.map(({ key, ...container }) => container),
+                })
+              : updatePurchaseOrderDraft(initialOrder.id, payload))
+          : await createPurchaseOrderDraft(payload);
       toast({
-        title: "Draft saved",
-        description: `${result.orderNo} has been created as DRAFT.`,
+        title: isEditMode ? "Purchase order updated" : "Draft saved",
+        description: isEditMode
+          ? `${result.orderNo} has been updated.`
+          : `${result.orderNo} has been created as DRAFT.`,
       });
       router.push(`/purchase/po-management/${result.orderId}`);
     } catch (error) {
@@ -756,20 +1056,50 @@ export function PurchaseOrderCreateForm({ options }: Props) {
     }
   }
 
+  async function handleSubmitOrder() {
+    setSubmitting(true);
+    try {
+      validateManualContainerNumbers();
+      const payload: PurchaseOrderDraftInput = {
+        ...form,
+        orderNo: generatedOrderNo,
+        items: items.map((item) => ({
+          ...item,
+          lineAmount: computeLineAmount(item.plannedQty, item.unitPrice),
+        })),
+        containers: containers.map(({ key, ...container }) => container),
+        materialTypes,
+      };
+      const result =
+        isEditMode && initialOrder
+          ? await (isPendingEdit
+              ? submitPurchaseOrderPending(initialOrder.id, payload)
+              : submitPurchaseOrderDraftUpdate(initialOrder.id, payload))
+          : await createPurchaseOrderSubmit(payload);
+      toast({
+        title: isEditMode ? "Purchase order updated" : "Purchase order submitted",
+        description: `${result.orderNo} has been submitted as ${result.orderStatus}.`,
+      });
+      router.push(`/purchase/po-management/${result.orderId}`);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not submit purchase order",
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
         <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
-            <h1 className="text-xl font-semibold tracking-tight">Create Purchase Order</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline">
-              <Link href="/purchase/po-management">Cancel</Link>
-            </Button>
-            <Button type="button" onClick={() => void handleSaveDraft()} disabled={saving}>
-              Save Draft
-            </Button>
+            <h1 className="text-xl font-semibold tracking-tight">
+              {isEditMode ? "Edit Purchase Order" : "Create Purchase Order"}
+            </h1>
           </div>
         </div>
 
@@ -779,13 +1109,17 @@ export function PurchaseOrderCreateForm({ options }: Props) {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-1.5">
-              <Label>PO Number</Label>
+              <RequiredLabel>PO Number</RequiredLabel>
               <Input readOnly value={generatedOrderNo} className="bg-muted/50" />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Purchase Type</Label>
-              <Select value={form.purchaseType} onValueChange={(value) => handlePurchaseTypeChange(value as PurchaseType)}>
+              <RequiredLabel required>Purchase Type</RequiredLabel>
+              <Select
+                value={form.purchaseType}
+                onValueChange={(value) => handlePurchaseTypeChange(value as PurchaseType)}
+                disabled={itemStructureLocked}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -801,6 +1135,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
 
             <AutocompleteFilterInput
               label="Supplier"
+              required
               placeholder="Vendor code or vendor name"
               options={options.suppliers}
               value={form.supplierId ?? ""}
@@ -812,16 +1147,17 @@ export function PurchaseOrderCreateForm({ options }: Props) {
               onSelect={(option) => applySupplier((option as PurchaseDraftSupplierOption | null) ?? null)}
               onClear={() => applySupplier(null)}
               emptyMessage="No matching suppliers."
-              disabled={saving}
+              disabled={saving || itemStructureLocked}
             />
 
             <div className="space-y-1.5">
-              <Label>Owner</Label>
+              <RequiredLabel required>Owner</RequiredLabel>
               <Select
                 value={form.ownerId ?? "__empty__"}
                 onValueChange={(value) => updateForm("ownerId", value === "__empty__" ? null : value)}
+                disabled={itemStructureLocked}
               >
-                <SelectTrigger>
+                <SelectTrigger className="[&>span]:flex-1 [&>span]:text-left">
                   <SelectValue placeholder="Select owner" />
                 </SelectTrigger>
                 <SelectContent>
@@ -836,12 +1172,13 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Buyer</Label>
+              <RequiredLabel required>Buyer</RequiredLabel>
               <Select
                 value={form.buyerId ?? "__empty__"}
                 onValueChange={(value) => updateForm("buyerId", value === "__empty__" ? null : value)}
+                disabled={itemStructureLocked}
               >
-                <SelectTrigger>
+                <SelectTrigger className="[&>span]:flex-1 [&>span]:text-left">
                   <SelectValue placeholder="Select buyer" />
                 </SelectTrigger>
                 <SelectContent>
@@ -856,45 +1193,50 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Purchase Date</Label>
+              <RequiredLabel required>Purchase Date</RequiredLabel>
               <Input
                 type="date"
                 value={form.purchaseDate ?? ""}
                 onChange={(event) => updateForm("purchaseDate", event.target.value || null)}
+                disabled={itemStructureLocked}
               />
             </div>
 
             {shouldShowEstimatedOfflineTime(form.purchaseType) ? (
               <div className="space-y-1.5">
-                <Label>Estimated Offline Time</Label>
+                <RequiredLabel>Estimated Offline Date</RequiredLabel>
                 <Input
-                  type="datetime-local"
+                  type="date"
                   value={form.estimatedOfflineTime ?? ""}
                   onChange={(event) => updateForm("estimatedOfflineTime", event.target.value || null)}
                 />
               </div>
             ) : null}
 
-            <div className="space-y-1.5">
-              <Label>Contract Number</Label>
-              <Input
-                value={form.contractNumber ?? ""}
-                onChange={(event) => updateForm("contractNumber", event.target.value || null)}
-              />
-            </div>
+            {!shouldShowVendorReleaseFields(form.purchaseType) ? (
+              <>
+                <div className="space-y-1.5">
+                  <RequiredLabel>Contract Number</RequiredLabel>
+                  <Input
+                    value={form.contractNumber ?? ""}
+                    onChange={(event) => updateForm("contractNumber", event.target.value || null)}
+                  />
+                </div>
 
-            <div className="space-y-1.5">
-              <Label>Invoice Number</Label>
-              <Input
-                value={form.invoiceNumber ?? ""}
-                onChange={(event) => updateForm("invoiceNumber", event.target.value || null)}
-              />
-            </div>
+                <div className="space-y-1.5">
+                  <RequiredLabel>Invoice Number</RequiredLabel>
+                  <Input
+                    value={form.invoiceNumber ?? ""}
+                    onChange={(event) => updateForm("invoiceNumber", event.target.value || null)}
+                  />
+                </div>
+              </>
+            ) : null}
 
             {shouldShowVendorReleaseFields(form.purchaseType) ? (
               <>
                 <div className="space-y-1.5">
-                  <Label>Freeday</Label>
+                  <RequiredLabel>Freeday</RequiredLabel>
                   <Input
                     type="number"
                     min="0"
@@ -903,14 +1245,14 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Vendor Release Number</Label>
+                  <RequiredLabel>Vendor Release Number</RequiredLabel>
                   <Input
                     value={form.vendorReleaseNumber ?? ""}
                     onChange={(event) => updateForm("vendorReleaseNumber", event.target.value || null)}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Vendor Release Date</Label>
+                  <RequiredLabel>Vendor Release Date</RequiredLabel>
                   <Input
                     type="date"
                     value={form.vendorReleaseDate ?? ""}
@@ -921,7 +1263,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             ) : null}
 
             <div className="space-y-1.5 md:col-span-2 xl:col-span-4">
-              <Label>Remark</Label>
+              <RequiredLabel>Remark</RequiredLabel>
               <Textarea
                 value={form.remark ?? ""}
                 onChange={(event) => updateForm("remark", event.target.value || null)}
@@ -949,6 +1291,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
 
                     <Select
                       value={row.materialVendorId ?? "__empty__"}
+                      disabled={itemStructureLocked}
                       onValueChange={(value) =>
                         setMaterialTypes((current) =>
                           current.map((entry) =>
@@ -959,7 +1302,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                         )
                       }
                     >
-                      <SelectTrigger className="h-9">
+                      <SelectTrigger className="h-9 w-full justify-between px-3 text-left [&>span]:block [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:text-left [&>span]:whitespace-nowrap">
                         <SelectValue placeholder="Select material vendor" />
                       </SelectTrigger>
                       <SelectContent>
@@ -981,7 +1324,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Purchase Order Items</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={addItem}>
+            <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={itemStructureLocked}>
               <Plus className="mr-1 size-4" />
               Add Line
             </Button>
@@ -1001,14 +1344,24 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                         key={column.key}
                         className="sticky right-0 z-[80] flex h-12 items-center justify-center border-l bg-card px-2 text-center text-sm font-medium text-muted-foreground shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]"
                       >
-                        {column.label}
+                        <span className="sticky right-0 text-muted-foreground">
+                          {column.label}
+                          {isRequiredItemColumn(column.key, form.purchaseType) ? (
+                            <span className="ml-0.5 text-current">*</span>
+                          ) : null}
+                        </span>
                       </div>
                     ) : (
                       <div
                         key={column.key}
                         className="flex h-12 items-center justify-center px-2 text-center text-sm font-medium text-muted-foreground"
                       >
-                        {column.label}
+                        <span className="text-muted-foreground">
+                          {column.label}
+                          {isRequiredItemColumn(column.key, form.purchaseType) ? (
+                            <span className="ml-0.5 text-current">*</span>
+                          ) : null}
+                        </span>
                       </div>
                     )
                   )}
@@ -1030,6 +1383,8 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                     item.containerSizeCodeId && item.containerTypeCodeId
                       ? `${item.containerSizeCodeId}:${item.containerTypeCodeId}`
                       : null;
+                  const itemContainers = containers.filter((row) => row.itemKey === item.itemKey);
+                  const containersExpanded = expandedItemKey === item.itemKey;
                   const filteredDepots = options.depots.filter(
                     (depot) => !item.locationCityId || depot.cityId === item.locationCityId
                   );
@@ -1037,7 +1392,8 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                     editingCell?.rowKey === item.key && editingCell.column === column;
 
                   return (
-                <TableRow key={item.key}>
+                <Fragment key={item.key}>
+                <TableRow>
                   <TableCell className="h-11 border-b px-1 py-0 align-middle">
                     <EditableAutocompleteCell
                       active={isEditing("location")}
@@ -1045,7 +1401,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                       display={displayValue(locationMap.get(item.locationCityId ?? ""))}
                       options={options.locations.map((location) => ({
                         value: location.id,
-                        label: location.code,
+                        label: [location.code, location.name].filter(Boolean).join(" · "),
                         searchText: `${location.code} ${location.name}`,
                       }))}
                       onActivate={() => activateCell(item.key, "location")}
@@ -1070,7 +1426,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                       display={displayValue(depotMap.get(item.depotId ?? ""))}
                       options={filteredDepots.map((depot) => ({
                         value: depot.id,
-                        label: depot.code,
+                        label: [depot.code, depot.name].filter(Boolean).join(" · "),
                         searchText: `${depot.code} ${depot.name}`,
                       }))}
                       onActivate={() => activateCell(item.key, "depot")}
@@ -1307,6 +1663,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                       display={displayValue(item.unitPrice)}
                       type="number"
                       disableSpinner
+                      preventWheelChange
                       onActivate={() => activateCell(item.key, "unitPrice")}
                       onDeactivate={deactivateCell}
                       onChange={(value) =>
@@ -1349,13 +1706,228 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   </TableCell>
 
                   <TableCell className="sticky right-0 z-[70] h-11 border-b border-l bg-card px-1 py-0 text-center align-middle shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]">
-                    <div className="flex h-9 items-center justify-center">
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(item.key)}>
+                    <div className="flex h-9 items-center justify-center gap-1 px-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() =>
+                          setExpandedItemKey((current) =>
+                            current === item.itemKey ? null : item.itemKey
+                          )
+                        }
+                      >
+                        {containersExpanded ? "Close Containers" : "Edit Containers"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeItem(item.key)}
+                        disabled={itemStructureLocked}
+                      >
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
                   </TableCell>
                 </TableRow>
+                {containersExpanded ? (
+                <TableRow>
+                  <TableCell colSpan={PURCHASE_ITEM_COLUMNS.length} className="border-b bg-muted/10 px-3 py-3">
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Containers for line {index + 1}: {itemContainers.length}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <div
+                          className="grid min-w-[980px] border border-border bg-background"
+                          style={{
+                            gridTemplateColumns:
+                              "180px 100px 160px 130px 90px 90px 140px 90px 160px",
+                          }}
+                        >
+                          {[
+                            "Container Number",
+                            "YOM",
+                            "Offline Date / Release Date",
+                            "Color",
+                            "FLP",
+                            "LBX",
+                            "Locking Bars",
+                            "Vents",
+                            "Machine Type",
+                          ].map((label) => (
+                            <div
+                              key={label}
+                              className="flex h-10 items-center justify-center border-b border-r bg-muted/20 px-2 text-center text-xs font-medium text-muted-foreground last:border-r-0"
+                            >
+                              {label}
+                            </div>
+                          ))}
+                          {itemContainers.map((container) => (
+                            <Fragment key={container.key}>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2 text-center text-sm last:border-r-0">
+                                {form.purchaseType === "FACTORY_ORDER" ? (
+                                  <span className="text-muted-foreground">
+                                    {container.containerNumber || "Auto-generated"}
+                                  </span>
+                                ) : (
+                                  <Input
+                                    value={container.containerNumber ?? ""}
+                                    onChange={(event) =>
+                                      updateContainer(container.key, (current) => ({
+                                        ...current,
+                                        containerNumber: event.target.value.toUpperCase() || null,
+                                      }))
+                                    }
+                                    className="h-8 border-0 px-2 text-center shadow-none"
+                                    placeholder="ABCD1234567"
+                                  />
+                                )}
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                <Input
+                                  type="number"
+                                  value={container.yom ?? ""}
+                                  onChange={(event) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      yom: parseNumberInput(event.target.value),
+                                    }))
+                                  }
+                                  className="[appearance:textfield] h-8 border-0 px-2 text-center shadow-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                />
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                <Input
+                                  type="date"
+                                  value={container.offlineDate ?? ""}
+                                  readOnly={form.purchaseType !== "FACTORY_ORDER"}
+                                  onChange={(event) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      offlineDate: event.target.value || null,
+                                    }))
+                                  }
+                                  className="h-8 border-0 px-2 text-center shadow-none"
+                                />
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                <Select
+                                  value={container.color ?? "__empty__"}
+                                  onValueChange={(value) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      color: value === "__empty__" ? null : value,
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
+                                    <SelectValue placeholder="-" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__empty__">-</SelectItem>
+                                    {options.colors.map((color) => (
+                                      <SelectItem key={color} value={color}>
+                                        {color}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                <Select
+                                  value={container.flp ? "FLP" : "-"}
+                                  onValueChange={(value) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      flp: value === "FLP",
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="FLP">FLP</SelectItem>
+                                    <SelectItem value="-">-</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                <Select
+                                  value={container.lbx ? "LBX" : "-"}
+                                  onValueChange={(value) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      lbx: value === "LBX",
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="LBX">LBX</SelectItem>
+                                    <SelectItem value="-">-</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                <Select
+                                  value={container.lockingBarsCount != null ? String(container.lockingBarsCount) : "__empty__"}
+                                  onValueChange={(value) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      lockingBarsCount: value === "__empty__" ? null : Number(value),
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
+                                    <SelectValue placeholder="-" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__empty__">-</SelectItem>
+                                    <SelectItem value="3">3 Locking Bars</SelectItem>
+                                    <SelectItem value="4">4 Locking Bars</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                <Input
+                                  type="number"
+                                  value={container.ventsCount ?? ""}
+                                  onChange={(event) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      ventsCount: parseNumberInput(event.target.value),
+                                    }))
+                                  }
+                                  className="[appearance:textfield] h-8 border-0 px-2 text-center shadow-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                />
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b px-2">
+                                <Input
+                                  value={container.machineType ?? ""}
+                                  onChange={(event) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      machineType: event.target.value || null,
+                                    }))
+                                  }
+                                  className="h-8 border-0 px-2 text-center shadow-none"
+                                />
+                              </div>
+                            </Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                ) : null}
+                </Fragment>
               );
             })}
                 </TableBody>
@@ -1424,8 +1996,11 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             <CardTitle>Settlement Details</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="md:col-span-2 xl:col-span-4">
+              <div className="text-sm font-medium">A/P Overview</div>
+            </div>
             <div className="space-y-1.5">
-              <Label>Payment Mode</Label>
+              <RequiredLabel required>Payment Mode</RequiredLabel>
               <Select
                 value={form.paymentMode ?? "__empty__"}
                 onValueChange={(value) => handlePaymentModeChange(value as PurchasePaymentMode)}
@@ -1443,7 +2018,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Due Date</Label>
+              <RequiredLabel>Due Date</RequiredLabel>
               <Input
                 type="date"
                 value={form.dueDate ?? ""}
@@ -1451,21 +2026,21 @@ export function PurchaseOrderCreateForm({ options }: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Settlement Payment Term</Label>
+              <RequiredLabel>Settlement Payment Term</RequiredLabel>
               <Input
                 value={form.settlementPaymentTerm ?? ""}
                 onChange={(event) => updateForm("settlementPaymentTerm", event.target.value || null)}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Settlement Currency</Label>
+              <RequiredLabel>Settlement Currency</RequiredLabel>
               <Input
                 value={form.settlementCurrency ?? ""}
                 onChange={(event) => updateForm("settlementCurrency", event.target.value || null)}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Balance Trigger Event</Label>
+              <RequiredLabel>Balance Trigger Event</RequiredLabel>
               <Input
                 value={form.settlementBalanceTriggerEvent ?? ""}
                 onChange={(event) =>
@@ -1477,7 +2052,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             {form.paymentMode === "PREPAYMENT" ? (
               <>
                 <div className="space-y-1.5">
-                  <Label>Prepayment Pool</Label>
+                  <RequiredLabel>Prepayment Pool</RequiredLabel>
                   <Select
                     value={form.settlementPrepaymentPool === false ? "NO" : "YES"}
                     onValueChange={(value) => updateForm("settlementPrepaymentPool", value === "YES")}
@@ -1492,7 +2067,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Prepayment Threshold</Label>
+                  <RequiredLabel>Prepayment Threshold</RequiredLabel>
                   <Input
                     type="number"
                     step="0.01"
@@ -1503,7 +2078,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Current Prepaid Balance</Label>
+                  <RequiredLabel>Current Prepaid Balance</RequiredLabel>
                   <Input
                     readOnly
                     className="bg-muted/50"
@@ -1518,7 +2093,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             {form.paymentMode === "ADVANCE_PAYMENT" ? (
               <>
                 <div className="space-y-1.5">
-                  <Label>Advance Payment Percentage</Label>
+                  <RequiredLabel>Advance Payment Percentage</RequiredLabel>
                   <Input
                     type="number"
                     min="0"
@@ -1534,7 +2109,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Prepayment Pool</Label>
+                  <RequiredLabel>Prepayment Pool</RequiredLabel>
                   <Select
                     value={form.settlementPrepaymentPool ? "YES" : "NO"}
                     onValueChange={(value) => updateForm("settlementPrepaymentPool", value === "YES")}
@@ -1549,7 +2124,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Prepayment Threshold</Label>
+                  <RequiredLabel>Prepayment Threshold</RequiredLabel>
                   <Input
                     type="number"
                     step="0.01"
@@ -1560,7 +2135,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Current Prepaid Balance</Label>
+                  <RequiredLabel>Current Prepaid Balance</RequiredLabel>
                   <Input
                     readOnly
                     className="bg-muted/50"
@@ -1575,7 +2150,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             {form.paymentMode === "CREDIT" ? (
               <>
                 <div className="space-y-1.5">
-                  <Label>Credit Days</Label>
+                  <RequiredLabel>Credit Days</RequiredLabel>
                   <Input
                     type="number"
                     min="0"
@@ -1586,7 +2161,7 @@ export function PurchaseOrderCreateForm({ options }: Props) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Credit Limit</Label>
+                  <RequiredLabel>Credit Limit</RequiredLabel>
                   <Input
                     type="number"
                     min="0"
@@ -1601,6 +2176,20 @@ export function PurchaseOrderCreateForm({ options }: Props) {
             ) : null}
           </CardContent>
         </Card>
+
+        <div className="flex flex-wrap items-center justify-end gap-2 rounded-xl border bg-card p-4 shadow-sm">
+          <Button asChild variant="outline">
+            <Link href={isEditMode && initialOrder ? `/purchase/po-management/${initialOrder.id}` : "/purchase/po-management"}>
+              Cancel
+            </Link>
+          </Button>
+          <Button type="button" variant="outline" onClick={() => void handleSaveDraft()} disabled={saving || submitting}>
+            {isEditMode ? "Save Changes" : "Save Draft"}
+          </Button>
+          <Button type="button" onClick={() => void handleSubmitOrder()} disabled={saving || submitting}>
+            Submit Order
+          </Button>
+        </div>
       </div>
     </div>
   );

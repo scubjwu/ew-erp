@@ -1,9 +1,14 @@
 BEGIN;
 
+INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('0c31b380-b53a-4153-afb1-d49fdec4647b', '48a24426-ebfb-4ee8-b3a7-4dd390ea2f71', 'https://example.com/reset-safe-vendor-1775410863441.pdf', 'reset-safe-1775410863441', '2026-04-05T17:41:03.49434+00:00', '2026-04-05T17:41:03.49434+00:00');
 INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('1e2c0535-aa38-4f95-890d-5c62af4a2193', '973dd0b9-cf1e-405c-b15a-b59264429025', 'https://example.com/reset-safe-vendor-1775282551814.pdf', 'reset-safe-1775282551814', '2026-04-04T06:02:31.897211+00:00', '2026-04-04T06:02:31.897211+00:00');
 INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('2ed2f694-c883-46fc-8717-dc773f6a0d28', 'e1fa3f78-7699-47cf-b118-e93d4e453644', 'https://example.com/reset-safe-vendor-1775361635182.pdf', 'reset-safe-1775361635182', '2026-04-05T04:00:35.500795+00:00', '2026-04-05T04:00:35.500795+00:00');
+INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('3e2f1273-5e41-4572-92f5-bd50ba718c76', 'bd4215d3-9501-4bf5-94f0-c522d3efedba', 'https://example.com/reset-safe-vendor-1775448880935.pdf', 'reset-safe-1775448880935', '2026-04-06T04:14:41.007065+00:00', '2026-04-06T04:14:41.007065+00:00');
+INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('3f2e56a1-41df-4e76-abe2-9d9961ffc3b3', '20767987-9b8b-4b46-a43c-f63d9e5452aa', 'https://example.com/reset-safe-vendor-1775432601862.pdf', 'reset-safe-1775432601862', '2026-04-05T23:43:22.235751+00:00', '2026-04-05T23:43:22.235751+00:00');
+INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('7a15ebd7-ffdd-4d5d-97a4-0e9dcafbf17e', 'c9554978-d161-4b0f-b0cc-859204159d62', 'https://example.com/reset-safe-vendor-1775422194760.pdf', 'reset-safe-1775422194760', '2026-04-05T20:49:54.9046+00:00', '2026-04-05T20:49:54.9046+00:00');
+INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('a862feef-dd59-4ebc-a125-a2eb6b6aff74', '175d1663-0e82-49d9-9293-d351e62fc697', 'https://example.com/reset-safe-vendor-1775435540676.pdf', 'reset-safe-1775435540676', '2026-04-06T00:32:20.748373+00:00', '2026-04-06T00:32:20.748373+00:00');
 INSERT INTO public.vendor_attachment_links (id, vendor_id, url, remark, created_at, updated_at) VALUES ('c5d51f8b-4b3b-46c0-bc3f-1ce0efe8cc6b', 'e8bb7c91-797a-41d5-871f-89ae6146bc3b', 'https://example.com/reset-safe-vendor-1775282501708.pdf', 'reset-safe-1775282501708', '2026-04-04T06:01:41.760203+00:00', '2026-04-04T06:01:41.760203+00:00');
 
 COMMIT;
 
--- rows exported: 3
+-- rows exported: 8

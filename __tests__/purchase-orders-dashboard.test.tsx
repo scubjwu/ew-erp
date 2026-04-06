@@ -1,5 +1,5 @@
 import React, { createContext, useContext, type MouseEvent, type ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -67,7 +67,16 @@ vi.mock("@/components/ui/select", () => ({
       <div>{children}</div>
     </SelectContext.Provider>
   ),
-  SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  SelectTrigger: ({
+    children,
+    ...props
+  }: {
+    children: ReactNode;
+  } & Record<string, unknown>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   SelectValue: ({ placeholder }: { placeholder?: string }) => {
     const ctx = useContext(SelectContext);
     return <span>{ctx?.value || placeholder || ""}</span>;
@@ -138,7 +147,7 @@ function purchaseResult(
         vendorReleaseDate: null,
         remark: null,
         exchangeRate: 1,
-        orderStatus: "CONFIRMED",
+        orderStatus: "RELEASED",
         inboundStatus: "PARTIAL",
         paymentMode: "PREPAYMENT",
         paymentAccount: null,
@@ -200,7 +209,7 @@ function purchaseResult(
       prepaidBalance: 1200,
     },
     sort: {
-      sortBy: "orderDate",
+      sortBy: "activityAt",
       sortDirection: "desc",
     },
     ...overrides,
@@ -253,7 +262,7 @@ const filterOptions = {
     { value: "RAL1001", label: "RAL1001", searchText: "RAL1001" },
     { value: "RAL5002", label: "RAL5002", searchText: "RAL5002" },
   ],
-  statuses: ["DRAFT", "CONFIRMED", "PARTIAL_RECEIVED", "COMPLETED", "CANCELLED"] as const,
+  statuses: ["DRAFT", "SUBMITTED", "IN_PRODUCTION", "RELEASED", "COMPLETED", "CANCELLED"] as const,
 };
 
 describe("PurchaseOrdersDashboard", () => {
@@ -289,7 +298,8 @@ describe("PurchaseOrdersDashboard", () => {
             quickFilter: (params.quickFilter ?? "") as "" | "today" | "last7" | "last30" | "thisMonth" | "lastMonth",
           },
           sort: {
-            sortBy: (params.sortBy ?? "orderDate") as
+            sortBy: (params.sortBy ?? "activityAt") as
+              | "activityAt"
               | "orderDate"
               | "orderNo"
               | "status"
@@ -425,6 +435,101 @@ describe("PurchaseOrdersDashboard", () => {
     );
   });
 
+  it("submits search when pressing Enter in Order Date To and PO Status", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult()}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    const toInput = document.querySelector('input[name="orderDateTo"]') as HTMLInputElement;
+    await user.type(toInput, "2026-04-30");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderDateTo: "2026-04-30",
+        })
+      )
+    );
+
+    await user.click(screen.getByRole("button", { name: /Search Filters/i }));
+
+    vi.clearAllMocks();
+    purchaseActions.getPurchaseOrders.mockImplementation(
+      async (params: {
+        sortBy?: string;
+        sortDirection?: string;
+        page?: number;
+        vendorId?: string;
+        locationCityId?: string;
+        color?: string;
+        sizeType?: string;
+        conditionId?: string;
+        orderDateFrom?: string;
+        orderDateTo?: string;
+        orderStatus?: string;
+        quickFilter?: string;
+      }) =>
+        purchaseResult({
+          page: params.page ?? 1,
+          filters: {
+            vendorId: params.vendorId ?? "",
+            locationCityId: params.locationCityId ?? "",
+            color: params.color ?? "",
+            sizeType: params.sizeType ?? "",
+            conditionId: params.conditionId ?? "",
+            orderDateFrom: params.orderDateFrom ?? "",
+            orderDateTo: params.orderDateTo ?? "",
+            orderStatus: params.orderStatus ?? "",
+            quickFilter: (params.quickFilter ?? "") as "" | "today" | "last7" | "last30" | "thisMonth" | "lastMonth",
+          },
+          sort: {
+            sortBy: (params.sortBy ?? "activityAt") as
+              | "activityAt"
+              | "orderDate"
+              | "orderNo"
+              | "status"
+              | "vendor"
+              | "location"
+              | "sizeType"
+              | "condition"
+              | "color"
+              | "plannedQty"
+              | "availableQty"
+              | "remainingQty"
+              | "cancelledQty"
+              | "prepaidBalance",
+            sortDirection: (params.sortDirection ?? "desc") as "asc" | "desc",
+          },
+        })
+    );
+
+    const statusTrigger = screen.getByText("All statuses").closest("button");
+    expect(statusTrigger).toBeTruthy();
+    await user.click(statusTrigger!);
+    await user.click(screen.getByRole("button", { name: "RELEASED" }));
+    const orderStatusInput = document.querySelector('input[name="orderStatus"]') as HTMLInputElement;
+    expect(orderStatusInput.value).toBe("RELEASED");
+    const confirmedTrigger = orderStatusInput.nextElementSibling as HTMLButtonElement | null;
+    expect(confirmedTrigger).toBeTruthy();
+    confirmedTrigger!.focus();
+    fireEvent.keyDown(confirmedTrigger!, { key: "Enter", code: "Enter" });
+
+    await waitFor(() =>
+      expect(purchaseActions.getPurchaseOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderStatus: "RELEASED",
+        })
+      )
+    );
+  });
+
   it("collapses the search area after search and reopens from the header toggle", async () => {
     const user = userEvent.setup();
 
@@ -476,7 +581,7 @@ describe("PurchaseOrdersDashboard", () => {
             conditionId: "",
             orderDateFrom: "",
             orderDateTo: "",
-            orderStatus: "CONFIRMED",
+            orderStatus: "RELEASED",
             quickFilter: "last30",
           },
         })}
@@ -503,7 +608,7 @@ describe("PurchaseOrdersDashboard", () => {
         content.includes("Location: ADWEN") &&
         content.includes("Size/Type: 20GP") &&
         content.includes("Last 30 Days") &&
-        content.includes("Status: CONFIRMED")
+        content.includes("Status: RELEASED")
       );
     });
 
@@ -590,7 +695,7 @@ describe("PurchaseOrdersDashboard", () => {
           orderDateTo: "",
           orderStatus: "",
           quickFilter: "",
-          sortBy: "orderDate",
+          sortBy: "activityAt",
           sortDirection: "desc",
           page: 1,
           pageSize: 10,
@@ -706,7 +811,7 @@ describe("PurchaseOrdersDashboard", () => {
       "1",
       "0",
       "1200.00",
-      "CONFIRMED",
+      "RELEASED",
       "ViewEdit",
     ]);
 
@@ -719,6 +824,10 @@ describe("PurchaseOrdersDashboard", () => {
     expect(dataRow.querySelectorAll("td")[9]).toHaveClass("text-center");
     expect(dataRow.querySelectorAll("td")[10]).toHaveClass("text-center");
     expect(dataRow.querySelectorAll("td")[13]).toHaveClass("sticky", "right-0", "border-l", "bg-card");
+    expect(within(dataRow).getByRole("link", { name: /edit/i })).toHaveAttribute(
+      "href",
+      "/purchase/po-management/po-1/edit"
+    );
 
     const headCells = screen.getAllByRole("columnheader");
     expect(headCells.at(-1)).toHaveClass("sticky", "right-0", "border-l", "bg-card");

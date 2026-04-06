@@ -941,7 +941,7 @@ async function main() {
           vendor_release_date: "2026-04-12",
           remark: "regression-purchase-order",
           exchange_rate: 1,
-          order_status: "CONFIRMED",
+          order_status: "IN_PRODUCTION",
           inbound_status: "PARTIAL",
           payment_mode: "PREPAYMENT",
           payment_account: "Regression Payment Account",

@@ -223,10 +223,15 @@ function downloadCsv(filename: string, rows: PurchaseOrderManagementResult["rows
 }
 
 function statusVariant(status: string) {
-  if (status === "CONFIRMED") return "default" as const;
+  if (status === "RELEASED") return "default" as const;
+  if (status === "IN_PRODUCTION") return "secondary" as const;
   if (status === "CANCELLED") return "destructive" as const;
   if (status === "COMPLETED") return "secondary" as const;
   return "outline" as const;
+}
+
+function canEditPurchaseOrder(status: string) {
+  return status === "DRAFT" || status === "SUBMITTED" || status === "IN_PRODUCTION" || status === "RELEASED";
 }
 
 function SortButton({
@@ -476,7 +481,7 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                     void refresh(
                       EMPTY_FILTERS,
                       1,
-                      { sortBy: "orderDate", sortDirection: "desc" },
+                      { sortBy: "activityAt", sortDirection: "desc" },
                       { collapseOnSuccess: false }
                     );
                   }}
@@ -578,6 +583,12 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                       name="orderDateTo"
                       type="date"
                       value={draftFilters.orderDateTo}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleSearchSubmit();
+                        }
+                      }}
                       onChange={(event) =>
                         setDraftFilters((current) => ({
                           ...current,
@@ -600,7 +611,14 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                       }
                     >
                       <input type="hidden" name="orderStatus" value={draftFilters.orderStatus} readOnly />
-                      <SelectTrigger>
+                      <SelectTrigger
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleSearchSubmit();
+                          }
+                        }}
+                      >
                         <SelectValue placeholder="All statuses" />
                       </SelectTrigger>
                       <SelectContent>
@@ -737,10 +755,19 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                               View
                             </Link>
                           </Button>
-                          <Button variant="link" className="h-auto px-0" disabled>
-                            <Pencil className="size-4" />
-                            Edit
-                          </Button>
+                          {canEditPurchaseOrder(row.orderStatus) ? (
+                            <Button asChild variant="link" className="h-auto px-0">
+                              <Link href={`/purchase/po-management/${row.id}/edit`}>
+                                <Pencil className="size-4" />
+                                Edit
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button variant="link" className="h-auto px-0" disabled>
+                              <Pencil className="size-4" />
+                              Edit
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

@@ -7,6 +7,7 @@ import type {
   PurchaseBankInformationSnapshot,
   PurchaseFinanceRecord,
   PurchaseMaterialType,
+  PurchaseOrderDraftContainerInput,
   PurchaseOrderDraftInput,
   PurchaseOrderContainer,
   PurchaseOrderDetail,
@@ -20,6 +21,9 @@ import type {
 } from "@/types/purchase";
 import {
   computeLineAmount,
+  generatePurchaseOrderNumber,
+  generateIso6346ContainerNumber,
+  getNextPurchaseOrderSequence,
   sanitizeMaterialTypesForSubmit,
   shouldShowEstimatedOfflineTime,
   shouldShowMaterialTypes,
@@ -35,6 +39,7 @@ import {
 } from "@/app/purchase/po-management/query-helpers";
 
 export type PurchaseManagementSortBy =
+  | "activityAt"
   | "orderDate"
   | "orderNo"
   | "status"
@@ -547,6 +552,51 @@ function mapPurchaseOrderContainer(row: PurchaseOrderContainerRowRaw): PurchaseO
   };
 }
 
+function isCancelledContainerStatus(status: string | null | undefined) {
+  return status === "CANCELLED";
+}
+
+function isAvailableContainerStatus(status: string | null | undefined) {
+  return status === "IN_YARD" || status === "PICKED_UP";
+}
+
+function isEditablePurchaseOrderStatus(status: PurchaseOrderStatus) {
+  return status !== "COMPLETED" && status !== "CANCELLED";
+}
+
+function attachItemCancellationCounts(
+  items: PurchaseOrderItem[],
+  containers: PurchaseOrderContainer[]
+) {
+  const counts = new Map<
+    string,
+    {
+      cancelledQty: number;
+      availableQty: number;
+    }
+  >();
+
+  for (const container of containers) {
+    if (!container.purchaseOrderItemId) continue;
+    const current = counts.get(container.purchaseOrderItemId) ?? {
+      cancelledQty: 0,
+      availableQty: 0,
+    };
+    if (isCancelledContainerStatus(container.containerStatus)) current.cancelledQty += 1;
+    if (isAvailableContainerStatus(container.containerStatus)) current.availableQty += 1;
+    counts.set(container.purchaseOrderItemId, current);
+  }
+
+  return items.map((item) => {
+    const current = counts.get(item.id) ?? { cancelledQty: 0, availableQty: 0 };
+    return {
+      ...item,
+      cancelledQty: current.cancelledQty,
+      remainingQty: Math.max(item.plannedQty - current.availableQty - current.cancelledQty, 0),
+    };
+  });
+}
+
 function mapPurchaseMaterialTypeRow(
   row: PurchaseMaterialTypeRowRaw
 ): PurchaseOrderMaterialTypeRow {
@@ -595,13 +645,20 @@ function mapPurchaseFinanceRecord(row: PurchaseFinanceRecordRaw): PurchaseFinanc
 
 function mapPurchaseRow(
   row: PurchaseOrderRowRaw,
-  firstItem?: PurchaseItemRowRaw
+  firstItem?: PurchaseItemRowRaw,
+  containers: PurchaseOrderContainer[] = []
 ): PurchaseOrderManagementRow {
   const totalPlannedQty = toNumber(row.total_planned_qty);
   const totalAvailableQty = toNumber(row.total_available_qty);
   const totalReceivedQty = toNumber(row.total_received_qty);
   const prepaidBalance = toNumber(row.settlement_current_prepaid_balance);
-  const remainingQty = Math.max(totalPlannedQty - totalAvailableQty - totalReceivedQty, 0);
+  const cancelledQty = containers.filter((container) =>
+    isCancelledContainerStatus(container.containerStatus)
+  ).length;
+  const availableQty = totalAvailableQty || containers.filter((container) =>
+    isAvailableContainerStatus(container.containerStatus)
+  ).length;
+  const remainingQty = Math.max(totalPlannedQty - availableQty - cancelledQty, 0);
   const sizeCode = firstItem?.size?.size_code ?? null;
   const typeCode = firstItem?.type?.type_code ?? null;
   const sizeTypeLabel = sizeCode && typeCode ? `${sizeCode}${typeCode}` : null;
@@ -664,7 +721,7 @@ function mapPurchaseRow(
     sizeTypeLabel,
     conditionLabel: firstItem?.condition?.condition_code ?? null,
     prepaidBalance,
-    cancelledQty: 0,
+    cancelledQty,
     remainingQty,
   };
 }
@@ -678,6 +735,9 @@ function sortRows(
   sorted.sort((left, right) => {
     let result = 0;
     switch (sortBy) {
+      case "activityAt":
+        result = getOrderDateValue(left.updatedAt) - getOrderDateValue(right.updatedAt);
+        break;
       case "orderNo":
         result = compareString(left.orderNo, right.orderNo);
         break;
@@ -832,6 +892,50 @@ async function loadPurchaseItems(orderIds: string[]) {
     type_code: row.type?.type_code ?? null,
     condition_code: row.condition?.condition_code ?? null,
   }));
+}
+
+async function loadPurchaseContainers(orderIds: string[]) {
+  if (orderIds.length === 0) return [] as PurchaseOrderContainerRowRaw[];
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("purchase_order_container")
+    .select(
+      `
+        id,
+        purchase_order_id,
+        purchase_order_item_id,
+        container_number,
+        location_city_id,
+        depot_id,
+        container_size_code_id,
+        container_type_code_id,
+        container_condition_code_id,
+        color,
+        flp,
+        lbx,
+        locking_bars_count,
+        vents_count,
+        machine_type,
+        yom,
+        offline_date,
+        purchase_price,
+        financial_cost,
+        container_status,
+        remark,
+        created_at,
+        updated_at,
+        location:cities(id, city_code, city_name),
+        depot:depots(id, depot_code, depot_name),
+        size:container_size_codes(id, size_code, size_name),
+        type:container_type_codes(id, type_code, type_description),
+        condition:container_condition_codes(id, condition_code, condition_name)
+      `
+    )
+    .in("purchase_order_id", orderIds)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown) as PurchaseOrderContainerRowRaw[];
 }
 
 async function loadRalColorCodes() {
@@ -1049,7 +1153,7 @@ export async function getPurchaseOrders(
   };
 
   const sort = {
-    sortBy: (params.sortBy ?? "orderDate") as PurchaseManagementSortBy,
+    sortBy: (params.sortBy ?? "activityAt") as PurchaseManagementSortBy,
     sortDirection: (params.sortDirection ?? "desc") as PurchaseManagementSortDirection,
   };
 
@@ -1083,12 +1187,23 @@ export async function getPurchaseOrders(
 
   const baseRows = await loadPurchaseRows(filters);
   const orderIds = baseRows.map((row) => row.id);
-  const items = await loadPurchaseItems(orderIds);
+  const [items, containerRows] = await Promise.all([
+    loadPurchaseItems(orderIds),
+    loadPurchaseContainers(orderIds),
+  ]);
 
   const itemsByOrder = groupPurchaseItemsByOrder(items);
   const firstItems = firstPurchaseItemByOrder(itemsByOrder);
+  const containersByOrder = new Map<string, PurchaseOrderContainer[]>();
+  for (const container of containerRows.map(mapPurchaseOrderContainer)) {
+    const current = containersByOrder.get(container.purchaseOrderId) ?? [];
+    current.push(container);
+    containersByOrder.set(container.purchaseOrderId, current);
+  }
 
-  const mappedRows = baseRows.map((row) => mapPurchaseRow(row, firstItems.get(row.id)));
+  const mappedRows = baseRows.map((row) =>
+    mapPurchaseRow(row, firstItems.get(row.id), containersByOrder.get(row.id) ?? [])
+  );
   const baseFilteredRows = filterRowsByBase(mappedRows, filters);
   const filteredRows = filterRowsByItems(baseFilteredRows, itemsByOrder, filters);
   const sortedRows = sortRows(filteredRows, sort.sortBy, sort.sortDirection);
@@ -1160,14 +1275,14 @@ export async function getPurchaseFilterOptions(): Promise<PurchaseFilterOptions>
       label: value,
       searchText: value,
     })),
-    statuses: ["DRAFT", "CONFIRMED", "PARTIAL_RECEIVED", "COMPLETED", "CANCELLED"],
+    statuses: ["DRAFT", "SUBMITTED", "IN_PRODUCTION", "RELEASED", "COMPLETED", "CANCELLED"],
   };
 }
 
 export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderDetail | null> {
   noStore();
   const supabase = createServerSupabaseClient();
-  const [orderResult, itemsResult, materialTypesResult, financeRecordResult] = await Promise.all([
+  const [orderResult, itemsResult, containersResult, materialTypesResult, financeRecordResult] = await Promise.all([
     supabase
       .from("purchase_order")
       .select(
@@ -1255,6 +1370,43 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
       .eq("purchase_order_id", id)
       .order("line_no", { ascending: true }),
     supabase
+      .from("purchase_order_container")
+      .select(
+        `
+          id,
+          purchase_order_id,
+          purchase_order_item_id,
+          container_number,
+          location_city_id,
+          depot_id,
+          container_size_code_id,
+          container_type_code_id,
+          container_condition_code_id,
+          color,
+          flp,
+          lbx,
+          locking_bars_count,
+          vents_count,
+          machine_type,
+          yom,
+          offline_date,
+          purchase_price,
+          financial_cost,
+          container_status,
+          remark,
+          created_at,
+          updated_at,
+          location:cities(id, city_code, city_name),
+          depot:depots(id, depot_code, depot_name),
+          size:container_size_codes(id, size_code, size_name),
+          type:container_type_codes(id, type_code, type_description),
+          condition:container_condition_codes(id, condition_code, condition_name)
+        `
+      )
+      .eq("purchase_order_id", id)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
+    supabase
       .from("purchase_order_material_type")
       .select(
         `
@@ -1308,11 +1460,22 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
 
   if (orderResult.error) throw new Error(orderResult.error.message);
   if (itemsResult.error) throw new Error(itemsResult.error.message);
+  if (containersResult.error) throw new Error(containersResult.error.message);
   if (materialTypesResult.error) throw new Error(materialTypesResult.error.message);
   if (financeRecordResult.error) throw new Error(financeRecordResult.error.message);
 
   const order = orderResult.data as PurchaseOrderRowRaw | null;
   if (!order) return null;
+
+  const containers = (
+    ((containersResult.data ?? []) as unknown) as PurchaseOrderContainerRowRaw[]
+  ).map(mapPurchaseOrderContainer);
+  const items = attachItemCancellationCounts(
+    (((itemsResult.data ?? []) as unknown) as PurchaseOrderItemDetailRowRaw[]).map(
+      mapPurchaseOrderItem
+    ),
+    containers
+  );
 
   return {
     id: order.id,
@@ -1356,10 +1519,8 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     supplier: order.supplier ?? null,
     owner: order.owner ?? null,
     buyer: order.buyer ?? null,
-    items: (((itemsResult.data ?? []) as unknown) as PurchaseOrderItemDetailRowRaw[]).map(
-      mapPurchaseOrderItem
-    ),
-    containers: [],
+    items,
+    containers,
     materialTypes: (((materialTypesResult.data ?? []) as unknown) as PurchaseMaterialTypeRowRaw[]).map(
       mapPurchaseMaterialTypeRow
     ),
@@ -1689,11 +1850,285 @@ export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOp
   };
 }
 
+export async function getPurchaseOrderEditForm(id: string): Promise<{
+  options: PurchaseDraftFormOptions;
+  order: PurchaseOrderDetail;
+  editMode: "draft" | "pending";
+}> {
+  const [options, order] = await Promise.all([
+    getPurchaseDraftFormOptions(),
+    getPurchaseOrderDetail(id),
+  ]);
+
+  if (!order) {
+    throw new Error("Purchase order not found.");
+  }
+  if (order.orderStatus === "DRAFT") {
+    return { options, order, editMode: "draft" };
+  }
+  if (isEditablePurchaseOrderStatus(order.orderStatus)) {
+    return { options, order, editMode: "pending" };
+  }
+  throw new Error(`Purchase order ${order.orderNo} cannot be edited in status ${order.orderStatus}.`);
+}
+
+async function validateRalColors(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  values: Array<string | null | undefined>
+) {
+  const colorValues = Array.from(new Set(values.map((value) => normalizeText(value ?? "")).filter(Boolean)));
+  if (colorValues.length === 0) return;
+  const { data: validColors, error: colorError } = await supabase
+    .from("ral_color_codes")
+    .select("color_code")
+    .in("color_code", colorValues);
+  if (colorError) throw new Error(colorError.message);
+  const validColorSet = new Set((validColors ?? []).map((row) => normalizeText(row.color_code)));
+  const invalidColor = colorValues.find((value) => !validColorSet.has(normalizeText(value)));
+  if (invalidColor) throw new Error(`Invalid RAL color code: ${invalidColor}`);
+}
+
+function validateManualContainerNumbers(
+  purchaseType: PurchaseType,
+  containers: Array<{ containerNumber: string | null | undefined }>
+) {
+  if (purchaseType === "FACTORY_ORDER") return;
+  const invalidContainer = containers.find((container) => {
+    const containerNumber = trimOrNull(container.containerNumber);
+    if (!containerNumber) return false;
+    return !/^[A-Z]{4}\d{7}$/.test(containerNumber.toUpperCase());
+  });
+  if (invalidContainer?.containerNumber) {
+    throw new Error("Container Number must match 4 letters followed by 7 digits.");
+  }
+}
+
+function buildOrderFields(
+  input: PurchaseOrderDraftInput,
+  orderStatus: PurchaseOrderStatus
+) {
+  return {
+    purchase_type: input.purchaseType,
+    supplier_id: input.supplierId,
+    owner_id: input.ownerId,
+    buyer_id: input.buyerId || null,
+    purchase_date: input.purchaseDate,
+    estimated_offline_time: shouldShowEstimatedOfflineTime(input.purchaseType)
+      ? input.estimatedOfflineTime || null
+      : null,
+    contract_number: trimOrNull(input.contractNumber),
+    invoice_number: trimOrNull(input.invoiceNumber),
+    freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
+    vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
+      ? trimOrNull(input.vendorReleaseNumber)
+      : null,
+    vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
+      ? input.vendorReleaseDate || null
+      : null,
+    payment_mode: input.paymentMode,
+    remark: trimOrNull(input.remark),
+    order_status: orderStatus,
+  };
+}
+
+async function recalculatePurchaseOrderStatus(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  orderId: string
+): Promise<PurchaseOrderStatus> {
+  const { data, error } = await supabase.rpc("purchase_recalculate_order_status", {
+    p_order_id: orderId,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? "SUBMITTED") as PurchaseOrderStatus;
+}
+
+function buildFinanceFields(input: PurchaseOrderDraftInput) {
+  return {
+    payment_mode: input.paymentMode,
+    payment_account: trimOrNull(input.paymentAccount),
+    due_date: input.dueDate || null,
+    settlement_payment_term: trimOrNull(input.settlementPaymentTerm),
+    settlement_credit_days: input.paymentMode === "CREDIT" ? input.settlementCreditDays : null,
+    settlement_credit_limit: input.paymentMode === "CREDIT" ? input.settlementCreditLimit : null,
+    settlement_advance_payment_percentage:
+      input.paymentMode === "ADVANCE_PAYMENT" ? input.settlementAdvancePaymentPercentage : null,
+    settlement_balance_trigger_event: trimOrNull(input.settlementBalanceTriggerEvent),
+    settlement_currency: trimOrNull(input.settlementCurrency),
+    settlement_current_prepaid_balance: input.settlementCurrentPrepaidBalance,
+    vendor_bank_information: input.vendorBankInformation,
+  };
+}
+
+function buildItemRowsForInsert(orderId: string, input: PurchaseOrderDraftInput) {
+  return input.items.map((item, index) => ({
+    purchase_order_id: orderId,
+    line_no: index + 1,
+    location_city_id: item.locationCityId,
+    depot_id: item.depotId,
+    container_size_code_id: item.containerSizeCodeId,
+    container_type_code_id: item.containerTypeCodeId,
+    container_condition_code_id: item.containerConditionCodeId,
+    color: trimOrNull(item.color),
+    flp: item.flp,
+    lbx: item.lbx,
+    locking_bars_count: item.lockingBarsCount,
+    vents_count: item.ventsCount,
+    machine_type: trimOrNull(item.machineType),
+    yom: item.yom,
+    offline_date: item.offlineDate || null,
+    planned_qty: item.plannedQty,
+    unit_price: item.unitPrice,
+    settlement_price: item.unitPrice,
+    financial_cost: null,
+    line_amount: computeLineAmount(item.plannedQty, item.unitPrice),
+    remark: trimOrNull(item.remark),
+  }));
+}
+
+async function replaceOrderItemsAndMaterials(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  orderId: string,
+  input: PurchaseOrderDraftInput
+) {
+  const cleanedMaterialTypes = sanitizeMaterialTypesForSubmit(input.purchaseType, input.materialTypes);
+
+  const { error: deleteMaterialsError } = await supabase
+    .from("purchase_order_material_type")
+    .delete()
+    .eq("purchase_order_id", orderId);
+  if (deleteMaterialsError) throw new Error(deleteMaterialsError.message);
+
+  const { error: deleteItemsError } = await supabase
+    .from("purchase_order_item")
+    .delete()
+    .eq("purchase_order_id", orderId);
+  if (deleteItemsError) throw new Error(deleteItemsError.message);
+
+  const itemRows = buildItemRowsForInsert(orderId, input);
+  const { data: insertedItems, error: itemsError } = await supabase
+    .from("purchase_order_item")
+    .insert(itemRows)
+    .select(
+      "id, line_no, location_city_id, depot_id, container_size_code_id, container_type_code_id, container_condition_code_id, unit_price"
+    );
+  if (itemsError) throw new Error(itemsError.message);
+
+  if (shouldShowMaterialTypes(input.purchaseType)) {
+    const { error: materialTypesError } = await supabase
+      .from("purchase_order_material_type")
+      .insert(
+        cleanedMaterialTypes.map((row) => ({
+          purchase_order_id: orderId,
+          material_type: row.materialType,
+          material_vendor_id: row.materialVendorId,
+        }))
+      );
+    if (materialTypesError) throw new Error(materialTypesError.message);
+  }
+
+  return new Map(
+    input.items.map((item, index) => [
+      item.itemKey,
+      (insertedItems ?? []).find((row) => row.line_no === index + 1),
+    ])
+  );
+}
+
+function buildContainerPayloadForSubmit(args: {
+  input: PurchaseOrderDraftInput;
+  orderId: string;
+  vendorReleaseDate: string | null;
+  itemByKey: Map<string, {
+    id: string;
+    location_city_id: string | null;
+    depot_id: string | null;
+    container_size_code_id: string | null;
+    container_type_code_id: string | null;
+    container_condition_code_id: string | null;
+    unit_price: number | null;
+    line_no?: number;
+  } | undefined>;
+}) {
+  return args.input.containers.map((container) => {
+    const itemRow = args.itemByKey.get(container.itemKey);
+    if (!itemRow?.id) {
+      throw new Error(`Container row could not resolve purchase item for key ${container.itemKey}.`);
+    }
+
+    return {
+      purchase_order_item_id: itemRow.id,
+      location_city_id: itemRow.location_city_id,
+      depot_id: itemRow.depot_id,
+      container_size_code_id: itemRow.container_size_code_id,
+      container_type_code_id: itemRow.container_type_code_id,
+      container_condition_code_id: itemRow.container_condition_code_id,
+      color: trimOrNull(container.color),
+      flp: container.flp,
+      lbx: container.lbx,
+      locking_bars_count: container.lockingBarsCount,
+      vents_count: container.ventsCount,
+      machine_type: trimOrNull(container.machineType),
+      yom: container.yom,
+      offline_date:
+        args.input.purchaseType === "FACTORY_ORDER"
+          ? container.offlineDate || null
+          : args.vendorReleaseDate ?? null,
+      purchase_price: itemRow.unit_price,
+      container_number:
+        args.input.purchaseType === "FACTORY_ORDER"
+          ? null
+          : trimOrNull(container.containerNumber),
+    };
+  });
+}
+
+function ensurePendingEditPayloadMatchesCurrent(
+  currentOrder: PurchaseOrderDetail,
+  input: PurchaseOrderDraftInput
+) {
+  if (input.purchaseType !== currentOrder.purchaseType) {
+    throw new Error("Purchase Type cannot be changed for submitted purchase orders.");
+  }
+  if (input.supplierId !== currentOrder.supplierId) {
+    throw new Error("Supplier cannot be changed for submitted purchase orders.");
+  }
+  if (input.ownerId !== currentOrder.ownerId) {
+    throw new Error("Owner cannot be changed for submitted purchase orders.");
+  }
+  if (input.buyerId !== currentOrder.buyerId) {
+    throw new Error("Buyer cannot be changed for submitted purchase orders.");
+  }
+  if (input.items.length !== currentOrder.items.length) {
+    throw new Error("Purchase items cannot be restructured for submitted purchase orders.");
+  }
+
+  for (let index = 0; index < currentOrder.items.length; index += 1) {
+    const currentItem = currentOrder.items[index];
+    const nextItem = input.items[index];
+    if (!nextItem) throw new Error("Purchase items cannot be restructured for submitted purchase orders.");
+    if (
+      currentItem.locationCityId !== nextItem.locationCityId ||
+      currentItem.depotId !== nextItem.depotId ||
+      currentItem.containerConditionCodeId !== nextItem.containerConditionCodeId
+    ) {
+      throw new Error("Location, Depot, and Condition cannot be changed for submitted purchase orders.");
+    }
+  }
+}
+
+function revalidatePurchasePaths(orderId: string) {
+  revalidatePath("/purchase/po-management");
+  revalidatePath(`/purchase/po-management/${orderId}`);
+  revalidatePath(`/purchase/po-management/${orderId}/edit`);
+  revalidatePath("/purchase");
+}
+
 export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): Promise<{
   orderId: string;
   orderNo: string;
 }> {
   const supabase = createServerSupabaseClient();
+  validateManualContainerNumbers(input.purchaseType, input.containers);
 
   if (!input.orderNo?.trim()) {
     throw new Error("PO Number is required.");
@@ -1701,26 +2136,11 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
   if (!input.purchaseType) {
     throw new Error("Purchase Type is required.");
   }
-  if (!input.supplierId) {
-    throw new Error("Supplier is required.");
-  }
-  if (!input.ownerId) {
-    throw new Error("Owner is required.");
-  }
-  if (!input.purchaseDate) {
-    throw new Error("Purchase Date is required.");
-  }
-  if (!input.paymentMode) {
-    throw new Error("Payment Mode is required.");
-  }
   if (input.items.length === 0) {
     throw new Error("At least one purchase item is required.");
   }
 
   const cleanedMaterialTypes = sanitizeMaterialTypesForSubmit(input.purchaseType, input.materialTypes);
-  if (shouldShowMaterialTypes(input.purchaseType) && cleanedMaterialTypes.length === 0) {
-    throw new Error("At least one material type is required for factory orders.");
-  }
 
   const colorValues = Array.from(
     new Set(input.items.map((item) => normalizeText(item.color ?? "")).filter(Boolean))
@@ -1738,8 +2158,61 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
     }
   }
 
+  let resolvedOrderNo = input.orderNo.trim();
+
+  const { data: existingOrderCheck, error: existingOrderCheckError } = await supabase
+    .from("purchase_order")
+    .select("order_no")
+    .eq("order_no", resolvedOrderNo)
+    .maybeSingle();
+  if (existingOrderCheckError) throw new Error(existingOrderCheckError.message);
+
+  if (existingOrderCheck) {
+    let supplierCode: string | null = null;
+    let supplierName: string | null = null;
+
+    if (input.supplierId) {
+      const { data: supplierRow, error: supplierError } = await supabase
+        .from("vendors")
+        .select("vendor_code, legal_company_name, company_name")
+        .eq("id", input.supplierId)
+        .maybeSingle();
+      if (supplierError) throw new Error(supplierError.message);
+      supplierCode = supplierRow?.vendor_code ?? null;
+      supplierName = supplierRow?.legal_company_name ?? supplierRow?.company_name ?? null;
+    }
+
+    const abbreviationSource = supplierName || supplierCode;
+    const prefixCandidate = generatePurchaseOrderNumber({
+      supplierName: abbreviationSource,
+      supplierCode: supplierCode,
+      purchaseDate: input.purchaseDate,
+      sequence: 1,
+    }).slice(0, -1);
+
+    const { data: existingOrderNumbers, error: existingOrderNumbersError } = await supabase
+      .from("purchase_order")
+      .select("order_no")
+      .or(`order_no.like.${prefixCandidate}%,order_no.like.PO-${prefixCandidate.slice(2)}%`);
+    if (existingOrderNumbersError) throw new Error(existingOrderNumbersError.message);
+
+    const nextSequence = getNextPurchaseOrderSequence({
+      existingOrderNumbers: (existingOrderNumbers ?? []).map((row) => row.order_no),
+      supplierName: abbreviationSource,
+      supplierCode,
+      purchaseDate: input.purchaseDate,
+    });
+
+    resolvedOrderNo = generatePurchaseOrderNumber({
+      supplierName: abbreviationSource,
+      supplierCode,
+      purchaseDate: input.purchaseDate,
+      sequence: nextSequence,
+    });
+  }
+
   const sanitizedOrderInput = {
-    order_no: input.orderNo.trim(),
+    order_no: resolvedOrderNo,
     purchase_type: input.purchaseType,
     supplier_id: input.supplierId,
     owner_id: input.ownerId,
@@ -1817,7 +2290,7 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
     offline_date: item.offlineDate || null,
     planned_qty: item.plannedQty,
     unit_price: item.unitPrice,
-    settlement_price: null,
+    settlement_price: item.unitPrice,
     financial_cost: null,
     line_amount: computeLineAmount(item.plannedQty, item.unitPrice),
     remark: item.remark?.trim() || null,
@@ -1847,4 +2320,701 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
     orderId: orderRow.id,
     orderNo: orderRow.order_no,
   };
+}
+
+function trimOrNull(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function validateSubmitRequiredFields(input: PurchaseOrderDraftInput) {
+  if (!input.purchaseType) throw new Error("Purchase Type is required for submit.");
+  if (!input.supplierId) throw new Error("Supplier is required for submit.");
+  if (!input.ownerId) throw new Error("Owner is required for submit.");
+  if (!input.buyerId) throw new Error("Buyer is required for submit.");
+  if (!input.purchaseDate) throw new Error("Purchase Date is required for submit.");
+  if (!input.paymentMode) throw new Error("Payment Mode is required for submit.");
+  if (input.items.length === 0) throw new Error("At least one purchase item is required.");
+
+  input.items.forEach((item, index) => {
+    const line = index + 1;
+    if (!item.locationCityId) throw new Error(`Item ${line}: Location is required for submit.`);
+    if (!item.depotId) throw new Error(`Item ${line}: Depot is required for submit.`);
+    if (!item.containerSizeCodeId || !item.containerTypeCodeId) {
+      throw new Error(`Item ${line}: Size/Type is required for submit.`);
+    }
+    if (!item.containerConditionCodeId) {
+      throw new Error(`Item ${line}: Condition is required for submit.`);
+    }
+    if (item.unitPrice == null) throw new Error(`Item ${line}: Unit Price is required for submit.`);
+    if (!Number.isFinite(item.plannedQty) || item.plannedQty <= 0) {
+      throw new Error(`Item ${line}: Planned Qty must be greater than 0.`);
+    }
+
+    if (
+      input.purchaseType === "FACTORY_ORDER" ||
+      input.purchaseType === "NEW_CONTAINER"
+    ) {
+      if (!trimOrNull(item.color)) throw new Error(`Item ${line}: Color is required for submit.`);
+      if (!item.flp) throw new Error(`Item ${line}: FLP is required for submit.`);
+      if (!item.lbx) throw new Error(`Item ${line}: LBX is required for submit.`);
+      if (item.lockingBarsCount == null) {
+        throw new Error(`Item ${line}: Locking Bars is required for submit.`);
+      }
+      if (item.ventsCount == null) throw new Error(`Item ${line}: Vents is required for submit.`);
+    }
+  });
+
+  if (input.purchaseType === "FACTORY_ORDER") {
+    const unresolved = sanitizeMaterialTypesForSubmit(input.purchaseType, input.materialTypes).find(
+      (row) => !row.materialVendorId
+    );
+    if (unresolved) {
+      throw new Error(`Material Vendor is required for material type ${unresolved.materialType}.`);
+    }
+  }
+}
+
+async function resolveUniqueOrderNo(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  input: PurchaseOrderDraftInput
+) {
+  let resolvedOrderNo = input.orderNo.trim();
+
+  const { data: existingOrderCheck, error: existingOrderCheckError } = await supabase
+    .from("purchase_order")
+    .select("order_no")
+    .eq("order_no", resolvedOrderNo)
+    .maybeSingle();
+  if (existingOrderCheckError) throw new Error(existingOrderCheckError.message);
+
+  if (!existingOrderCheck) return resolvedOrderNo;
+
+  let supplierCode: string | null = null;
+  let supplierName: string | null = null;
+
+  if (input.supplierId) {
+    const { data: supplierRow, error: supplierError } = await supabase
+      .from("vendors")
+      .select("vendor_code, legal_company_name, company_name")
+      .eq("id", input.supplierId)
+      .maybeSingle();
+    if (supplierError) throw new Error(supplierError.message);
+    supplierCode = supplierRow?.vendor_code ?? null;
+    supplierName = supplierRow?.legal_company_name ?? supplierRow?.company_name ?? null;
+  }
+
+  const abbreviationSource = supplierName || supplierCode;
+  const prefixCandidate = generatePurchaseOrderNumber({
+    supplierName: abbreviationSource,
+    supplierCode,
+    purchaseDate: input.purchaseDate,
+    sequence: 1,
+  }).slice(0, -1);
+
+  const { data: existingOrderNumbers, error: existingOrderNumbersError } = await supabase
+    .from("purchase_order")
+    .select("order_no")
+    .or(`order_no.like.${prefixCandidate}%,order_no.like.PO-${prefixCandidate.slice(2)}%`);
+  if (existingOrderNumbersError) throw new Error(existingOrderNumbersError.message);
+
+  const nextSequence = getNextPurchaseOrderSequence({
+    existingOrderNumbers: (existingOrderNumbers ?? []).map((row) => row.order_no),
+    supplierName: abbreviationSource,
+    supplierCode,
+    purchaseDate: input.purchaseDate,
+  });
+
+  return generatePurchaseOrderNumber({
+    supplierName: abbreviationSource,
+    supplierCode,
+    purchaseDate: input.purchaseDate,
+    sequence: nextSequence,
+  });
+}
+
+export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput): Promise<{
+  orderId: string;
+  orderNo: string;
+  orderStatus: PurchaseOrderStatus;
+}> {
+  const supabase = createServerSupabaseClient();
+  validateManualContainerNumbers(input.purchaseType, input.containers);
+
+  if (!input.orderNo?.trim()) {
+    throw new Error("PO Number is required.");
+  }
+
+  validateSubmitRequiredFields(input);
+
+  const cleanedMaterialTypes = sanitizeMaterialTypesForSubmit(
+    input.purchaseType,
+    input.materialTypes
+  );
+
+  const colorValues = Array.from(
+    new Set(input.items.map((item) => normalizeText(item.color ?? "")).filter(Boolean))
+  );
+  if (colorValues.length > 0) {
+    const { data: validColors, error: colorError } = await supabase
+      .from("ral_color_codes")
+      .select("color_code")
+      .in("color_code", colorValues);
+    if (colorError) throw new Error(colorError.message);
+    const validColorSet = new Set((validColors ?? []).map((row) => normalizeText(row.color_code)));
+    const invalidColor = colorValues.find((value) => !validColorSet.has(normalizeText(value)));
+    if (invalidColor) throw new Error(`Invalid RAL color code: ${invalidColor}`);
+  }
+
+  const containerCounts = new Map<string, number>();
+  for (const row of input.containers) {
+    containerCounts.set(row.itemKey, (containerCounts.get(row.itemKey) ?? 0) + 1);
+  }
+  for (const item of input.items) {
+    const expected = Math.max(0, Math.floor(item.plannedQty ?? 0));
+    const actual = containerCounts.get(item.itemKey) ?? 0;
+    if (expected !== actual) {
+      throw new Error(`Item ${item.itemKey}: container count must equal Planned Qty (${expected}).`);
+    }
+  }
+
+  let orderIdForCleanup: string | null = null;
+  try {
+    const resolvedOrderNo = await resolveUniqueOrderNo(supabase, input);
+
+    const sanitizedOrderInput = {
+      order_no: resolvedOrderNo,
+      purchase_type: input.purchaseType,
+      supplier_id: input.supplierId,
+      owner_id: input.ownerId,
+      buyer_id: input.buyerId || null,
+      purchase_date: input.purchaseDate,
+      estimated_offline_time: shouldShowEstimatedOfflineTime(input.purchaseType)
+        ? input.estimatedOfflineTime || null
+        : null,
+      contract_number: trimOrNull(input.contractNumber),
+      invoice_number: trimOrNull(input.invoiceNumber),
+      freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
+      vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
+        ? trimOrNull(input.vendorReleaseNumber)
+        : null,
+      vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
+        ? input.vendorReleaseDate || null
+        : null,
+      payment_mode: input.paymentMode,
+      remark: trimOrNull(input.remark),
+      order_status: "DRAFT" as const,
+    };
+
+    const { data: orderRow, error: orderError } = await supabase
+      .from("purchase_order")
+      .insert(sanitizedOrderInput)
+      .select("id, order_no, vendor_release_date")
+      .single();
+    if (orderError) throw new Error(orderError.message);
+    orderIdForCleanup = orderRow.id;
+
+    const financeUpdate = {
+      payment_mode: input.paymentMode,
+      payment_account: trimOrNull(input.paymentAccount),
+      due_date: input.dueDate || null,
+      settlement_payment_term: trimOrNull(input.settlementPaymentTerm),
+      settlement_credit_days: input.paymentMode === "CREDIT" ? input.settlementCreditDays : null,
+      settlement_credit_limit: input.paymentMode === "CREDIT" ? input.settlementCreditLimit : null,
+      settlement_advance_payment_percentage:
+        input.paymentMode === "ADVANCE_PAYMENT"
+          ? input.settlementAdvancePaymentPercentage
+          : null,
+      settlement_balance_trigger_event: trimOrNull(input.settlementBalanceTriggerEvent),
+      settlement_currency: trimOrNull(input.settlementCurrency),
+      settlement_current_prepaid_balance: input.settlementCurrentPrepaidBalance,
+      vendor_bank_information: input.vendorBankInformation,
+    };
+    const { error: financeUpdateError } = await supabase
+      .from("purchase_order")
+      .update(financeUpdate)
+      .eq("id", orderRow.id);
+    if (financeUpdateError) throw new Error(financeUpdateError.message);
+
+    const itemRows = input.items.map((item, index) => ({
+      purchase_order_id: orderRow.id,
+      line_no: index + 1,
+      location_city_id: item.locationCityId,
+      depot_id: item.depotId,
+      container_size_code_id: item.containerSizeCodeId,
+      container_type_code_id: item.containerTypeCodeId,
+      container_condition_code_id: item.containerConditionCodeId,
+      color: trimOrNull(item.color),
+      flp: item.flp,
+      lbx: item.lbx,
+      locking_bars_count: item.lockingBarsCount,
+      vents_count: item.ventsCount,
+      machine_type: trimOrNull(item.machineType),
+      yom: item.yom,
+      offline_date: item.offlineDate || null,
+      planned_qty: item.plannedQty,
+      unit_price: item.unitPrice,
+      settlement_price: item.unitPrice,
+      financial_cost: null,
+      line_amount: computeLineAmount(item.plannedQty, item.unitPrice),
+      remark: trimOrNull(item.remark),
+    }));
+
+    const { data: insertedItems, error: itemsError } = await supabase
+      .from("purchase_order_item")
+      .insert(itemRows)
+      .select(
+        "id, line_no, location_city_id, depot_id, container_size_code_id, container_type_code_id, container_condition_code_id, unit_price"
+      );
+    if (itemsError) throw new Error(itemsError.message);
+
+    const itemByLineNo = new Map(
+      (insertedItems ?? []).map((row) => [row.line_no as number, row])
+    );
+    const itemByKey = new Map(
+      input.items.map((item, index) => [item.itemKey, itemByLineNo.get(index + 1)])
+    );
+
+    if (shouldShowMaterialTypes(input.purchaseType)) {
+      const { error: materialTypesError } = await supabase
+        .from("purchase_order_material_type")
+        .insert(
+          cleanedMaterialTypes.map((row) => ({
+            purchase_order_id: orderRow.id,
+            material_type: row.materialType,
+            material_vendor_id: row.materialVendorId,
+          }))
+        );
+      if (materialTypesError) throw new Error(materialTypesError.message);
+    }
+
+    const containerPayload = input.containers.map((container) => {
+      const itemRow = itemByKey.get(container.itemKey);
+      if (!itemRow?.id) {
+        throw new Error(`Container row could not resolve purchase item for key ${container.itemKey}.`);
+      }
+
+      return {
+        purchase_order_item_id: itemRow.id,
+        location_city_id: itemRow.location_city_id,
+        depot_id: itemRow.depot_id,
+        container_size_code_id: itemRow.container_size_code_id,
+        container_type_code_id: itemRow.container_type_code_id,
+        container_condition_code_id: itemRow.container_condition_code_id,
+        color: trimOrNull(container.color),
+        flp: container.flp,
+        lbx: container.lbx,
+        locking_bars_count: container.lockingBarsCount,
+        vents_count: container.ventsCount,
+        machine_type: trimOrNull(container.machineType),
+        yom: container.yom,
+        offline_date:
+          input.purchaseType === "FACTORY_ORDER"
+            ? container.offlineDate || null
+            : orderRow.vendor_release_date ?? null,
+        purchase_price: itemRow.unit_price,
+        container_number:
+          input.purchaseType === "FACTORY_ORDER"
+            ? null
+            : trimOrNull(container.containerNumber),
+      };
+    });
+
+    const { data: submitStatus, error: submitError } = await supabase.rpc(
+      "purchase_submit_insert_containers",
+      {
+        p_order_id: orderRow.id,
+        p_containers: containerPayload,
+      }
+    );
+    if (submitError) throw new Error(submitError.message);
+
+    revalidatePath("/purchase/po-management");
+    revalidatePath(`/purchase/po-management/${orderRow.id}`);
+    revalidatePath("/purchase");
+
+    return {
+      orderId: orderRow.id,
+      orderNo: orderRow.order_no,
+      orderStatus: (submitStatus ?? "SUBMITTED") as PurchaseOrderStatus,
+    };
+  } catch (error) {
+    if (orderIdForCleanup) {
+      await supabase.from("purchase_order").delete().eq("id", orderIdForCleanup);
+    }
+    throw error;
+  }
+}
+
+export async function updatePurchaseOrderDraft(
+  orderId: string,
+  input: PurchaseOrderDraftInput
+): Promise<{
+  orderId: string;
+  orderNo: string;
+}> {
+  const supabase = createServerSupabaseClient();
+  const { data: orderRow, error: orderError } = await supabase
+    .from("purchase_order")
+    .select("id, order_no, order_status")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (orderError) throw new Error(orderError.message);
+  if (!orderRow) throw new Error("Purchase order not found.");
+  if (orderRow.order_status !== "DRAFT") {
+    throw new Error(`Only DRAFT purchase orders can be fully edited. Current status: ${orderRow.order_status}.`);
+  }
+
+  if (!input.purchaseType) throw new Error("Purchase Type is required.");
+  if (input.items.length === 0) throw new Error("At least one purchase item is required.");
+
+  await validateRalColors(supabase, [
+    ...input.items.map((item) => item.color),
+    ...input.containers.map((container) => container.color),
+  ]);
+
+  const { error: updateOrderError } = await supabase
+    .from("purchase_order")
+    .update({
+      ...buildOrderFields(input, "DRAFT"),
+      order_no: orderRow.order_no,
+      ...buildFinanceFields(input),
+    })
+    .eq("id", orderId);
+  if (updateOrderError) throw new Error(updateOrderError.message);
+
+  const { error: deleteContainersError } = await supabase
+    .from("purchase_order_container")
+    .delete()
+    .eq("purchase_order_id", orderId);
+  if (deleteContainersError) throw new Error(deleteContainersError.message);
+
+  await replaceOrderItemsAndMaterials(supabase, orderId, input);
+  revalidatePurchasePaths(orderId);
+
+  return { orderId, orderNo: orderRow.order_no };
+}
+
+export async function submitPurchaseOrderDraftUpdate(
+  orderId: string,
+  input: PurchaseOrderDraftInput
+): Promise<{
+  orderId: string;
+  orderNo: string;
+  orderStatus: PurchaseOrderStatus;
+}> {
+  const supabase = createServerSupabaseClient();
+  const { data: orderRow, error: orderError } = await supabase
+    .from("purchase_order")
+    .select("id, order_no, order_status, vendor_release_date")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (orderError) throw new Error(orderError.message);
+  if (!orderRow) throw new Error("Purchase order not found.");
+  if (orderRow.order_status !== "DRAFT") {
+    throw new Error(`Only DRAFT purchase orders can be submitted from edit. Current status: ${orderRow.order_status}.`);
+  }
+
+  validateSubmitRequiredFields(input);
+  await validateRalColors(supabase, [
+    ...input.items.map((item) => item.color),
+    ...input.containers.map((container) => container.color),
+  ]);
+
+  const containerCounts = new Map<string, number>();
+  for (const row of input.containers) {
+    containerCounts.set(row.itemKey, (containerCounts.get(row.itemKey) ?? 0) + 1);
+  }
+  for (const item of input.items) {
+    const expected = Math.max(0, Math.floor(item.plannedQty ?? 0));
+    const actual = containerCounts.get(item.itemKey) ?? 0;
+    if (expected !== actual) {
+      throw new Error(`Item ${item.itemKey}: container count must equal Planned Qty (${expected}).`);
+    }
+  }
+
+  const { error: updateOrderError } = await supabase
+    .from("purchase_order")
+    .update({
+      ...buildOrderFields(input, "DRAFT"),
+      order_no: orderRow.order_no,
+      ...buildFinanceFields(input),
+    })
+    .eq("id", orderId);
+  if (updateOrderError) throw new Error(updateOrderError.message);
+
+  const { error: deleteContainersError } = await supabase
+    .from("purchase_order_container")
+    .delete()
+    .eq("purchase_order_id", orderId);
+  if (deleteContainersError) throw new Error(deleteContainersError.message);
+
+  const itemByKey = await replaceOrderItemsAndMaterials(supabase, orderId, input);
+  const containerPayload = buildContainerPayloadForSubmit({
+    input,
+    orderId,
+    vendorReleaseDate:
+      shouldShowVendorReleaseFields(input.purchaseType) ? input.vendorReleaseDate ?? null : null,
+    itemByKey,
+  });
+
+  const { data: submitStatus, error: submitError } = await supabase.rpc(
+    "purchase_submit_insert_containers",
+    {
+      p_order_id: orderId,
+      p_containers: containerPayload,
+    }
+  );
+  if (submitError) throw new Error(submitError.message);
+
+  revalidatePurchasePaths(orderId);
+  return {
+    orderId,
+    orderNo: orderRow.order_no,
+    orderStatus: (submitStatus ?? "SUBMITTED") as PurchaseOrderStatus,
+  };
+}
+
+export async function updatePurchaseOrderPending(
+  orderId: string,
+  input: PurchaseOrderDraftInput
+): Promise<{
+  orderId: string;
+  orderNo: string;
+  orderStatus: PurchaseOrderStatus;
+}> {
+  const supabase = createServerSupabaseClient();
+  const currentOrder = await getPurchaseOrderDetail(orderId);
+  if (!currentOrder) throw new Error("Purchase order not found.");
+  if (!isEditablePurchaseOrderStatus(currentOrder.orderStatus) || currentOrder.orderStatus === "DRAFT") {
+    throw new Error(
+      `Only submitted/released purchase orders can be updated here. Current status: ${currentOrder.orderStatus}.`
+    );
+  }
+
+  ensurePendingEditPayloadMatchesCurrent(currentOrder, input);
+  validateManualContainerNumbers(currentOrder.purchaseType, input.containers);
+  await validateRalColors(supabase, [
+    ...input.items.map((item) => item.color),
+    ...input.containers.map((container) => container.color),
+  ]);
+
+  const { error: updateOrderError } = await supabase
+    .from("purchase_order")
+    .update({
+      contract_number: trimOrNull(input.contractNumber),
+      invoice_number: trimOrNull(input.invoiceNumber),
+      freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
+      vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
+        ? trimOrNull(input.vendorReleaseNumber)
+        : null,
+      vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
+        ? input.vendorReleaseDate || null
+        : null,
+      payment_mode: input.paymentMode,
+      remark: trimOrNull(input.remark),
+      ...buildFinanceFields(input),
+    })
+    .eq("id", orderId);
+  if (updateOrderError) throw new Error(updateOrderError.message);
+
+  const currentContainers = [...currentOrder.containers].sort((left, right) =>
+    Date.parse(left.createdAt) - Date.parse(right.createdAt) || left.id.localeCompare(right.id)
+  );
+  const containersByItem = new Map<string, PurchaseOrderContainer[]>();
+  for (const container of currentContainers) {
+    if (!container.purchaseOrderItemId) continue;
+    const bucket = containersByItem.get(container.purchaseOrderItemId) ?? [];
+    bucket.push(container);
+    containersByItem.set(container.purchaseOrderItemId, bucket);
+  }
+  const inputContainersByItem = new Map<string, PurchaseOrderDraftContainerInput[]>();
+  for (const container of input.containers) {
+    const bucket = inputContainersByItem.get(container.itemKey) ?? [];
+    bucket.push(container);
+    inputContainersByItem.set(container.itemKey, bucket);
+  }
+
+  for (const item of currentOrder.items) {
+    const nextItem = input.items.find((entry) => entry.itemKey === item.id);
+    if (!nextItem) throw new Error(`Purchase items cannot be restructured for item line ${item.lineNo}.`);
+
+    const { error: updateItemError } = await supabase
+      .from("purchase_order_item")
+      .update({
+        container_size_code_id: nextItem.containerSizeCodeId,
+        container_type_code_id: nextItem.containerTypeCodeId,
+        color: trimOrNull(nextItem.color),
+        flp: nextItem.flp,
+        lbx: nextItem.lbx,
+        locking_bars_count: nextItem.lockingBarsCount,
+        vents_count: nextItem.ventsCount,
+        offline_date:
+          currentOrder.purchaseType === "FACTORY_ORDER"
+            ? nextItem.offlineDate || null
+            : input.vendorReleaseDate || null,
+        planned_qty: nextItem.plannedQty,
+        unit_price: nextItem.unitPrice,
+        settlement_price: nextItem.unitPrice,
+        line_amount: nextItem.lineAmount,
+      })
+      .eq("id", item.id);
+    if (updateItemError) throw new Error(updateItemError.message);
+
+    const existingForItem = containersByItem.get(item.id) ?? [];
+    const nextForItem = inputContainersByItem.get(item.id) ?? [];
+
+    if (nextForItem.length < existingForItem.length) {
+      const removableContainers = existingForItem.slice(nextForItem.length);
+      const numberedContainer = removableContainers.find((container) => trimOrNull(container.containerNumber));
+      if (numberedContainer) {
+        throw new Error(
+          `Planned Qty cannot be reduced for item line ${item.lineNo} after container numbers have been assigned.`
+        );
+      }
+      const removableIds = removableContainers.map((container) => container.id);
+      if (removableIds.length > 0) {
+        const { error: deleteContainerError } = await supabase
+          .from("purchase_order_container")
+          .delete()
+          .in("id", removableIds);
+        if (deleteContainerError) throw new Error(deleteContainerError.message);
+      }
+    }
+
+    for (let index = 0; index < nextForItem.length; index += 1) {
+      const nextContainer = nextForItem[index];
+      if (!nextContainer) throw new Error(`Container structure cannot be changed for item line ${item.lineNo}.`);
+      const existingContainer = existingForItem[index];
+
+      const containerPayload = {
+        purchase_order_id: orderId,
+        purchase_order_item_id: item.id,
+        location_city_id: item.locationCityId,
+        depot_id: item.depotId,
+        container_size_code_id: nextItem.containerSizeCodeId,
+        container_type_code_id: nextItem.containerTypeCodeId,
+        container_condition_code_id: item.containerConditionCodeId,
+        color: trimOrNull(nextContainer.color),
+        flp: nextContainer.flp,
+        lbx: nextContainer.lbx,
+        locking_bars_count: nextContainer.lockingBarsCount,
+        vents_count: nextContainer.ventsCount,
+        machine_type: trimOrNull(nextContainer.machineType),
+        yom: nextContainer.yom,
+        offline_date:
+          currentOrder.purchaseType === "FACTORY_ORDER"
+            ? nextContainer.offlineDate || null
+            : input.vendorReleaseDate || null,
+        container_number:
+          currentOrder.purchaseType === "FACTORY_ORDER"
+            ? existingContainer?.containerNumber ?? null
+            : trimOrNull(nextContainer.containerNumber),
+      };
+
+      if (existingContainer) {
+        const { error: updateContainerError } = await supabase
+          .from("purchase_order_container")
+          .update(containerPayload)
+          .eq("id", existingContainer.id);
+        if (updateContainerError) throw new Error(updateContainerError.message);
+      } else {
+        const { error: insertContainerError } = await supabase
+          .from("purchase_order_container")
+          .insert(containerPayload);
+        if (insertContainerError) throw new Error(insertContainerError.message);
+      }
+    }
+  }
+
+  const nextStatus = await recalculatePurchaseOrderStatus(supabase, orderId);
+
+  revalidatePurchasePaths(orderId);
+  return {
+    orderId,
+    orderNo: currentOrder.orderNo,
+    orderStatus: nextStatus,
+  };
+}
+
+export async function submitPurchaseOrderPending(
+  orderId: string,
+  input: PurchaseOrderDraftInput
+): Promise<{
+  orderId: string;
+  orderNo: string;
+  orderStatus: PurchaseOrderStatus;
+}> {
+  validateManualContainerNumbers(input.purchaseType, input.containers);
+  return updatePurchaseOrderPending(orderId, input);
+}
+
+export async function cancelPurchaseOrder(orderId: string): Promise<void> {
+  const supabase = createServerSupabaseClient();
+  const { data: orderRow, error: orderError } = await supabase
+    .from("purchase_order")
+    .select("id, order_status")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (orderError) throw new Error(orderError.message);
+  if (!orderRow) throw new Error("Purchase order not found.");
+  if (orderRow.order_status === "COMPLETED") {
+    throw new Error("Completed purchase orders cannot be cancelled.");
+  }
+  if (orderRow.order_status === "CANCELLED") {
+    revalidatePurchasePaths(orderId);
+    return;
+  }
+
+  const { error: containersError } = await supabase
+    .from("purchase_order_container")
+    .update({
+      container_status: "CANCELLED",
+      item_status: "CANCELLED",
+    })
+    .eq("purchase_order_id", orderId);
+  if (containersError) throw new Error(containersError.message);
+
+  const { error: orderUpdateError } = await supabase
+    .from("purchase_order")
+    .update({ order_status: "CANCELLED" })
+    .eq("id", orderId);
+  if (orderUpdateError) throw new Error(orderUpdateError.message);
+
+  revalidatePurchasePaths(orderId);
+}
+
+export async function partialCancelPurchaseOrderItems(
+  orderId: string,
+  items: Array<{ itemId: string; cancelQty: number }>
+): Promise<void> {
+  const supabase = createServerSupabaseClient();
+  const { data: orderRow, error: orderError } = await supabase
+    .from("purchase_order")
+    .select("id, order_status, purchase_type")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (orderError) throw new Error(orderError.message);
+  if (!orderRow) throw new Error("Purchase order not found.");
+  if (orderRow.order_status === "COMPLETED" || orderRow.order_status === "CANCELLED") {
+    throw new Error("This purchase order can no longer be partially cancelled.");
+  }
+
+  for (const item of items) {
+    const cancelQty = Math.max(0, Math.floor(item.cancelQty ?? 0));
+    if (cancelQty === 0) continue;
+    const { error: cancelError } = await supabase.rpc(
+      "purchase_partial_cancel_item_containers",
+      {
+        p_order_id: orderId,
+        p_item_id: item.itemId,
+        p_cancel_qty: cancelQty,
+      }
+    );
+    if (cancelError) throw new Error(cancelError.message);
+  }
+
+  await recalculatePurchaseOrderStatus(supabase, orderId);
+
+  revalidatePurchasePaths(orderId);
 }

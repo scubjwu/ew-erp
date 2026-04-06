@@ -14,6 +14,7 @@ export type AutocompleteFilterOption = {
 
 type AutocompleteFilterInputProps = {
   label: string;
+  required?: boolean;
   placeholder: string;
   options: AutocompleteFilterOption[];
   value: string;
@@ -31,6 +32,7 @@ function normalizeText(value?: string | null) {
 
 export function AutocompleteFilterInput({
   label,
+  required = false,
   placeholder,
   options,
   value,
@@ -81,7 +83,14 @@ export function AutocompleteFilterInput({
 
   return (
     <div ref={rootRef} className="relative space-y-1.5">
-      <div className="text-sm font-medium">{label}</div>
+      <div className="text-sm font-medium">
+        {label}
+        {required ? (
+          <span aria-hidden="true" className="ml-0.5 text-current">
+            *
+          </span>
+        ) : null}
+      </div>
       <Input
         value={inputValue}
         placeholder={placeholder}

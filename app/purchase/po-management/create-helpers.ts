@@ -1,4 +1,5 @@
 import type {
+  PurchaseOrderDraftContainerInput,
   PurchaseDraftMaterialTypeInput,
   PurchaseMaterialType,
   PurchaseOrderDraftItemInput,
@@ -167,4 +168,94 @@ export function sanitizeMaterialTypesForSubmit(
 ) {
   if (!shouldShowMaterialTypes(purchaseType)) return [];
   return materialTypes.filter((row) => row.materialType);
+}
+
+const ISO_6346_LETTER_VALUES: Record<string, number> = {
+  A: 10,
+  B: 12,
+  C: 13,
+  D: 14,
+  E: 15,
+  F: 16,
+  G: 17,
+  H: 18,
+  I: 19,
+  J: 20,
+  K: 21,
+  L: 23,
+  M: 24,
+  N: 25,
+  O: 26,
+  P: 27,
+  Q: 28,
+  R: 29,
+  S: 30,
+  T: 31,
+  U: 32,
+  V: 34,
+  W: 35,
+  X: 36,
+  Y: 37,
+  Z: 38,
+};
+
+function iso6346CharacterValue(char: string) {
+  if (/^\d$/.test(char)) return Number(char);
+  return ISO_6346_LETTER_VALUES[char] ?? 0;
+}
+
+export function computeIso6346CheckDigit(value: string) {
+  const normalized = value.trim().toUpperCase();
+  let sum = 0;
+  for (let index = 0; index < normalized.length; index += 1) {
+    sum += iso6346CharacterValue(normalized[index] ?? "") * 2 ** index;
+  }
+  const remainder = sum % 11;
+  return remainder === 10 ? 0 : remainder;
+}
+
+export function generateIso6346ContainerNumber(input: {
+  prefix: string;
+  serial: number;
+}) {
+  const prefix = input.prefix.trim().toUpperCase();
+  const serial = String(input.serial).padStart(6, "0");
+  const base = `${prefix}${serial}`;
+  return `${base}${computeIso6346CheckDigit(base)}`;
+}
+
+export function getDefaultContainerOfflineDate(input: {
+  purchaseType: PurchaseType;
+  itemOfflineDate: string | null;
+  vendorReleaseDate: string | null;
+}) {
+  if (input.purchaseType === "FACTORY_ORDER") {
+    return input.itemOfflineDate ?? null;
+  }
+  return input.vendorReleaseDate ?? null;
+}
+
+export function buildDefaultDraftContainersForItem(input: {
+  itemKey: string;
+  item: PurchaseOrderDraftItemInput;
+  purchaseType: PurchaseType;
+  vendorReleaseDate: string | null;
+}): PurchaseOrderDraftContainerInput[] {
+  const count = Math.max(0, Math.floor(input.item.plannedQty ?? 0));
+  return Array.from({ length: count }, () => ({
+    itemKey: input.itemKey,
+    containerNumber: null,
+    color: input.item.color ?? null,
+    flp: input.item.flp,
+    lbx: input.item.lbx,
+    lockingBarsCount: input.item.lockingBarsCount,
+    ventsCount: input.item.ventsCount,
+    machineType: input.item.machineType ?? null,
+    yom: input.item.yom ?? null,
+    offlineDate: getDefaultContainerOfflineDate({
+      purchaseType: input.purchaseType,
+      itemOfflineDate: input.item.offlineDate,
+      vendorReleaseDate: input.vendorReleaseDate,
+    }),
+  }));
 }

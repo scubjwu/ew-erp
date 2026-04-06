@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
+import {
+  cancelPurchaseOrder,
+  partialCancelPurchaseOrderItems,
+} from "@/app/purchase/po-management/actions";
 import type { PurchaseOrderDetail } from "@/types/purchase";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -14,6 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/errors";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "-";
@@ -22,16 +30,14 @@ function formatDate(value: string | null | undefined) {
   return parsed.toLocaleDateString("en-US");
 }
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("en-US");
-}
-
 function formatNumber(value: number | null | undefined) {
   if (value == null) return "-";
   return value.toLocaleString("en-US");
+}
+
+function formatPlainNumber(value: number | null | undefined) {
+  if (value == null) return "-";
+  return String(value);
 }
 
 function formatCurrency(value: number | null | undefined, currency = "USD") {
@@ -47,6 +53,14 @@ function formatCurrency(value: number | null | undefined, currency = "USD") {
 function formatBoolean(value: boolean | null | undefined) {
   if (value == null) return "-";
   return value ? "Yes" : "No";
+}
+
+function financeStatusLabel(value: string | null | undefined) {
+  if (!value || value === "PENDING") return "财务未同步";
+  if (value === "PARTIALLY_PAID") return "PARTIALLY_PAID";
+  if (value === "PAID") return "PAID";
+  if (value === "VOID") return "VOID";
+  return String(value);
 }
 
 function companyLabel(
@@ -115,24 +129,127 @@ function DetailField({ label, value }: { label: string; value: string }) {
 }
 
 export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail }) {
+  const router = useRouter();
+  const [cancelling, setCancelling] = useState(false);
+  const [savingCancels, setSavingCancels] = useState(false);
+  const [cancelQtyByItem, setCancelQtyByItem] = useState<Record<string, string>>({});
+
+  const canEdit =
+    order.orderStatus === "DRAFT" ||
+    order.orderStatus === "SUBMITTED" ||
+    order.orderStatus === "IN_PRODUCTION" ||
+    order.orderStatus === "RELEASED";
+  const canCancelWholeOrder =
+    order.orderStatus !== "COMPLETED" && order.orderStatus !== "CANCELLED";
+  const canPartialCancel =
+    order.containers.length > 0 &&
+    order.orderStatus !== "COMPLETED" &&
+    order.orderStatus !== "CANCELLED";
+  const pendingPartialCancels = order.items
+    .map((item) => ({
+      itemId: item.id,
+      cancelQty: Number(cancelQtyByItem[item.id] || 0),
+      remainingQty: Number(item.remainingQty ?? 0),
+    }))
+    .filter((item) => item.cancelQty > 0);
+
+  async function handleCancelOrder() {
+    setCancelling(true);
+    try {
+      await cancelPurchaseOrder(order.id);
+      toast({
+        title: "Purchase order cancelled",
+        description: `${order.orderNo} is now CANCELLED.`,
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not cancel purchase order",
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  async function handleSaveCancels() {
+    if (pendingPartialCancels.length === 0) {
+      toast({
+        title: "No partial cancel changes",
+        description: "Enter a Cancel Qty before saving.",
+      });
+      return;
+    }
+
+    setSavingCancels(true);
+    try {
+      await partialCancelPurchaseOrderItems(
+        order.id,
+        pendingPartialCancels.map(({ itemId, cancelQty }) => ({ itemId, cancelQty }))
+      );
+      toast({
+        title: "Partial cancel applied",
+        description: `Saved ${pendingPartialCancels.length} item cancellation update(s).`,
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not apply partial cancel",
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setSavingCancels(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
         <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
             <h1 className="text-xl font-semibold tracking-tight">Purchase Order Detail</h1>
-            <p className="text-sm text-muted-foreground">
-              Review PO business details, item lines, material types, and finance sync status.
-            </p>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/purchase/po-management">Back to PO Management</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {canEdit ? (
+              <Button asChild variant="outline">
+                <Link href={`/purchase/po-management/${order.id}/edit`}>Edit PO</Link>
+              </Button>
+            ) : null}
+            {canPartialCancel ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={
+                  savingCancels ||
+                  pendingPartialCancels.length === 0 ||
+                  pendingPartialCancels.some((item) => item.cancelQty > item.remainingQty)
+                }
+                onClick={() => void handleSaveCancels()}
+              >
+                Save
+              </Button>
+            ) : null}
+            {canCancelWholeOrder ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => void handleCancelOrder()}
+                disabled={cancelling}
+              >
+                Cancel Entire PO
+              </Button>
+            ) : null}
+            <Button asChild variant="outline">
+              <Link href="/purchase/po-management">Back to PO Management</Link>
+            </Button>
+          </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Business Details</CardTitle>
+            <CardTitle>Purchase Order Details</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DetailField label="Order No" value={order.orderNo} />
@@ -151,8 +268,8 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
             />
             <DetailField label="Purchase Date" value={formatDate(order.purchaseDate)} />
             <DetailField
-              label="Estimated Offline Time"
-              value={formatDateTime(order.estimatedOfflineTime)}
+              label="Estimated Offline Date"
+              value={formatDate(order.estimatedOfflineTime)}
             />
             <DetailField label="Contract Number" value={order.contractNumber ?? "-"} />
             <DetailField label="Invoice Number" value={order.invoiceNumber ?? "-"} />
@@ -166,7 +283,6 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
               value={formatDate(order.vendorReleaseDate)}
             />
             <DetailField label="Order Status" value={order.orderStatus} />
-            <DetailField label="Inbound Status" value={order.inboundStatus ?? "-"} />
             <DetailField
               label="Exchange Rate"
               value={order.exchangeRate == null ? "-" : String(order.exchangeRate)}
@@ -178,7 +294,7 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
         {order.materialTypes.length > 0 ? (
           <Card>
             <CardHeader>
-              <CardTitle>Material Types</CardTitle>
+              <CardTitle>Material Vendors</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {order.materialTypes.map((row) => (
@@ -201,7 +317,7 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
 
         <Card>
           <CardHeader>
-            <CardTitle>Container Information</CardTitle>
+            <CardTitle>Purchase Order Items</CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>
@@ -224,14 +340,17 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                   <TableHead>Financial Cost</TableHead>
                   <TableHead>Settlement Price</TableHead>
                   <TableHead>Line Amount</TableHead>
-                  <TableHead className="w-[140px]">Actions</TableHead>
+                  <TableHead>Cancel Qty</TableHead>
+                  <TableHead>Cancelled Qty</TableHead>
+                  <TableHead>Remaining Qty</TableHead>
+                  <TableHead className="w-[180px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {order.items.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={18}
+                      colSpan={21}
                       className="h-24 text-center text-sm text-muted-foreground"
                     >
                       No PO items found.
@@ -256,7 +375,7 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                       <TableCell>{formatNumber(item.lockingBarsCount)}</TableCell>
                       <TableCell>{formatNumber(item.ventsCount)}</TableCell>
                       <TableCell>{item.machineType ?? "-"}</TableCell>
-                      <TableCell>{formatNumber(item.yom)}</TableCell>
+                      <TableCell>{formatPlainNumber(item.yom)}</TableCell>
                       <TableCell>{formatDate(item.offlineDate)}</TableCell>
                       <TableCell>{formatNumber(item.plannedQty)}</TableCell>
                       <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
@@ -264,13 +383,35 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                       <TableCell>{formatCurrency(item.settlementPrice)}</TableCell>
                       <TableCell>{formatCurrency(item.lineAmount)}</TableCell>
                       <TableCell>
-                        <Button asChild variant="outline" size="sm">
-                          <Link
-                            href={`/purchase/po-management/${order.id}/items/${item.id}/containers`}
-                          >
-                            View Containers
-                          </Link>
-                        </Button>
+                        {canPartialCancel ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-8 w-20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            value={cancelQtyByItem[item.id] ?? ""}
+                            onChange={(event) =>
+                              setCancelQtyByItem((current) => ({
+                                ...current,
+                                [item.id]: event.target.value,
+                              }))
+                            }
+                          />
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                      <TableCell>{formatNumber(item.cancelledQty)}</TableCell>
+                      <TableCell>{formatNumber(item.remainingQty)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button asChild variant="outline" size="sm">
+                            <Link
+                              href={`/purchase/po-management/${order.id}/items/${item.id}/containers`}
+                            >
+                              View Containers
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -282,12 +423,25 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
 
         <Card>
           <CardHeader>
-            <CardTitle>Finance</CardTitle>
+            <CardTitle>Settlement Details</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-3">
+          <CardContent className="grid gap-4">
             <div className="rounded-lg border p-4">
-              <div className="mb-3 text-sm font-medium">PO Finance</div>
-              <div className="grid gap-3">
+              <div className="mb-3 text-sm font-medium">Vendor Bank Information</div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {bankInfoRows(order).map(([label, value]) => (
+                  <DetailField key={label} label={label} value={value ?? "-"} />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <div className="mb-3 text-sm font-medium">A/P Overview</div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <DetailField
+                  label="Finance Status"
+                  value={financeStatusLabel(order.financeRecord?.financeStatus)}
+                />
                 <DetailField label="Payment Mode" value={order.paymentMode ?? "-"} />
                 <DetailField label="Payment Account" value={order.paymentAccount ?? "-"} />
                 <DetailField label="Due Date" value={formatDate(order.dueDate)} />
@@ -352,65 +506,6 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                   )}
                 />
               </div>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <div className="mb-3 text-sm font-medium">Vendor Bank Snapshot</div>
-              <div className="grid gap-3">
-                {bankInfoRows(order).map(([label, value]) => (
-                  <DetailField key={label} label={label} value={value ?? "-"} />
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="text-sm font-medium">Finance Sync</div>
-                {order.financeRecord ? (
-                  <Badge variant="outline">{order.financeRecord.financeStatus}</Badge>
-                ) : null}
-              </div>
-              {order.financeRecord ? (
-                <div className="grid gap-3">
-                  <DetailField
-                    label="Synced Grand Total"
-                    value={formatCurrency(
-                      order.financeRecord.grandTotal,
-                      order.financeRecord.settlementCurrency ?? "USD"
-                    )}
-                  />
-                  <DetailField
-                    label="Synced Amount Paid"
-                    value={formatCurrency(
-                      order.financeRecord.totalAmountPaid,
-                      order.financeRecord.settlementCurrency ?? "USD"
-                    )}
-                  />
-                  <DetailField
-                    label="Synced Amount Unpaid"
-                    value={formatCurrency(
-                      order.financeRecord.totalAmountUnpaid,
-                      order.financeRecord.settlementCurrency ?? "USD"
-                    )}
-                  />
-                  <DetailField
-                    label="Synced Due Date"
-                    value={formatDate(order.financeRecord.dueDate)}
-                  />
-                  <DetailField
-                    label="Synced Contract Number"
-                    value={order.financeRecord.contractNumber ?? "-"}
-                  />
-                  <DetailField
-                    label="Synced Invoice Number"
-                    value={order.financeRecord.invoiceNumber ?? "-"}
-                  />
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  No finance sync record has been created for this PO yet.
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>

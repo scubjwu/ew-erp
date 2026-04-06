@@ -446,7 +446,7 @@ async function createRegressionFixtures(supabase, stamp) {
         freeday: 7,
         vendor_release_number: `VRN-${stamp}`,
         vendor_release_date: "2026-04-12",
-        order_status: "CONFIRMED",
+        order_status: "IN_PRODUCTION",
         inbound_status: "PARTIAL",
         settlement_currency: "USD",
         exchange_rate: 1,
@@ -508,7 +508,7 @@ async function createRegressionFixtures(supabase, stamp) {
         offline_date: "2026-04-11",
         purchase_price: 1250,
         financial_cost: 45,
-        container_status: "READY",
+        container_status: "IN_YARD",
         actual_offline_time: "2026-04-11T00:00:00Z",
         remark: `reset-safe-${stamp}`,
       })
@@ -659,7 +659,7 @@ async function assertBasicInfoRestored(supabase) {
   await assertTableCount(supabase, "container_number_rules", 2);
   await must(supabase.from("container_number_rules").select("id").eq("prefix", "EWLU").limit(1).single(), "verify number rule seed");
 
-  await assertTableCount(supabase, "ral_color_codes", 66);
+  await assertTableCount(supabase, "ral_color_codes", 211);
   await must(supabase.from("ral_color_codes").select("id").eq("color_code", "RAL1001").single(), "verify RAL color seed");
 
   await assertTableCount(supabase, "operation_price_configs", 2);

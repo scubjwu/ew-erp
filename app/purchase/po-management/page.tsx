@@ -24,7 +24,7 @@ export default async function PurchaseOrderManagementPage() {
     orderDateTo: "",
     orderStatus: "",
     quickFilter: "",
-    sortBy: "orderDate",
+    sortBy: "activityAt",
     sortDirection: "desc",
     page: 1,
     pageSize: PAGE_SIZE,

@@ -2,6 +2,15 @@ import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+const { cancelPurchaseOrder, partialCancelPurchaseOrderItems, routerRefresh, toast } = vi.hoisted(
+  () => ({
+    cancelPurchaseOrder: vi.fn(),
+    partialCancelPurchaseOrderItems: vi.fn(),
+    routerRefresh: vi.fn(),
+    toast: vi.fn(),
+  })
+);
+
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -15,6 +24,21 @@ vi.mock("next/link", () => ({
       {children}
     </a>
   ),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: routerRefresh,
+  }),
+}));
+
+vi.mock("@/app/purchase/po-management/actions", () => ({
+  cancelPurchaseOrder,
+  partialCancelPurchaseOrderItems,
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  toast: (...args: unknown[]) => toast(...args),
 }));
 
 vi.mock("lucide-react", () => {
@@ -47,7 +71,7 @@ function detailOrder(overrides?: Record<string, unknown>) {
     vendorReleaseDate: "2026-04-11",
     remark: "PO remark",
     exchangeRate: 1,
-    orderStatus: "CONFIRMED",
+    orderStatus: "RELEASED",
     inboundStatus: "PARTIAL",
     paymentMode: "PREPAYMENT",
     paymentAccount: "Main Account",
@@ -126,7 +150,38 @@ function detailOrder(overrides?: Record<string, unknown>) {
         condition: { id: "condition-1", condition_code: "CW", condition_name: "Cargo Worthy" },
       },
     ],
-    containers: [],
+    containers: [
+      {
+        id: "container-1",
+        purchaseOrderId: "po-1",
+        purchaseOrderItemId: "item-1",
+        containerNumber: "MSCU1234567",
+        locationCityId: "city-1",
+        depotId: "depot-1",
+        containerSizeCodeId: "size-1",
+        containerTypeCodeId: "type-1",
+        containerConditionCodeId: "condition-1",
+        color: "RAL1001",
+        flp: false,
+        lbx: true,
+        lockingBarsCount: 4,
+        ventsCount: 2,
+        machineType: "Carrier PrimeLINE",
+        yom: 2026,
+        offlineDate: "2026-04-10",
+        purchasePrice: 2000,
+        financialCost: 150,
+        containerStatus: "IN_YARD",
+        remark: null,
+        createdAt: "2026-04-10T00:00:00Z",
+        updatedAt: "2026-04-10T00:00:00Z",
+        location: { id: "city-1", city_code: "SHA", city_name: "Shanghai" },
+        depot: { id: "depot-1", depot_code: "DP01", depot_name: "Main Depot" },
+        size: { id: "size-1", size_code: "20", size_name: "20ft" },
+        type: { id: "type-1", type_code: "DV", type_description: "Dry Van" },
+        condition: { id: "condition-1", condition_code: "CW", condition_name: "Cargo Worthy" },
+      },
+    ],
     materialTypes: [
       {
         id: "mt-1",
@@ -217,22 +272,50 @@ describe("Purchase detail views", () => {
 
     expect(screen.getByText("Purchase Order Detail")).toBeInTheDocument();
     expect(screen.getByText("PO-001")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Review PO business details, item lines, material types, and finance sync status."
+      )
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Edit PO")).toBeInTheDocument();
+    expect(screen.getByText("Save")).toBeInTheDocument();
+    expect(screen.getByText("Cancel Entire PO")).toBeInTheDocument();
     expect(screen.getByText("View Containers")).toBeInTheDocument();
-    expect(screen.getByText("Finance Sync")).toBeInTheDocument();
+    expect(screen.getByText("Purchase Order Details")).toBeInTheDocument();
+    expect(screen.getByText("Material Vendors")).toBeInTheDocument();
+    expect(screen.getByText("Purchase Order Items")).toBeInTheDocument();
+    expect(screen.getByText("Settlement Details")).toBeInTheDocument();
+    expect(screen.getByText("Vendor Bank Information")).toBeInTheDocument();
+    expect(screen.getByText("A/P Overview")).toBeInTheDocument();
+    expect(screen.getByText("Cancel Qty")).toBeInTheDocument();
+    expect(screen.queryByText("Finance Sync")).not.toBeInTheDocument();
+    expect(screen.getByText("Finance Status")).toBeInTheDocument();
+    expect(screen.getByText("财务未同步")).toBeInTheDocument();
     expect(screen.getByText("Vendor Release Number")).toBeInTheDocument();
     expect(screen.getByText("Vents")).toBeInTheDocument();
     expect(screen.queryByText("Line No")).not.toBeInTheDocument();
     expect(screen.queryByText("Container Summary")).not.toBeInTheDocument();
     expect(screen.queryByText("Container Number")).not.toBeInTheDocument();
+    expect(screen.getByText("Estimated Offline Date")).toBeInTheDocument();
+    expect(screen.queryByText("Estimated Offline Time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inbound Status")).not.toBeInTheDocument();
+    expect(screen.getByText("2026")).toBeInTheDocument();
+    expect(screen.queryByText("2,026")).not.toBeInTheDocument();
     expect(screen.getAllByText("No")).not.toHaveLength(0);
   });
 
-  it("renders an explicit finance empty state when no finance record exists", () => {
+  it("renders pending finance status in PO finance even when no finance record exists", () => {
     render(<PurchaseOrderDetailView order={detailOrder({ financeRecord: null })} />);
 
-    expect(
-      screen.getByText("No finance sync record has been created for this PO yet.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Finance Status")).toBeInTheDocument();
+    expect(screen.getByText("财务未同步")).toBeInTheDocument();
+    expect(screen.queryByText("Finance Sync")).not.toBeInTheDocument();
+  });
+
+  it("allows editing for submitted purchase orders", () => {
+    render(<PurchaseOrderDetailView order={detailOrder({ orderStatus: "SUBMITTED" })} />);
+
+    expect(screen.getByText("Edit PO")).toBeInTheDocument();
   });
 
   it("renders container detail rows with explicit boolean values and container-only fields", () => {

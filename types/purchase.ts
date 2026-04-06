@@ -2,8 +2,9 @@ export type PurchaseType = "FACTORY_ORDER" | "USED_CONTAINER" | "NEW_CONTAINER";
 
 export type PurchaseOrderStatus =
   | "DRAFT"
-  | "CONFIRMED"
-  | "PARTIAL_RECEIVED"
+  | "SUBMITTED"
+  | "IN_PRODUCTION"
+  | "RELEASED"
   | "COMPLETED"
   | "CANCELLED";
 
@@ -168,6 +169,8 @@ export interface PurchaseOrderItem {
   remark: string | null;
   createdAt: string;
   updatedAt: string;
+  cancelledQty?: number | null;
+  remainingQty?: number | null;
   location?: PurchaseLocationRef | null;
   depot?: PurchaseDepotRef | null;
   size?: PurchaseSizeCodeRef | null;
@@ -264,6 +267,7 @@ export interface PurchaseOrderItemContainersDetail {
 }
 
 export interface PurchaseOrderDraftItemInput {
+  itemKey: string;
   locationCityId: string | null;
   depotId: string | null;
   containerSizeCodeId: string | null;
@@ -281,6 +285,19 @@ export interface PurchaseOrderDraftItemInput {
   unitPrice: number | null;
   lineAmount: number | null;
   remark: string | null;
+}
+
+export interface PurchaseOrderDraftContainerInput {
+  itemKey: string;
+  containerNumber: string | null;
+  color: string | null;
+  flp: boolean;
+  lbx: boolean;
+  lockingBarsCount: number | null;
+  ventsCount: number | null;
+  machineType: string | null;
+  yom: number | null;
+  offlineDate: string | null;
 }
 
 export interface PurchaseDraftMaterialTypeInput {
@@ -314,5 +331,6 @@ export interface PurchaseOrderDraftInput {
   vendorBankInformation: PurchaseBankInformationSnapshot | null;
   remark: string | null;
   items: PurchaseOrderDraftItemInput[];
+  containers: PurchaseOrderDraftContainerInput[];
   materialTypes: PurchaseDraftMaterialTypeInput[];
 }

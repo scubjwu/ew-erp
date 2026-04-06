@@ -121,7 +121,7 @@ export function purchaseItemMatchesAggregateFilters(
     const sizeValue = normalizeText(item.size_code ?? item.container_size_code_id).toLowerCase();
     const typeValue = normalizeText(item.type_code ?? item.container_type_code_id).toLowerCase();
     const combined = `${sizeValue}${typeValue}`;
-    if (!sizeValue.includes(query) && !typeValue.includes(query) && !combined.includes(query))
+    if (sizeValue !== query && typeValue !== query && combined !== query)
       return false;
   }
   return true;
