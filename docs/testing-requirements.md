@@ -144,19 +144,25 @@ Current shared gate:
 
 ```bash
 npm run test:regression
+npm run test:e2e
 ```
 
-Current coverage inside that gate includes:
+Current coverage inside the unit/node regression gate includes:
 
 - dashboard-level vitest coverage for delivered `System Codes` dashboards and delivered partner/settings dashboards
 - route and datasource regression coverage in `scripts/run_local_regression.mjs`
 - reset-safe restore coverage in `scripts/run_reset_safe_regression.mjs`
 
+Current coverage inside the E2E regression gate (`test:e2e`) includes:
+- browser-based automated testing for System Codes, Partners, Purchase Flow, and System Settings using Playwright.
+- UI interactions such as search autocompletion.
+- Note: The E2E tests run an isolated `db:reset` automatically.
+
 Current limitation:
 
-- a green shared gate does not replace targeted tests for touched `Customers` form behavior or delivered `Purchase` UI/query behavior
+- a green shared gate does not replace targeted tests for touched `Customers` form behavior or delivered `Purchase` UI/query behavior that aren't fully covered by the E2E scaffolding yet.
 
-Developers must not treat `npm run test:regression` as the only required command when they touch one of those areas.
+Developers must not treat the automated tests as the only required command when they touch one of those areas without explicit coverage.
 
 ## Manual Verification Requirement
 
