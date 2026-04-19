@@ -6,15 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getBasicInfoSection } from "@/types/basic-info";
 
 type BasicInfoSectionPageProps = {
-  params: {
+  params: Promise<{
     section: string;
-  };
+  }>;
 };
 
-export default function BasicInfoSectionPage({
+export default async function BasicInfoSectionPage({
   params,
 }: BasicInfoSectionPageProps) {
-  const section = getBasicInfoSection(params.section);
+  const { section: sectionSlug } = await params;
+  const section = getBasicInfoSection(sectionSlug);
 
   if (!section) {
     notFound();

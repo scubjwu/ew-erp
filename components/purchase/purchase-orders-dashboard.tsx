@@ -16,6 +16,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import {
+  getPurchaseOrderEditPermissions,
+  type PurchaseOrderStatus,
+  type PurchaseType,
+} from "@/types/purchase";
+import {
   exportPurchaseOrders,
   getPurchaseOrders,
   type PurchaseAutocompleteOption,
@@ -230,8 +235,8 @@ function statusVariant(status: string) {
   return "outline" as const;
 }
 
-function canEditPurchaseOrder(status: string) {
-  return status === "DRAFT" || status === "SUBMITTED" || status === "IN_PRODUCTION" || status === "RELEASED";
+function canEditPurchaseOrder(purchaseType: PurchaseType, status: PurchaseOrderStatus) {
+  return getPurchaseOrderEditPermissions(purchaseType, status).canEnterEdit;
 }
 
 function SortButton({
@@ -755,19 +760,14 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                               View
                             </Link>
                           </Button>
-                          {canEditPurchaseOrder(row.orderStatus) ? (
+                          {canEditPurchaseOrder(row.purchaseType, row.orderStatus) ? (
                             <Button asChild variant="link" className="h-auto px-0">
                               <Link href={`/purchase/po-management/${row.id}/edit`}>
                                 <Pencil className="size-4" />
                                 Edit
                               </Link>
                             </Button>
-                          ) : (
-                            <Button variant="link" className="h-auto px-0" disabled>
-                              <Pencil className="size-4" />
-                              Edit
-                            </Button>
-                          )}
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>

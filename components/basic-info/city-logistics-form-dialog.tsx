@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
 import { revalidateCityLogisticsPage } from "@/app/basic-info/cities/actions";
@@ -86,7 +86,7 @@ export function CityLogisticsFormDialog({
 }: CityLogisticsFormDialogProps) {
   const [saving, setSaving] = useState(false);
   const form = useForm<CityLogisticsFormValues>({
-    resolver: zodResolver(cityLogisticsSchema),
+    resolver: zodResolver(cityLogisticsSchema) as Resolver<CityLogisticsFormValues>,
     defaultValues: DEFAULT_VALUES,
   });
 

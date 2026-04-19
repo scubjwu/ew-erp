@@ -10,12 +10,13 @@ import { VendorForm } from "@/components/vendors/vendor-form";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function EditVendorPage({ params }: PageProps) {
+  const { id } = await params;
   const [vendor, regionOptions, buyerOptions] = await Promise.all([
-    getVendorById(params.id),
+    getVendorById(id),
     getVendorRegionOptions(),
     getVendorBuyerOptions(),
   ]);

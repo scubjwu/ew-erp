@@ -257,5 +257,8 @@ export function buildDefaultDraftContainersForItem(input: {
       itemOfflineDate: input.item.offlineDate,
       vendorReleaseDate: input.vendorReleaseDate,
     }),
+    tareWeight: input.item.tareWeight ?? null,
+    maximumWeight: input.item.maximumWeight ?? null,
+    cscNumber: input.item.cscNumber ?? null,
   }));
 }

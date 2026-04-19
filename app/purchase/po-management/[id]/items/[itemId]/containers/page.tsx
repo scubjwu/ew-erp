@@ -8,9 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function PurchaseOrderItemContainersPage({
   params,
 }: {
-  params: { id: string; itemId: string };
+  params: Promise<{ id: string; itemId: string }>;
 }) {
-  const data = await getPurchaseOrderItemContainers(params.id, params.itemId);
+  const { id, itemId } = await params;
+  const data = await getPurchaseOrderItemContainers(id, itemId);
   if (!data) notFound();
 
   return <PurchaseItemContainersView data={data} />;

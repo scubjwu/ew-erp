@@ -100,6 +100,7 @@ vi.mock("@/components/ui/select", () => ({
 }));
 
 import { PurchaseOrderCreateForm } from "@/components/purchase/purchase-order-create-form";
+import { getPurchaseOrderEditPermissions } from "@/types/purchase";
 
 const options = {
   suppliers: [
@@ -129,7 +130,13 @@ const options = {
       },
     },
   ],
-  owners: [{ id: "owner-1", label: "O09298 · Reset Safe Owner" }],
+  owners: [
+    {
+      id: "owner-1",
+      label: "O09298 · Reset Safe Owner",
+      usesInternalContainerNumbering: false,
+    },
+  ],
   buyers: [{ id: "buyer-1", label: "SP0001 · Buyer One" }],
   locations: [{ id: "city-1", code: "ADWEN", name: "Wien" }],
   depots: [{ id: "depot-1", code: "DP01", name: "Main Depot", cityId: "city-1" }],
@@ -157,6 +164,14 @@ const options = {
     },
   ],
   existingOrderNumbers: ["PO-RES04041", "PO-RES04042"],
+};
+
+const optionsWithEligibleOwner = {
+  ...options,
+  owners: options.owners.map((owner) => ({
+    ...owner,
+    usesInternalContainerNumbering: true,
+  })),
 };
 
 const initialSubmittedOrder = {
@@ -205,7 +220,13 @@ const initialSubmittedOrder = {
   createdAt: "2026-04-05T00:00:00.000Z",
   updatedAt: "2026-04-05T00:00:00.000Z",
   supplier: { id: "vendor-1", vendor_code: "S09298", company_name: null, legal_company_name: "Reset Safe Vendor Alias" },
-  owner: { id: "owner-1", container_owner_code: "O09298", company_name: null, legal_company_name: "Reset Safe Owner" },
+  owner: {
+    id: "owner-1",
+    container_owner_code: "O09298",
+    company_name: null,
+    legal_company_name: "Reset Safe Owner",
+    uses_internal_container_numbering: false,
+  },
   buyer: { id: "buyer-1", user_code: "SP0001", full_name: "Buyer One" },
   items: [
     {
@@ -225,6 +246,10 @@ const initialSubmittedOrder = {
       machineType: null,
       yom: 2026,
       offlineDate: null,
+      tareWeight: 2200,
+      maximumWeight: 30480,
+      payloadWeight: 28280,
+      cscNumber: "CSC-ITEM-1",
       plannedQty: 1,
       unitPrice: 100,
       financialCost: null,
@@ -261,6 +286,10 @@ const initialSubmittedOrder = {
       machineType: null,
       yom: 2026,
       offlineDate: "2026-04-20",
+      tareWeight: 2350,
+      maximumWeight: 30480,
+      payloadWeight: 28130,
+      cscNumber: "CSC-CONTAINER-1",
       purchasePrice: 100,
       financialCost: null,
       containerStatus: "PURCHASED",
@@ -375,7 +404,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 16);
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
     expect(firstDataRow).toBeTruthy();
     const cells = within(firstDataRow!).getAllByRole("cell");
 
@@ -397,11 +426,20 @@ describe("PurchaseOrderCreateForm", () => {
     });
     await user.click(screen.getByRole("option", { name: "20GP" }));
 
-    await user.click(within(cells[11]).getByRole("button", { name: "0" }));
-    await user.type(within(cells[11]).getByRole("spinbutton"), "2{Enter}");
+    await user.click(within(cells[11]).getByRole("button", { name: "-" }));
+    await user.type(within(cells[11]).getByRole("spinbutton"), "2200{Enter}");
 
     await user.click(within(cells[12]).getByRole("button", { name: "-" }));
-    await user.type(within(cells[12]).getByRole("spinbutton"), "100{Enter}");
+    await user.type(within(cells[12]).getByRole("spinbutton"), "30480{Enter}");
+
+    await user.click(within(cells[14]).getByRole("button", { name: "-" }));
+    await user.type(within(cells[14]).getByRole("textbox"), "CSC-ITEM-DRAFT{Enter}");
+
+    await user.click(within(cells[15]).getByRole("button", { name: "0" }));
+    await user.type(within(cells[15]).getByRole("spinbutton"), "2{Enter}");
+
+    await user.click(within(cells[16]).getByRole("button", { name: "-" }));
+    await user.type(within(cells[16]).getByRole("spinbutton"), "100{Enter}");
 
     await user.click(screen.getByRole("button", { name: /Save Draft/i }));
 
@@ -412,6 +450,10 @@ describe("PurchaseOrderCreateForm", () => {
         /^PORES\d{5}$/
       );
     });
+    const payload = purchaseActions.createPurchaseOrderDraft.mock.calls[0][0];
+    expect(payload.items[0].tareWeight).toBe(2200);
+    expect(payload.items[0].maximumWeight).toBe(30480);
+    expect(payload.items[0].cscNumber).toBe("CSC-ITEM-DRAFT");
   });
 
   it("uses click-to-edit lookup cells and compact FLP/LBX options", async () => {
@@ -427,7 +469,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 16);
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
     expect(firstDataRow).toBeTruthy();
     const locationCell = within(firstDataRow!).getAllByRole("cell")[0];
     const actionsCell = within(firstDataRow!).getAllByRole("cell").at(-1);
@@ -496,11 +538,11 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 16);
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
     const cells = within(firstDataRow!).getAllByRole("cell");
 
-    await user.click(within(cells[11]).getByRole("button", { name: "0" }));
-    await user.type(within(cells[11]).getByRole("spinbutton"), "1{Enter}");
+    await user.click(within(cells[15]).getByRole("button", { name: "0" }));
+    await user.type(within(cells[15]).getByRole("spinbutton"), "1{Enter}");
 
     await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
     const containerNumberInput = screen.getByPlaceholderText("ABCD1234567");
@@ -512,6 +554,64 @@ describe("PurchaseOrderCreateForm", () => {
       expect.objectContaining({
         variant: "destructive",
         description: "Container Number must match 4 letters followed by 7 digits.",
+      })
+    );
+  });
+
+  it("keeps factory container numbers auto-generated for eligible owners", async () => {
+    const user = userEvent.setup();
+    render(<PurchaseOrderCreateForm options={optionsWithEligibleOwner} />);
+
+    await user.click(screen.getByRole("button", { name: /Select owner/i }));
+    await user.click(screen.getByRole("button", { name: /O09298/i }));
+
+    expect(
+      screen.getByText("Container numbers will be auto-generated on Submit for this owner.")
+    ).toBeInTheDocument();
+
+    const firstDataRow = screen
+      .getAllByRole("row")
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
+    const cells = within(firstDataRow!).getAllByRole("cell");
+
+    await user.click(within(cells[15]).getByRole("button", { name: "0" }));
+    await user.type(within(cells[15]).getByRole("spinbutton"), "1{Enter}");
+    await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
+
+    expect(screen.getByText("Auto-generated")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("ABCD1234567")).not.toBeInTheDocument();
+  });
+
+  it("requires manual container numbers for factory orders when the owner is not eligible", async () => {
+    const user = userEvent.setup();
+    render(<PurchaseOrderCreateForm options={options} />);
+
+    await user.click(screen.getByRole("button", { name: /Select owner/i }));
+    await user.click(screen.getByRole("button", { name: /O09298/i }));
+
+    expect(
+      screen.getByText("This owner uses manual container numbering. Enter container numbers before Submit.")
+    ).toBeInTheDocument();
+
+    const firstDataRow = screen
+      .getAllByRole("row")
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
+    const cells = within(firstDataRow!).getAllByRole("cell");
+
+    await user.click(within(cells[15]).getByRole("button", { name: "0" }));
+    await user.type(within(cells[15]).getByRole("spinbutton"), "1{Enter}");
+    await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
+
+    expect(screen.getByPlaceholderText("ABCD1234567")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Submit Order/i }));
+
+    expect(purchaseActions.createPurchaseOrderSubmit).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "destructive",
+        description:
+          "Container Number is required for factory orders when the owner uses manual numbering.",
       })
     );
   });
@@ -539,7 +639,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 16);
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
     const cells = within(firstDataRow!).getAllByRole("cell");
 
     await user.click(within(cells[0]).getByRole("button", { name: "-" }));
@@ -560,11 +660,20 @@ describe("PurchaseOrderCreateForm", () => {
     });
     await user.click(screen.getByRole("option", { name: "20GP" }));
 
-    await user.click(within(cells[11]).getByRole("button", { name: "0" }));
-    await user.type(within(cells[11]).getByRole("spinbutton"), "2{Enter}");
+    await user.click(within(cells[11]).getByRole("button", { name: "-" }));
+    await user.type(within(cells[11]).getByRole("spinbutton"), "2200{Enter}");
 
     await user.click(within(cells[12]).getByRole("button", { name: "-" }));
-    await user.type(within(cells[12]).getByRole("spinbutton"), "100{Enter}");
+    await user.type(within(cells[12]).getByRole("spinbutton"), "30480{Enter}");
+
+    await user.click(within(cells[14]).getByRole("button", { name: "-" }));
+    await user.type(within(cells[14]).getByRole("textbox"), "CSC-ITEM-SUBMIT{Enter}");
+
+    await user.click(within(cells[15]).getByRole("button", { name: "0" }));
+    await user.type(within(cells[15]).getByRole("spinbutton"), "2{Enter}");
+
+    await user.click(within(cells[16]).getByRole("button", { name: "-" }));
+    await user.type(within(cells[16]).getByRole("spinbutton"), "100{Enter}");
 
     await user.click(screen.getByRole("button", { name: /Submit Order/i }));
 
@@ -575,13 +684,17 @@ describe("PurchaseOrderCreateForm", () => {
 
     const payload = purchaseActions.createPurchaseOrderSubmit.mock.calls[0][0];
     expect(payload.items[0].itemKey).toBeTruthy();
+    expect(payload.items[0].tareWeight).toBe(2200);
+    expect(payload.items[0].maximumWeight).toBe(30480);
+    expect(payload.items[0].cscNumber).toBe("CSC-ITEM-SUBMIT");
     expect(payload.containers).toHaveLength(2);
     expect(payload.containers[0].itemKey).toBe(payload.items[0].itemKey);
+    expect(payload.containers[0]).not.toHaveProperty("payloadWeight");
   });
 
-  it("allows submitted edit mode to change selected item-line fields", async () => {
+  it("allows submitted edit mode to change fields and submit changes", async () => {
     const user = userEvent.setup();
-    purchaseActions.updatePurchaseOrderPending.mockResolvedValue({
+    purchaseActions.submitPurchaseOrderPending.mockResolvedValue({
       orderId: "po-edit-1",
       orderNo: "PORES04051",
       orderStatus: "SUBMITTED",
@@ -592,13 +705,16 @@ describe("PurchaseOrderCreateForm", () => {
         options={options}
         initialOrder={initialSubmittedOrder}
         mode="edit"
-        editMode="pending"
+        editPermissions={getPurchaseOrderEditPermissions(
+          initialSubmittedOrder.purchaseType,
+          initialSubmittedOrder.orderStatus
+        )}
       />
     );
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 16);
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
     expect(firstDataRow).toBeTruthy();
     const cells = within(firstDataRow!).getAllByRole("cell");
 
@@ -618,23 +734,86 @@ describe("PurchaseOrderCreateForm", () => {
     await user.clear(within(cells[8]).getByRole("spinbutton"));
     await user.type(within(cells[8]).getByRole("spinbutton"), "3{Enter}");
 
-    await user.click(within(cells[11]).getByRole("button", { name: "1" }));
+    await user.click(within(cells[11]).getByRole("button", { name: "2,200.00" }));
     await user.clear(within(cells[11]).getByRole("spinbutton"));
-    await user.type(within(cells[11]).getByRole("spinbutton"), "2{Enter}");
+    await user.type(within(cells[11]).getByRole("spinbutton"), "2400{Enter}");
 
-    await user.click(within(cells[14]).getByRole("button", { name: "-" }));
-    await user.type(within(cells[14]).getByDisplayValue(""), "2026-05-01{Enter}");
+    await user.click(within(cells[12]).getByRole("button", { name: "30,480.00" }));
+    await user.clear(within(cells[12]).getByRole("spinbutton"));
+    await user.type(within(cells[12]).getByRole("spinbutton"), "30400{Enter}");
 
-    await user.click(screen.getByRole("button", { name: /Save Changes/i }));
+    await user.click(within(cells[14]).getByRole("button", { name: "CSC-ITEM-1" }));
+    await user.clear(within(cells[14]).getByRole("textbox"));
+    await user.type(within(cells[14]).getByRole("textbox"), "CSC-ITEM-UPDATED{Enter}");
+
+    await user.click(within(cells[15]).getByRole("button", { name: "1" }));
+    await user.clear(within(cells[15]).getByRole("spinbutton"));
+    await user.type(within(cells[15]).getByRole("spinbutton"), "2{Enter}");
+
+    await user.click(within(cells[18]).getByRole("button", { name: "-" }));
+    await user.type(within(cells[18]).getByDisplayValue(""), "2026-05-01{Enter}");
+
+    expect(screen.queryByRole("button", { name: /Save Changes/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Submit Order/i }));
 
     await waitFor(() => {
-      expect(purchaseActions.updatePurchaseOrderPending).toHaveBeenCalledTimes(1);
+      expect(purchaseActions.submitPurchaseOrderPending).toHaveBeenCalledTimes(1);
     });
 
-    const payload = purchaseActions.updatePurchaseOrderPending.mock.calls[0][1];
+    const payload = purchaseActions.submitPurchaseOrderPending.mock.calls[0][1];
     expect(payload.items[0].color).toBe("RAL1000");
     expect(payload.items[0].ventsCount).toBe(3);
+    expect(payload.items[0].tareWeight).toBe(2400);
+    expect(payload.items[0].maximumWeight).toBe(30400);
+    expect(payload.items[0].cscNumber).toBe("CSC-ITEM-UPDATED");
     expect(payload.items[0].plannedQty).toBe(2);
     expect(payload.items[0].offlineDate).toBe("2026-05-01");
+  });
+
+  it("allows adding item lines when pending edit order has no existing items", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PurchaseOrderCreateForm
+        options={options}
+        initialOrder={{
+          ...initialSubmittedOrder,
+          items: [],
+          containers: [],
+        }}
+        mode="edit"
+        editPermissions={getPurchaseOrderEditPermissions(
+          initialSubmittedOrder.purchaseType,
+          initialSubmittedOrder.orderStatus
+        )}
+      />
+    );
+
+    const addLineButton = screen.getByRole("button", { name: /Add Line/i });
+    expect(addLineButton).not.toBeDisabled();
+
+    await user.click(addLineButton);
+
+    const firstDataRow = screen
+      .getAllByRole("row")
+      .find((row) => within(row).queryAllByRole("cell").length === 20);
+    expect(firstDataRow).toBeTruthy();
+  });
+
+  it("keeps non-terminal edit orders unlocked for spreadsheet editing", () => {
+    render(
+      <PurchaseOrderCreateForm
+        options={options}
+        initialOrder={initialSubmittedOrder}
+        mode="edit"
+        editPermissions={getPurchaseOrderEditPermissions(
+          initialSubmittedOrder.purchaseType,
+          initialSubmittedOrder.orderStatus
+        )}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: /Add Line/i })).not.toBeDisabled();
   });
 });

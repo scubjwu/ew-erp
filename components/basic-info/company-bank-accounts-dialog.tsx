@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
 import { revalidateCompanyProfilesPage } from "@/app/basic-info/companies/actions";
@@ -97,7 +97,7 @@ export function CompanyBankAccountsDialog({
   );
 
   const form = useForm<BankAccountFormValues>({
-    resolver: zodResolver(bankAccountSchema),
+    resolver: zodResolver(bankAccountSchema) as Resolver<BankAccountFormValues>,
     defaultValues: EMPTY_ACCOUNT_FORM,
   });
 

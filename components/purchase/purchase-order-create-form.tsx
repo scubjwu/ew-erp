@@ -52,9 +52,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { getPurchaseOrderEditPermissions } from "@/types/purchase";
 import type {
   PurchaseBankInformationSnapshot,
   PurchaseDraftMaterialTypeInput,
+  PurchaseEditFieldSet,
+  PurchaseOrderEditPermissions,
   PurchaseOrderDetail,
   PurchaseOrderDraftContainerInput,
   PurchaseOrderDraftInput,
@@ -67,7 +70,7 @@ type Props = {
   options: PurchaseDraftFormOptions;
   initialOrder?: PurchaseOrderDetail | null;
   mode?: "create" | "edit";
-  editMode?: "draft" | "pending";
+  editPermissions?: PurchaseOrderEditPermissions;
 };
 
 type DraftItemRow = PurchaseOrderDraftItemInput & {
@@ -101,25 +104,34 @@ type EditableCellKey = {
     | "vents"
     | "machineType"
     | "yom"
+    | "tareWeight"
+    | "maximumWeight"
+    | "payloadWeight"
+    | "cscNumber"
     | "plannedQty"
     | "unitPrice"
     | "offlineDate";
 };
 
-const PENDING_EDITABLE_ITEM_COLUMNS = new Set<EditableCellKey["column"]>([
-  "sizeType",
-  "color",
-  "flp",
-  "lbx",
-  "lockingBars",
-  "vents",
-  "plannedQty",
+type EditableContainerField = "offlineDate" | "tareWeight" | "maximumWeight" | "cscNumber";
+
+const FACTORY_PROGRESS_EDITABLE_COLUMNS = new Set<EditableCellKey["column"]>([
   "offlineDate",
+  "tareWeight",
+  "maximumWeight",
+  "cscNumber",
+]);
+
+const FACTORY_PROGRESS_EDITABLE_CONTAINER_COLUMNS = new Set<EditableContainerField>([
+  "offlineDate",
+  "tareWeight",
+  "maximumWeight",
+  "cscNumber",
 ]);
 
 type DraftFormState = Omit<
   PurchaseOrderDraftInput,
-  "orderNo" | "items" | "materialTypes" | "vendorBankInformation"
+  "orderNo" | "items" | "containers" | "materialTypes" | "vendorBankInformation"
 > & {
   vendorBankInformation: PurchaseBankInformationSnapshot | null;
 };
@@ -174,6 +186,9 @@ function createEmptyItem(
     machineType: null,
     yom: defaultYear,
     offlineDate: null,
+    tareWeight: null,
+    maximumWeight: null,
+    cscNumber: null,
     plannedQty: 0,
     unitPrice: null,
     lineAmount: 0,
@@ -186,9 +201,17 @@ function createEmptyItem(
   };
 }
 
-function companyLabel(option: PurchaseDraftSupplierOption | undefined) {
+function companyLabel(
+  option:
+    | PurchaseDraftSupplierOption
+    | { vendor_code?: string | null; legal_company_name?: string | null; company_name?: string | null }
+    | undefined
+) {
   if (!option) return "";
-  return option.vendorName ?? option.vendorCode ?? option.label;
+  if ("label" in option) {
+    return option.vendorName ?? option.vendorCode ?? option.label;
+  }
+  return option.legal_company_name ?? option.company_name ?? option.vendor_code ?? "";
 }
 
 function materialVendorLabel(option: PurchaseDraftMaterialVendorOption) {
@@ -261,6 +284,14 @@ function displayValue(value?: string | number | null, placeholder = "-") {
   return String(value);
 }
 
+function displayWeight(value?: number | null) {
+  if (value == null) return "-";
+  return Number(value).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function RequiredLabel({
   children,
   required = false,
@@ -288,6 +319,10 @@ const PURCHASE_ITEM_COLUMNS = [
   { key: "vents", label: "Vents", width: 110 },
   { key: "machineType", label: "Machine Type", width: 150 },
   { key: "yom", label: "YOM", width: 100 },
+  { key: "tareWeight", label: "Tare Weight", width: 120 },
+  { key: "maximumWeight", label: "Maximum Weight", width: 140 },
+  { key: "payloadWeight", label: "Payload Weight", width: 130 },
+  { key: "cscNumber", label: "CSC Number", width: 150 },
   { key: "plannedQty", label: "Planned Qty", width: 120 },
   { key: "unitPrice", label: "Unit Price", width: 130 },
   { key: "lineAmount", label: "Line Amount", width: 140 },
@@ -326,19 +361,24 @@ function CellDisplayButton({
   value,
   placeholder = "-",
   onActivate,
+  disabled = false,
 }: {
   value?: string | number | null;
   placeholder?: string;
   onActivate: () => void;
+  disabled?: boolean;
 }) {
   const content = displayValue(value, placeholder);
   return (
     <button
       type="button"
-      onClick={onActivate}
+      onClick={disabled ? undefined : onActivate}
+      disabled={disabled}
       className={cn(
         "flex h-10 w-full items-center justify-center px-2 text-center text-sm",
-        "hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-ring"
+        disabled
+          ? "cursor-default text-muted-foreground"
+          : "hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-ring"
       )}
     >
       <span className={cn("truncate", content === placeholder ? "text-muted-foreground" : "")}>
@@ -356,6 +396,7 @@ function EditableSelectCell({
   onChange,
   onActivate,
   onDeactivate,
+  disabled = false,
 }: {
   active: boolean;
   value: string;
@@ -364,10 +405,11 @@ function EditableSelectCell({
   onChange: (value: string) => void;
   onActivate: () => void;
   onDeactivate: () => void;
+  disabled?: boolean;
 }) {
   const EMPTY_SENTINEL = "__empty__";
-  if (!active) {
-    return <CellDisplayButton value={display} onActivate={onActivate} />;
+  if (!active || disabled) {
+    return <CellDisplayButton value={display} onActivate={onActivate} disabled={disabled} />;
   }
 
   return (
@@ -420,6 +462,7 @@ function EditableInputCell({
   onChange,
   onActivate,
   onDeactivate,
+  disabled = false,
 }: {
   active: boolean;
   value: string;
@@ -430,9 +473,10 @@ function EditableInputCell({
   onChange: (value: string) => void;
   onActivate: () => void;
   onDeactivate: () => void;
+  disabled?: boolean;
 }) {
-  if (!active) {
-    return <CellDisplayButton value={display} onActivate={onActivate} />;
+  if (!active || disabled) {
+    return <CellDisplayButton value={display} onActivate={onActivate} disabled={disabled} />;
   }
 
   return (
@@ -475,6 +519,7 @@ function EditableAutocompleteCell({
   onActivate,
   onDeactivate,
   placeholder = "-",
+  disabled = false,
 }: {
   active: boolean;
   value: string | null;
@@ -484,6 +529,7 @@ function EditableAutocompleteCell({
   onActivate: () => void;
   onDeactivate: () => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState(display);
@@ -514,8 +560,15 @@ function EditableAutocompleteCell({
     );
   }, [options, query]);
 
-  if (!active) {
-    return <CellDisplayButton value={display} placeholder={placeholder} onActivate={onActivate} />;
+  if (!active || disabled) {
+    return (
+      <CellDisplayButton
+        value={display}
+        placeholder={placeholder}
+        onActivate={onActivate}
+        disabled={disabled}
+      />
+    );
   }
 
   return (
@@ -720,6 +773,9 @@ function buildDraftItemsFromOrder(order: PurchaseOrderDetail): DraftItemRow[] {
     machineType: item.machineType,
     yom: item.yom,
     offlineDate: item.offlineDate,
+    tareWeight: item.tareWeight,
+    maximumWeight: item.maximumWeight,
+    cscNumber: item.cscNumber,
     plannedQty: item.plannedQty,
     unitPrice: item.unitPrice,
     lineAmount: item.lineAmount,
@@ -745,6 +801,9 @@ function buildDraftContainersFromOrder(order: PurchaseOrderDetail): DraftContain
     machineType: container.machineType,
     yom: container.yom,
     offlineDate: container.offlineDate,
+    tareWeight: container.tareWeight,
+    maximumWeight: container.maximumWeight,
+    cscNumber: container.cscNumber,
   }));
 }
 
@@ -760,7 +819,7 @@ export function PurchaseOrderCreateForm({
   options,
   initialOrder = null,
   mode = "create",
-  editMode,
+  editPermissions,
 }: Props) {
   const initialItem = useMemo(
     () =>
@@ -771,7 +830,13 @@ export function PurchaseOrderCreateForm({
   );
   const router = useRouter();
   const isEditMode = mode === "edit" && Boolean(initialOrder);
-  const isPendingEdit = isEditMode && editMode === "pending";
+  const resolvedEditPermissions = useMemo(
+    () =>
+      isEditMode && initialOrder
+        ? editPermissions ?? getPurchaseOrderEditPermissions(initialOrder.purchaseType, initialOrder.orderStatus)
+        : null,
+    [editPermissions, initialOrder, isEditMode]
+  );
   const [form, setForm] = useState<DraftFormState>(() =>
     initialOrder ? buildFormStateFromOrder(initialOrder) : buildInitialFinanceState()
   );
@@ -814,6 +879,13 @@ export function PurchaseOrderCreateForm({
     () => options.suppliers.find((option) => option.id === form.supplierId),
     [form.supplierId, options.suppliers]
   );
+  const selectedOwner = useMemo(
+    () => options.owners.find((option) => option.id === form.ownerId),
+    [form.ownerId, options.owners]
+  );
+  const factoryUsesInternalContainerNumbering =
+    form.purchaseType === "FACTORY_ORDER" &&
+    selectedOwner?.usesInternalContainerNumbering === true;
 
   useEffect(() => {
     setContainers((current) =>
@@ -884,11 +956,34 @@ export function PurchaseOrderCreateForm({
     });
   }, [form.purchaseDate, initialOrder, options.existingOrderNumbers, selectedSupplier]);
 
-  const itemStructureLocked = isPendingEdit;
+  const editableFieldSet: PurchaseEditFieldSet =
+    resolvedEditPermissions?.editableFieldSet ?? "all";
+  const fullEditAllowed = editableFieldSet === "all";
+  const canSaveDraftLikeChanges = isEditMode
+    ? Boolean(resolvedEditPermissions?.canSaveDraftLikeChanges)
+    : true;
+  const canSubmitChanges = isEditMode
+    ? Boolean(resolvedEditPermissions?.canSubmitChanges)
+    : true;
+  const headerFieldsLocked = isEditMode && !fullEditAllowed;
+  const financeFieldsLocked = isEditMode && !fullEditAllowed;
+  const materialTypesLocked = isEditMode && !fullEditAllowed;
+  const itemStructureLocked = isEditMode && !fullEditAllowed;
 
   function canEditItemColumn(column: EditableCellKey["column"]) {
-    if (!isPendingEdit) return true;
-    return PENDING_EDITABLE_ITEM_COLUMNS.has(column);
+    if (editableFieldSet === "all") return true;
+    if (editableFieldSet === "factory_progress_limited") {
+      return FACTORY_PROGRESS_EDITABLE_COLUMNS.has(column);
+    }
+    return false;
+  }
+
+  function canEditContainerColumn(column: EditableContainerField) {
+    if (editableFieldSet === "all") return true;
+    if (editableFieldSet === "factory_progress_limited") {
+      return FACTORY_PROGRESS_EDITABLE_CONTAINER_COLUMNS.has(column);
+    }
+    return false;
   }
 
   function updateForm<K extends keyof DraftFormState>(key: K, value: DraftFormState[K]) {
@@ -1005,20 +1100,33 @@ export function PurchaseOrderCreateForm({
     );
   }
 
-  function validateManualContainerNumbers() {
-    if (form.purchaseType === "FACTORY_ORDER") return;
+  function validateManualContainerNumbers(requireFactoryContainerNumbers = false) {
+    if (form.purchaseType === "FACTORY_ORDER" && factoryUsesInternalContainerNumbering) return;
     const invalidContainer = containers.find(
       (container) => !isValidManualContainerNumber(container.containerNumber)
     );
     if (invalidContainer) {
       throw new Error("Container Number must match 4 letters followed by 7 digits.");
     }
+    if (
+      requireFactoryContainerNumbers &&
+      form.purchaseType === "FACTORY_ORDER" &&
+      !factoryUsesInternalContainerNumbering
+    ) {
+      const missingContainer = containers.find((container) => !container.containerNumber?.trim());
+      if (missingContainer) {
+        throw new Error(
+          "Container Number is required for factory orders when the owner uses manual numbering."
+        );
+      }
+    }
   }
 
   async function handleSaveDraft() {
+    if (!canSaveDraftLikeChanges) return;
     setSaving(true);
     try {
-      validateManualContainerNumbers();
+      validateManualContainerNumbers(false);
       const payload: PurchaseOrderDraftInput = {
         ...form,
         orderNo: generatedOrderNo,
@@ -1031,12 +1139,7 @@ export function PurchaseOrderCreateForm({
       };
       const result =
         isEditMode && initialOrder
-          ? await (isPendingEdit
-              ? updatePurchaseOrderPending(initialOrder.id, {
-                  ...payload,
-                  containers: containers.map(({ key, ...container }) => container),
-                })
-              : updatePurchaseOrderDraft(initialOrder.id, payload))
+          ? await updatePurchaseOrderDraft(initialOrder.id, payload)
           : await createPurchaseOrderDraft(payload);
       toast({
         title: isEditMode ? "Purchase order updated" : "Draft saved",
@@ -1057,9 +1160,10 @@ export function PurchaseOrderCreateForm({
   }
 
   async function handleSubmitOrder() {
+    if (!canSubmitChanges) return;
     setSubmitting(true);
     try {
-      validateManualContainerNumbers();
+      validateManualContainerNumbers(true);
       const payload: PurchaseOrderDraftInput = {
         ...form,
         orderNo: generatedOrderNo,
@@ -1072,9 +1176,9 @@ export function PurchaseOrderCreateForm({
       };
       const result =
         isEditMode && initialOrder
-          ? await (isPendingEdit
-              ? submitPurchaseOrderPending(initialOrder.id, payload)
-              : submitPurchaseOrderDraftUpdate(initialOrder.id, payload))
+          ? await (resolvedEditPermissions?.canSaveDraftLikeChanges
+              ? submitPurchaseOrderDraftUpdate(initialOrder.id, payload)
+              : submitPurchaseOrderPending(initialOrder.id, payload))
           : await createPurchaseOrderSubmit(payload);
       toast({
         title: isEditMode ? "Purchase order updated" : "Purchase order submitted",
@@ -1118,7 +1222,7 @@ export function PurchaseOrderCreateForm({
               <Select
                 value={form.purchaseType}
                 onValueChange={(value) => handlePurchaseTypeChange(value as PurchaseType)}
-                disabled={itemStructureLocked}
+                disabled={headerFieldsLocked}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -1147,7 +1251,7 @@ export function PurchaseOrderCreateForm({
               onSelect={(option) => applySupplier((option as PurchaseDraftSupplierOption | null) ?? null)}
               onClear={() => applySupplier(null)}
               emptyMessage="No matching suppliers."
-              disabled={saving || itemStructureLocked}
+              disabled={saving || headerFieldsLocked}
             />
 
             <div className="space-y-1.5">
@@ -1155,7 +1259,7 @@ export function PurchaseOrderCreateForm({
               <Select
                 value={form.ownerId ?? "__empty__"}
                 onValueChange={(value) => updateForm("ownerId", value === "__empty__" ? null : value)}
-                disabled={itemStructureLocked}
+                disabled={headerFieldsLocked}
               >
                 <SelectTrigger className="[&>span]:flex-1 [&>span]:text-left">
                   <SelectValue placeholder="Select owner" />
@@ -1169,6 +1273,13 @@ export function PurchaseOrderCreateForm({
                   ))}
                 </SelectContent>
               </Select>
+              {form.purchaseType === "FACTORY_ORDER" && selectedOwner ? (
+                <p className="text-xs text-muted-foreground">
+                  {selectedOwner.usesInternalContainerNumbering
+                    ? "Container numbers will be auto-generated on Submit for this owner."
+                    : "This owner uses manual container numbering. Enter container numbers before Submit."}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-1.5">
@@ -1176,7 +1287,7 @@ export function PurchaseOrderCreateForm({
               <Select
                 value={form.buyerId ?? "__empty__"}
                 onValueChange={(value) => updateForm("buyerId", value === "__empty__" ? null : value)}
-                disabled={itemStructureLocked}
+                disabled={headerFieldsLocked}
               >
                 <SelectTrigger className="[&>span]:flex-1 [&>span]:text-left">
                   <SelectValue placeholder="Select buyer" />
@@ -1198,7 +1309,7 @@ export function PurchaseOrderCreateForm({
                 type="date"
                 value={form.purchaseDate ?? ""}
                 onChange={(event) => updateForm("purchaseDate", event.target.value || null)}
-                disabled={itemStructureLocked}
+                disabled={headerFieldsLocked}
               />
             </div>
 
@@ -1209,6 +1320,7 @@ export function PurchaseOrderCreateForm({
                   type="date"
                   value={form.estimatedOfflineTime ?? ""}
                   onChange={(event) => updateForm("estimatedOfflineTime", event.target.value || null)}
+                  disabled={headerFieldsLocked}
                 />
               </div>
             ) : null}
@@ -1220,6 +1332,7 @@ export function PurchaseOrderCreateForm({
                   <Input
                     value={form.contractNumber ?? ""}
                     onChange={(event) => updateForm("contractNumber", event.target.value || null)}
+                    disabled={headerFieldsLocked}
                   />
                 </div>
 
@@ -1228,6 +1341,7 @@ export function PurchaseOrderCreateForm({
                   <Input
                     value={form.invoiceNumber ?? ""}
                     onChange={(event) => updateForm("invoiceNumber", event.target.value || null)}
+                    disabled={headerFieldsLocked}
                   />
                 </div>
               </>
@@ -1242,6 +1356,7 @@ export function PurchaseOrderCreateForm({
                     min="0"
                     value={form.freeday ?? ""}
                     onChange={(event) => updateForm("freeday", parseNumberInput(event.target.value))}
+                    disabled={headerFieldsLocked}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -1249,6 +1364,7 @@ export function PurchaseOrderCreateForm({
                   <Input
                     value={form.vendorReleaseNumber ?? ""}
                     onChange={(event) => updateForm("vendorReleaseNumber", event.target.value || null)}
+                    disabled={headerFieldsLocked}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -1257,6 +1373,7 @@ export function PurchaseOrderCreateForm({
                     type="date"
                     value={form.vendorReleaseDate ?? ""}
                     onChange={(event) => updateForm("vendorReleaseDate", event.target.value || null)}
+                    disabled={headerFieldsLocked}
                   />
                 </div>
               </>
@@ -1267,6 +1384,7 @@ export function PurchaseOrderCreateForm({
               <Textarea
                 value={form.remark ?? ""}
                 onChange={(event) => updateForm("remark", event.target.value || null)}
+                disabled={headerFieldsLocked}
               />
             </div>
           </CardContent>
@@ -1291,7 +1409,7 @@ export function PurchaseOrderCreateForm({
 
                     <Select
                       value={row.materialVendorId ?? "__empty__"}
-                      disabled={itemStructureLocked}
+                      disabled={materialTypesLocked}
                       onValueChange={(value) =>
                         setMaterialTypes((current) =>
                           current.map((entry) =>
@@ -1636,6 +1754,70 @@ export function PurchaseOrderCreateForm({
 
                   <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
                     <EditableInputCell
+                      active={isEditing("tareWeight")}
+                      value={item.tareWeight != null ? String(item.tareWeight) : ""}
+                      display={displayWeight(item.tareWeight)}
+                      type="number"
+                      disableSpinner
+                      preventWheelChange
+                      onActivate={() => activateCell(item.key, "tareWeight")}
+                      onDeactivate={deactivateCell}
+                      onChange={(value) =>
+                        updateItem(item.key, (current) => ({
+                          ...current,
+                          tareWeight: parseNumberInput(value),
+                        }))
+                      }
+                    />
+                  </TableCell>
+
+                  <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                    <EditableInputCell
+                      active={isEditing("maximumWeight")}
+                      value={item.maximumWeight != null ? String(item.maximumWeight) : ""}
+                      display={displayWeight(item.maximumWeight)}
+                      type="number"
+                      disableSpinner
+                      preventWheelChange
+                      onActivate={() => activateCell(item.key, "maximumWeight")}
+                      onDeactivate={deactivateCell}
+                      onChange={(value) =>
+                        updateItem(item.key, (current) => ({
+                          ...current,
+                          maximumWeight: parseNumberInput(value),
+                        }))
+                      }
+                    />
+                  </TableCell>
+
+                  <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                    <div className="flex h-10 items-center justify-center px-2 text-sm">
+                      {displayWeight(
+                        item.tareWeight != null && item.maximumWeight != null
+                          ? item.maximumWeight - item.tareWeight
+                          : null
+                      )}
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                    <EditableInputCell
+                      active={isEditing("cscNumber")}
+                      value={item.cscNumber ?? ""}
+                      display={displayValue(item.cscNumber)}
+                      onActivate={() => activateCell(item.key, "cscNumber")}
+                      onDeactivate={deactivateCell}
+                      onChange={(value) =>
+                        updateItem(item.key, (current) => ({
+                          ...current,
+                          cscNumber: value || null,
+                        }))
+                      }
+                    />
+                  </TableCell>
+
+                  <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                    <EditableInputCell
                       active={isEditing("plannedQty")}
                       value={String(item.plannedQty)}
                       display={displayValue(item.plannedQty)}
@@ -1741,10 +1923,10 @@ export function PurchaseOrderCreateForm({
                       </div>
                       <div className="overflow-x-auto">
                         <div
-                          className="grid min-w-[980px] border border-border bg-background"
+                          className="grid min-w-[1480px] border border-border bg-background"
                           style={{
                             gridTemplateColumns:
-                              "180px 100px 160px 130px 90px 90px 140px 90px 160px",
+                              "180px 100px 160px 130px 90px 90px 140px 90px 160px 120px 140px 130px 150px",
                           }}
                         >
                           {[
@@ -1757,6 +1939,10 @@ export function PurchaseOrderCreateForm({
                             "Locking Bars",
                             "Vents",
                             "Machine Type",
+                            "Tare Weight",
+                            "Maximum Weight",
+                            "Payload Weight",
+                            "CSC Number",
                           ].map((label) => (
                             <div
                               key={label}
@@ -1768,13 +1954,14 @@ export function PurchaseOrderCreateForm({
                           {itemContainers.map((container) => (
                             <Fragment key={container.key}>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2 text-center text-sm last:border-r-0">
-                                {form.purchaseType === "FACTORY_ORDER" ? (
+                                {form.purchaseType === "FACTORY_ORDER" && factoryUsesInternalContainerNumbering ? (
                                   <span className="text-muted-foreground">
                                     {container.containerNumber || "Auto-generated"}
                                   </span>
                                 ) : (
                                   <Input
                                     value={container.containerNumber ?? ""}
+                                    disabled={!fullEditAllowed}
                                     onChange={(event) =>
                                       updateContainer(container.key, (current) => ({
                                         ...current,
@@ -1790,6 +1977,7 @@ export function PurchaseOrderCreateForm({
                                 <Input
                                   type="number"
                                   value={container.yom ?? ""}
+                                  disabled={!fullEditAllowed}
                                   onChange={(event) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
@@ -1803,7 +1991,8 @@ export function PurchaseOrderCreateForm({
                                 <Input
                                   type="date"
                                   value={container.offlineDate ?? ""}
-                                  readOnly={form.purchaseType !== "FACTORY_ORDER"}
+                                  readOnly={form.purchaseType !== "FACTORY_ORDER" || !canEditContainerColumn("offlineDate")}
+                                  disabled={!canEditContainerColumn("offlineDate")}
                                   onChange={(event) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
@@ -1816,6 +2005,7 @@ export function PurchaseOrderCreateForm({
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
                                 <Select
                                   value={container.color ?? "__empty__"}
+                                  disabled={!fullEditAllowed}
                                   onValueChange={(value) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
@@ -1839,6 +2029,7 @@ export function PurchaseOrderCreateForm({
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
                                 <Select
                                   value={container.flp ? "FLP" : "-"}
+                                  disabled={!fullEditAllowed}
                                   onValueChange={(value) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
@@ -1858,6 +2049,7 @@ export function PurchaseOrderCreateForm({
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
                                 <Select
                                   value={container.lbx ? "LBX" : "-"}
+                                  disabled={!fullEditAllowed}
                                   onValueChange={(value) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
@@ -1877,6 +2069,7 @@ export function PurchaseOrderCreateForm({
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
                                 <Select
                                   value={container.lockingBarsCount != null ? String(container.lockingBarsCount) : "__empty__"}
+                                  disabled={!fullEditAllowed}
                                   onValueChange={(value) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
@@ -1898,6 +2091,7 @@ export function PurchaseOrderCreateForm({
                                 <Input
                                   type="number"
                                   value={container.ventsCount ?? ""}
+                                  disabled={!fullEditAllowed}
                                   onChange={(event) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
@@ -1910,10 +2104,60 @@ export function PurchaseOrderCreateForm({
                               <div className="flex min-h-10 items-center justify-center border-b px-2">
                                 <Input
                                   value={container.machineType ?? ""}
+                                  disabled={!fullEditAllowed}
                                   onChange={(event) =>
                                     updateContainer(container.key, (current) => ({
                                       ...current,
                                       machineType: event.target.value || null,
+                                    }))
+                                  }
+                                  className="h-8 border-0 px-2 text-center shadow-none"
+                                />
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-l px-2">
+                                <Input
+                                  type="number"
+                                  value={container.tareWeight ?? ""}
+                                  disabled={!canEditContainerColumn("tareWeight")}
+                                  onChange={(event) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      tareWeight: parseNumberInput(event.target.value),
+                                    }))
+                                  }
+                                  className="[appearance:textfield] h-8 border-0 px-2 text-center shadow-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                />
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-l px-2">
+                                <Input
+                                  type="number"
+                                  value={container.maximumWeight ?? ""}
+                                  disabled={!canEditContainerColumn("maximumWeight")}
+                                  onChange={(event) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      maximumWeight: parseNumberInput(event.target.value),
+                                    }))
+                                  }
+                                  className="[appearance:textfield] h-8 border-0 px-2 text-center shadow-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                />
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-l px-2 text-sm">
+                                {displayWeight(
+                                  container.tareWeight != null &&
+                                    container.maximumWeight != null
+                                    ? container.maximumWeight - container.tareWeight
+                                    : null
+                                )}
+                              </div>
+                              <div className="flex min-h-10 items-center justify-center border-b border-l px-2">
+                                <Input
+                                  value={container.cscNumber ?? ""}
+                                  disabled={!canEditContainerColumn("cscNumber")}
+                                  onChange={(event) =>
+                                    updateContainer(container.key, (current) => ({
+                                      ...current,
+                                      cscNumber: event.target.value || null,
                                     }))
                                   }
                                   className="h-8 border-0 px-2 text-center shadow-none"
@@ -2004,6 +2248,7 @@ export function PurchaseOrderCreateForm({
               <Select
                 value={form.paymentMode ?? "__empty__"}
                 onValueChange={(value) => handlePaymentModeChange(value as PurchasePaymentMode)}
+                disabled={financeFieldsLocked}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -2023,6 +2268,7 @@ export function PurchaseOrderCreateForm({
                 type="date"
                 value={form.dueDate ?? ""}
                 onChange={(event) => updateForm("dueDate", event.target.value || null)}
+                disabled={financeFieldsLocked}
               />
             </div>
             <div className="space-y-1.5">
@@ -2030,6 +2276,7 @@ export function PurchaseOrderCreateForm({
               <Input
                 value={form.settlementPaymentTerm ?? ""}
                 onChange={(event) => updateForm("settlementPaymentTerm", event.target.value || null)}
+                disabled={financeFieldsLocked}
               />
             </div>
             <div className="space-y-1.5">
@@ -2037,6 +2284,7 @@ export function PurchaseOrderCreateForm({
               <Input
                 value={form.settlementCurrency ?? ""}
                 onChange={(event) => updateForm("settlementCurrency", event.target.value || null)}
+                disabled={financeFieldsLocked}
               />
             </div>
             <div className="space-y-1.5">
@@ -2046,6 +2294,7 @@ export function PurchaseOrderCreateForm({
                 onChange={(event) =>
                   updateForm("settlementBalanceTriggerEvent", event.target.value || null)
                 }
+                disabled={financeFieldsLocked}
               />
             </div>
 
@@ -2056,6 +2305,7 @@ export function PurchaseOrderCreateForm({
                   <Select
                     value={form.settlementPrepaymentPool === false ? "NO" : "YES"}
                     onValueChange={(value) => updateForm("settlementPrepaymentPool", value === "YES")}
+                    disabled={financeFieldsLocked}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -2075,6 +2325,7 @@ export function PurchaseOrderCreateForm({
                     onChange={(event) =>
                       updateForm("settlementPrepaymentThreshold", parseNumberInput(event.target.value))
                     }
+                    disabled={financeFieldsLocked}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2106,6 +2357,7 @@ export function PurchaseOrderCreateForm({
                         parseNumberInput(event.target.value)
                       )
                     }
+                    disabled={financeFieldsLocked}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2113,6 +2365,7 @@ export function PurchaseOrderCreateForm({
                   <Select
                     value={form.settlementPrepaymentPool ? "YES" : "NO"}
                     onValueChange={(value) => updateForm("settlementPrepaymentPool", value === "YES")}
+                    disabled={financeFieldsLocked}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -2132,6 +2385,7 @@ export function PurchaseOrderCreateForm({
                     onChange={(event) =>
                       updateForm("settlementPrepaymentThreshold", parseNumberInput(event.target.value))
                     }
+                    disabled={financeFieldsLocked}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2158,6 +2412,7 @@ export function PurchaseOrderCreateForm({
                     onChange={(event) =>
                       updateForm("settlementCreditDays", parseNumberInput(event.target.value))
                     }
+                    disabled={financeFieldsLocked}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2170,6 +2425,7 @@ export function PurchaseOrderCreateForm({
                     onChange={(event) =>
                       updateForm("settlementCreditLimit", parseNumberInput(event.target.value))
                     }
+                    disabled={financeFieldsLocked}
                   />
                 </div>
               </>
@@ -2183,12 +2439,21 @@ export function PurchaseOrderCreateForm({
               Cancel
             </Link>
           </Button>
-          <Button type="button" variant="outline" onClick={() => void handleSaveDraft()} disabled={saving || submitting}>
-            {isEditMode ? "Save Changes" : "Save Draft"}
-          </Button>
-          <Button type="button" onClick={() => void handleSubmitOrder()} disabled={saving || submitting}>
-            Submit Order
-          </Button>
+          {canSaveDraftLikeChanges ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleSaveDraft()}
+              disabled={saving || submitting}
+            >
+              {isEditMode ? "Save Changes" : "Save Draft"}
+            </Button>
+          ) : null}
+          {canSubmitChanges ? (
+            <Button type="button" onClick={() => void handleSubmitOrder()} disabled={saving || submitting}>
+              Submit Order
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -9,12 +9,13 @@ import { MaterialVendorForm } from "@/components/material-vendors/material-vendo
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function ViewMaterialVendorPage({ params }: PageProps) {
+  const { id } = await params;
   const [vendor, picOptions] = await Promise.all([
-    getMaterialVendorById(params.id),
+    getMaterialVendorById(id),
     getMaterialVendorBuyerOptions(),
   ]);
 

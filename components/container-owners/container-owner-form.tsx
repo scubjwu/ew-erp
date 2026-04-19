@@ -76,6 +76,7 @@ const containerOwnerFormSchema = z.object({
       ...ContainerOwnerStatus[],
     ]
   ),
+  uses_internal_container_numbering: z.boolean(),
   legal_company_name: z.string().trim().min(1, "Legal company name is required"),
   company_name: z.string().trim(),
   address: z.string().trim(),
@@ -135,6 +136,7 @@ function mapContainerOwnerToForm(owner: ContainerOwner): ContainerOwnerFormValue
   return {
     container_owner_code: owner.container_owner_code,
     status: owner.status,
+    uses_internal_container_numbering: owner.uses_internal_container_numbering,
     legal_company_name: owner.legal_company_name,
     company_name: owner.company_name ?? "",
     address: owner.address ?? "",
@@ -176,6 +178,7 @@ function defaultValues(picUserId = ""): ContainerOwnerFormValues {
   return {
     container_owner_code: "",
     status: "Normal",
+    uses_internal_container_numbering: false,
     legal_company_name: "",
     company_name: "",
     address: "",
@@ -373,6 +376,7 @@ export function ContainerOwnerForm({
         container_owner_code: values.container_owner_code,
         legal_company_name: values.legal_company_name,
         company_name: values.company_name || null,
+        uses_internal_container_numbering: values.uses_internal_container_numbering,
         address: values.address || null,
         region_id: values.region_id || null,
         country: values.country || null,
@@ -577,6 +581,28 @@ export function ContainerOwnerForm({
                             </SelectContent>
                           </Select>
                         )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="uses_internal_container_numbering"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Use Our Container Numbering</FormLabel>
+                        <FormControl>
+                          <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm">
+                            <input
+                              type="checkbox"
+                              aria-label="Use Our Container Numbering"
+                              checked={field.value}
+                              onChange={(event) => field.onChange(event.target.checked)}
+                              disabled={readOnly}
+                            />
+                            <span>{field.value ? "Enabled" : "Disabled"}</span>
+                          </label>
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

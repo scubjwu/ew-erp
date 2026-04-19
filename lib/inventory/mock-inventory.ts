@@ -161,6 +161,11 @@ export function buildMockInventoryRows(): InventoryRow[] {
     const size = SIZES[i % SIZES.length];
     const type = TYPES[i % TYPES.length];
     const hire = new Date(2024, i % 12, (i % 28) + 1);
+    const depotName = `Depot ${(i % 4) + 1}`;
+    const depotAddr = `${100 + i} Container Way, Zone ${(i % 3) + 1}`;
+    const depotTel = `+1-555-${String(1000 + i).slice(-4)}`;
+    const pol = POLS[i % POLS.length];
+    const pod = PODS[i % PODS.length];
 
     return {
       id: `inv-${i + 1}`,
@@ -169,8 +174,26 @@ export function buildMockInventoryRows(): InventoryRow[] {
       type,
       condition: CONDITIONS[i % CONDITIONS.length],
       color: COLORS[i % COLORS.length],
-      pod: PODS[i % PODS.length],
-      pol: POLS[i % POLS.length],
+      purchase_date: isoDate(new Date(2024, (i + 2) % 12, ((i + 6) % 28) + 1)),
+      planned_depot_name: depotName,
+      actual_depot_id: `depot-${(i % 4) + 1}`,
+      pol_id: `pol-${pol}`,
+      pod_id: `pod-${pod}`,
+      actual_depot: {
+        depot_name: depotName,
+        depot_tel: depotTel,
+        depot_address: depotAddr,
+      },
+      pol_city: {
+        city_code: pol,
+        city_name: pol,
+      },
+      pod_city: {
+        city_code: pod,
+        city_name: pod,
+      },
+      pod,
+      pol,
       carrier: CARRIERS[i % CARRIERS.length],
       transitCompany: TRANSIT_COMPANIES[i % TRANSIT_COMPANIES.length],
       onhire_no: `OH-${9000 + i}`,
@@ -192,9 +215,9 @@ export function buildMockInventoryRows(): InventoryRow[] {
       onHireDate: isoDate(hire),
       customer: CUSTOMERS[i % CUSTOMERS.length],
       price: 1800 + i * 175 + (i % 3) * 50,
-      depotName: `Depot ${(i % 4) + 1}`,
-      depotAddr: `${100 + i} Container Way, Zone ${(i % 3) + 1}`,
-      depotTel: `+1-555-${String(1000 + i).slice(-4)}`,
+      depotName,
+      depotAddr,
+      depotTel,
       gateInRef: `GI-${2025}${String(i).padStart(4, "0")}`,
       cost: 1200 + i * 120,
     };

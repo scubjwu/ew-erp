@@ -30,6 +30,7 @@ export interface ContainerOwner {
   container_owner_code: string;
   legal_company_name: string;
   company_name: string | null;
+  uses_internal_container_numbering: boolean;
   address: string | null;
   region_id: string | null;
   region?: ContainerOwnerRegionRef | null;

@@ -8,16 +8,17 @@ export const dynamic = "force-dynamic";
 export default async function EditPurchaseOrderPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   try {
-    const { options, order, editMode } = await getPurchaseOrderEditForm(params.id);
+    const { id } = await params;
+    const { options, order, editPermissions } = await getPurchaseOrderEditForm(id);
     return (
       <PurchaseOrderCreateForm
         options={options}
         initialOrder={order}
         mode="edit"
-        editMode={editMode}
+        editPermissions={editPermissions}
       />
     );
   } catch {

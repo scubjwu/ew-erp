@@ -112,6 +112,30 @@ export function PurchaseItemContainersView({
               </div>
               <div className="mt-1 text-sm">{conditionLabel(item)}</div>
             </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tare Weight
+              </div>
+              <div className="mt-1 text-sm">{formatNumber(item.tareWeight)}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Maximum Weight
+              </div>
+              <div className="mt-1 text-sm">{formatNumber(item.maximumWeight)}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Payload Weight
+              </div>
+              <div className="mt-1 text-sm">{formatNumber(item.payloadWeight)}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                CSC Number
+              </div>
+              <div className="mt-1 text-sm">{item.cscNumber ?? "-"}</div>
+            </div>
           </CardContent>
         </Card>
 
@@ -136,6 +160,10 @@ export function PurchaseItemContainersView({
                   <TableHead>Machine Type</TableHead>
                   <TableHead>YOM</TableHead>
                   <TableHead>Offline Date</TableHead>
+                  <TableHead>Tare Weight</TableHead>
+                  <TableHead>Maximum Weight</TableHead>
+                  <TableHead>Payload Weight</TableHead>
+                  <TableHead>CSC Number</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Purchase Price</TableHead>
                   <TableHead>Financial Cost</TableHead>
@@ -145,7 +173,7 @@ export function PurchaseItemContainersView({
                 {containers.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={16}
+                      colSpan={20}
                       className="h-24 text-center text-sm text-muted-foreground"
                     >
                       No containers found for this PO item.
@@ -175,6 +203,10 @@ export function PurchaseItemContainersView({
                       <TableCell>{container.machineType ?? "-"}</TableCell>
                       <TableCell>{formatNumber(container.yom)}</TableCell>
                       <TableCell>{formatDate(container.offlineDate)}</TableCell>
+                      <TableCell>{formatNumber(container.tareWeight)}</TableCell>
+                      <TableCell>{formatNumber(container.maximumWeight)}</TableCell>
+                      <TableCell>{formatNumber(container.payloadWeight)}</TableCell>
+                      <TableCell>{container.cscNumber ?? "-"}</TableCell>
                       <TableCell>{container.containerStatus ?? "-"}</TableCell>
                       <TableCell>{formatCurrency(container.purchasePrice)}</TableCell>
                       <TableCell>{formatCurrency(container.financialCost)}</TableCell>

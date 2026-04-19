@@ -134,7 +134,7 @@ function purchaseResult(
       {
         id: "po-1",
         orderNo: "PO-001",
-        purchaseType: "FACTORY_ORDER",
+        purchaseType: "USED_CONTAINER",
         supplierId: "vendor-1",
         ownerId: null,
         buyerId: null,
@@ -262,7 +262,15 @@ const filterOptions = {
     { value: "RAL1001", label: "RAL1001", searchText: "RAL1001" },
     { value: "RAL5002", label: "RAL5002", searchText: "RAL5002" },
   ],
-  statuses: ["DRAFT", "SUBMITTED", "IN_PRODUCTION", "RELEASED", "COMPLETED", "CANCELLED"] as const,
+  statuses: [
+    "DRAFT",
+    "SUBMITTED",
+    "IN_PRODUCTION",
+    "PARTIAL_RELEASED",
+    "RELEASED",
+    "COMPLETED",
+    "CANCELLED",
+  ] as const,
 };
 
 describe("PurchaseOrdersDashboard", () => {
@@ -831,6 +839,37 @@ describe("PurchaseOrdersDashboard", () => {
 
     const headCells = screen.getAllByRole("columnheader");
     expect(headCells.at(-1)).toHaveClass("sticky", "right-0", "border-l", "bg-card");
+  });
+
+  it("shows edit for non-terminal statuses and hides it for terminal statuses", () => {
+    const { unmount } = render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult({
+          rows: [{ ...purchaseResult().rows[0], orderStatus: "RELEASED" }],
+        })}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: /edit/i })).toHaveAttribute(
+      "href",
+      "/purchase/po-management/po-1/edit"
+    );
+
+    unmount();
+
+    render(
+      <PurchaseOrdersDashboard
+        initial={purchaseResult({
+          rows: [{ ...purchaseResult().rows[0], orderStatus: "COMPLETED" }],
+        })}
+        pageSize={10}
+        filterOptions={filterOptions}
+      />
+    );
+
+    expect(screen.queryByRole("link", { name: /edit/i })).not.toBeInTheDocument();
   });
 
   it("shows matching location options and allows keyboard selection", async () => {

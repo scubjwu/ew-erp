@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
 import { revalidateConditionCodePages } from "@/app/basic-info/condition-codes/actions";
@@ -82,7 +82,7 @@ export function ConditionCodeFormDialog({
   const [saving, setSaving] = useState(false);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: DEFAULT_VALUES,
   });
 
@@ -236,4 +236,3 @@ export function ConditionCodeFormDialog({
     </Dialog>
   );
 }
-

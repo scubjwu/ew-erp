@@ -3,8 +3,10 @@
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPurchaseOrderEditPermissions } from "@/types/purchase";
 import type {
   PurchaseBankInformationSnapshot,
+  PurchaseOrderEditPermissions,
   PurchaseFinanceRecord,
   PurchaseMaterialType,
   PurchaseOrderDraftContainerInput,
@@ -151,6 +153,7 @@ export type PurchaseDraftSupplierOption = PurchaseAutocompleteOption & {
 export type PurchaseDraftOwnerOption = {
   id: string;
   label: string;
+  usesInternalContainerNumbering: boolean;
 };
 
 export type PurchaseDraftBuyerOption = {
@@ -258,6 +261,7 @@ type PurchaseOrderRowRaw = {
     container_owner_code: string | null;
     company_name: string | null;
     legal_company_name: string | null;
+    uses_internal_container_numbering: boolean;
   } | null;
   buyer?: {
     id: string;
@@ -318,6 +322,10 @@ type PurchaseOrderItemDetailRowRaw = {
   machine_type: string | null;
   yom: number | null;
   offline_date: string | null;
+  tare_weight: number | null;
+  maximum_weight: number | null;
+  payload_weight: number | null;
+  csc_number: string | null;
   planned_qty: number | null;
   unit_price: number | null;
   financial_cost: number | null;
@@ -371,6 +379,10 @@ type PurchaseOrderContainerRowRaw = {
   machine_type: string | null;
   yom: number | null;
   offline_date: string | null;
+  tare_weight: number | null;
+  maximum_weight: number | null;
+  payload_weight: number | null;
+  csc_number: string | null;
   purchase_price: number | null;
   financial_cost: number | null;
   container_status: string | null;
@@ -449,8 +461,12 @@ type PurchaseFinanceRecordRaw = {
   updated_at: string;
 };
 
-function normalizeText(value?: string) {
+function normalizeText(value?: string | null) {
   return value?.trim() ?? "";
+}
+
+function firstRelation<T>(value?: T | T[] | null): T | undefined {
+  return Array.isArray(value) ? value[0] : value ?? undefined;
 }
 
 function toNumber(value: number | string | null | undefined) {
@@ -503,6 +519,10 @@ function mapPurchaseOrderItem(row: PurchaseOrderItemDetailRowRaw): PurchaseOrder
     machineType: row.machine_type,
     yom: row.yom,
     offlineDate: row.offline_date,
+    tareWeight: row.tare_weight,
+    maximumWeight: row.maximum_weight,
+    payloadWeight: row.payload_weight,
+    cscNumber: row.csc_number,
     plannedQty: toNumber(row.planned_qty),
     unitPrice: row.unit_price,
     financialCost: row.financial_cost,
@@ -538,6 +558,10 @@ function mapPurchaseOrderContainer(row: PurchaseOrderContainerRowRaw): PurchaseO
     machineType: row.machine_type,
     yom: row.yom,
     offlineDate: row.offline_date,
+    tareWeight: row.tare_weight,
+    maximumWeight: row.maximum_weight,
+    payloadWeight: row.payload_weight,
+    cscNumber: row.csc_number,
     purchasePrice: row.purchase_price,
     financialCost: row.financial_cost,
     containerStatus: row.container_status,
@@ -560,8 +584,8 @@ function isAvailableContainerStatus(status: string | null | undefined) {
   return status === "IN_YARD" || status === "PICKED_UP";
 }
 
-function isEditablePurchaseOrderStatus(status: PurchaseOrderStatus) {
-  return status !== "COMPLETED" && status !== "CANCELLED";
+function getOrderEditPermissions(order: Pick<PurchaseOrderDetail, "purchaseType" | "orderStatus">) {
+  return getPurchaseOrderEditPermissions(order.purchaseType, order.orderStatus);
 }
 
 function attachItemCancellationCounts(
@@ -839,7 +863,7 @@ async function loadPurchaseRows(baseFilters: {
         created_at,
         updated_at,
         supplier:vendors!purchase_order_supplier_id_vendors_fkey(id, vendor_code, company_name, legal_company_name),
-        owner:container_owners!purchase_order_owner_id_fkey(id, container_owner_code, company_name, legal_company_name),
+        owner:container_owners!purchase_order_owner_id_fkey(id, container_owner_code, company_name, legal_company_name, uses_internal_container_numbering),
         buyer:users!purchase_order_buyer_id_fkey(id, user_code, full_name)
       `
     );
@@ -918,6 +942,10 @@ async function loadPurchaseContainers(orderIds: string[]) {
         machine_type,
         yom,
         offline_date,
+        tare_weight,
+        maximum_weight,
+        payload_weight,
+        csc_number,
         purchase_price,
         financial_cost,
         container_status,
@@ -977,30 +1005,35 @@ async function loadVendorFilterOptions(): Promise<PurchaseAutocompleteOption[]> 
 
   if (error) throw new Error(error.message);
 
-  const options = ((data ?? []) as Array<{ supplier?: PurchaseOrderRowRaw["supplier"] }>).flatMap((row) => {
-      const supplier = row.supplier;
-      if (!supplier) return [];
-      const value =
-        supplier.vendor_code ??
-        supplier.company_name ??
-        supplier.legal_company_name ??
-        supplier.id;
-      const secondaryLabel = supplier.company_name ?? supplier.legal_company_name ?? undefined;
-      return [
-        {
-          value,
-          label: supplier.vendor_code ?? secondaryLabel ?? value,
-          secondaryLabel,
-          searchText: [
-            supplier.vendor_code,
-            supplier.company_name,
-            supplier.legal_company_name,
-          ]
-            .filter(Boolean)
-            .join(" "),
-        },
-      ];
-    }) as PurchaseAutocompleteOption[];
+  type RawSupplier = NonNullable<PurchaseOrderRowRaw["supplier"]>;
+  type RawRow = { supplier?: RawSupplier | RawSupplier[] | null };
+
+  const options = ((data ?? []) as RawRow[]).flatMap((row) => {
+    const supplier = firstRelation(row.supplier);
+    if (!supplier) return [];
+
+    const value =
+      supplier.vendor_code ??
+      supplier.company_name ??
+      supplier.legal_company_name ??
+      supplier.id;
+    const secondaryLabel = supplier.company_name ?? supplier.legal_company_name ?? undefined;
+
+    return [
+      {
+        value,
+        label: supplier.vendor_code ?? secondaryLabel ?? value,
+        secondaryLabel,
+        searchText: [
+          supplier.vendor_code,
+          supplier.company_name,
+          supplier.legal_company_name,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+    ];
+  });
 
   return dedupeAutocompleteOptions(options).sort((left, right) =>
     `${left.label} ${left.secondaryLabel ?? ""}`.localeCompare(
@@ -1020,18 +1053,21 @@ async function loadLocationFilterOptions(): Promise<PurchaseAutocompleteOption[]
 
   if (error) throw new Error(error.message);
 
-  const options = ((data ?? []) as Array<{ location?: PurchaseItemRowRaw["location"] }>).flatMap((row) => {
-      const location = row.location;
-      if (!location?.city_code) return [];
-      return [
-        {
-          value: location.city_code,
-          label: location.city_code,
-          secondaryLabel: location.city_name,
-          searchText: `${location.city_code} ${location.city_name}`,
-        },
-      ];
-    }) as PurchaseAutocompleteOption[];
+  type RawLocation = NonNullable<PurchaseItemRowRaw["location"]>;
+  type RawRow = { location?: RawLocation | RawLocation[] | null };
+
+  const options = ((data ?? []) as RawRow[]).flatMap((row) => {
+    const location = firstRelation(row.location);
+    if (!location?.city_code) return [];
+    return [
+      {
+        value: location.city_code,
+        label: location.city_code,
+        secondaryLabel: location.city_name,
+        searchText: `${location.city_code} ${location.city_name}`,
+      },
+    ];
+  });
 
   return dedupeAutocompleteOptions(options).sort((left, right) =>
     left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
@@ -1053,22 +1089,26 @@ async function loadSizeTypeFilterOptions(): Promise<PurchaseAutocompleteOption[]
 
   if (error) throw new Error(error.message);
 
-  const options = ((data ?? []) as Array<{
-      size?: Pick<NonNullable<PurchaseItemRowRaw["size"]>, "size_code"> | null;
-      type?: Pick<NonNullable<PurchaseItemRowRaw["type"]>, "type_code"> | null;
-    }>).flatMap((row) => {
-      const sizeCode = row.size?.size_code ?? null;
-      const typeCode = row.type?.type_code ?? null;
-      if (!sizeCode || !typeCode) return [];
-      const combined = `${sizeCode}${typeCode}`;
-      return [
-        {
-          value: combined,
-          label: combined,
-          searchText: `${sizeCode} ${typeCode} ${combined}`,
-        },
-      ];
-    }) as PurchaseAutocompleteOption[];
+  type RawSize = Pick<NonNullable<PurchaseItemRowRaw["size"]>, "size_code">;
+  type RawType = Pick<NonNullable<PurchaseItemRowRaw["type"]>, "type_code">;
+  type RawRow = {
+    size?: RawSize | RawSize[] | null;
+    type?: RawType | RawType[] | null;
+  };
+
+  const options = ((data ?? []) as RawRow[]).flatMap((row) => {
+    const sizeCode = firstRelation(row.size)?.size_code ?? null;
+    const typeCode = firstRelation(row.type)?.type_code ?? null;
+    if (!sizeCode || !typeCode) return [];
+    const combined = `${sizeCode}${typeCode}`;
+    return [
+      {
+        value: combined,
+        label: combined,
+        searchText: `${sizeCode} ${typeCode} ${combined}`,
+      },
+    ];
+  });
 
   return dedupeAutocompleteOptions(options).sort((left, right) =>
     left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
@@ -1084,19 +1124,20 @@ async function loadConditionFilterOptions(): Promise<PurchaseAutocompleteOption[
 
   if (error) throw new Error(error.message);
 
-  const options = ((data ?? []) as Array<{
-      condition?: Pick<NonNullable<PurchaseItemRowRaw["condition"]>, "condition_code"> | null;
-    }>).flatMap((row) => {
-      const code = row.condition?.condition_code ?? null;
-      if (!code) return [];
-      return [
-        {
-          value: code,
-          label: code,
-          searchText: code,
-        },
-      ];
-    }) as PurchaseAutocompleteOption[];
+  type RawCondition = Pick<NonNullable<PurchaseItemRowRaw["condition"]>, "condition_code">;
+  type RawRow = { condition?: RawCondition | RawCondition[] | null };
+
+  const options = ((data ?? []) as RawRow[]).flatMap((row) => {
+    const code = firstRelation(row.condition)?.condition_code ?? null;
+    if (!code) return [];
+    return [
+      {
+        value: code,
+        label: code,
+        searchText: code,
+      },
+    ];
+  });
 
   return dedupeAutocompleteOptions(options).sort((left, right) =>
     left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
@@ -1275,7 +1316,15 @@ export async function getPurchaseFilterOptions(): Promise<PurchaseFilterOptions>
       label: value,
       searchText: value,
     })),
-    statuses: ["DRAFT", "SUBMITTED", "IN_PRODUCTION", "RELEASED", "COMPLETED", "CANCELLED"],
+    statuses: [
+      "DRAFT",
+      "SUBMITTED",
+      "IN_PRODUCTION",
+      "PARTIAL_RELEASED",
+      "RELEASED",
+      "COMPLETED",
+      "CANCELLED",
+    ],
   };
 }
 
@@ -1326,7 +1375,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           created_at,
           updated_at,
           supplier:vendors!purchase_order_supplier_id_vendors_fkey(id, vendor_code, company_name, legal_company_name),
-          owner:container_owners!purchase_order_owner_id_fkey(id, container_owner_code, company_name, legal_company_name),
+          owner:container_owners!purchase_order_owner_id_fkey(id, container_owner_code, company_name, legal_company_name, uses_internal_container_numbering),
           buyer:users!purchase_order_buyer_id_fkey(id, user_code, full_name)
         `
       )
@@ -1352,6 +1401,10 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           machine_type,
           yom,
           offline_date,
+          tare_weight,
+          maximum_weight,
+          payload_weight,
+          csc_number,
           planned_qty,
           unit_price,
           financial_cost,
@@ -1390,6 +1443,10 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           machine_type,
           yom,
           offline_date,
+          tare_weight,
+          maximum_weight,
+          payload_weight,
+          csc_number,
           purchase_price,
           financial_cost,
           container_status,
@@ -1565,6 +1622,10 @@ export async function getPurchaseOrderItemContainers(
           machine_type,
           yom,
           offline_date,
+          tare_weight,
+          maximum_weight,
+          payload_weight,
+          csc_number,
           planned_qty,
           unit_price,
           financial_cost,
@@ -1604,6 +1665,10 @@ export async function getPurchaseOrderItemContainers(
           machine_type,
           yom,
           offline_date,
+          tare_weight,
+          maximum_weight,
+          payload_weight,
+          csc_number,
           purchase_price,
           financial_cost,
           container_status,
@@ -1685,7 +1750,7 @@ export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOp
       .order("vendor_code", { ascending: true }),
     supabase
       .from("container_owners")
-      .select("id, container_owner_code, company_name, legal_company_name")
+      .select("id, container_owner_code, company_name, legal_company_name, uses_internal_container_numbering")
       .order("container_owner_code", { ascending: true }),
     supabase.from("users").select("id, user_code, full_name").order("user_code", { ascending: true }),
     supabase.from("cities").select("id, city_code, city_name").order("city_code", { ascending: true }),
@@ -1788,9 +1853,11 @@ export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOp
       container_owner_code: string | null;
       company_name: string | null;
       legal_company_name: string | null;
+      uses_internal_container_numbering: boolean | null;
     }>).map((owner) => ({
       id: owner.id,
       label: [owner.container_owner_code, owner.legal_company_name ?? owner.company_name].filter(Boolean).join(" · "),
+      usesInternalContainerNumbering: owner.uses_internal_container_numbering === true,
     })),
     buyers: ((buyersResult.data ?? []) as Array<{
       id: string;
@@ -1853,7 +1920,7 @@ export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOp
 export async function getPurchaseOrderEditForm(id: string): Promise<{
   options: PurchaseDraftFormOptions;
   order: PurchaseOrderDetail;
-  editMode: "draft" | "pending";
+  editPermissions: PurchaseOrderEditPermissions;
 }> {
   const [options, order] = await Promise.all([
     getPurchaseDraftFormOptions(),
@@ -1863,11 +1930,9 @@ export async function getPurchaseOrderEditForm(id: string): Promise<{
   if (!order) {
     throw new Error("Purchase order not found.");
   }
-  if (order.orderStatus === "DRAFT") {
-    return { options, order, editMode: "draft" };
-  }
-  if (isEditablePurchaseOrderStatus(order.orderStatus)) {
-    return { options, order, editMode: "pending" };
+  const editPermissions = getOrderEditPermissions(order);
+  if (editPermissions.canEnterEdit) {
+    return { options, order, editPermissions };
   }
   throw new Error(`Purchase order ${order.orderNo} cannot be edited in status ${order.orderStatus}.`);
 }
@@ -1889,11 +1954,15 @@ async function validateRalColors(
 }
 
 function validateManualContainerNumbers(
-  purchaseType: PurchaseType,
-  containers: Array<{ containerNumber: string | null | undefined }>
+  args: {
+    purchaseType: PurchaseType;
+    usesInternalContainerNumbering: boolean;
+    containers: Array<{ containerNumber: string | null | undefined }>;
+    requireFactoryContainerNumbersOnSubmit?: boolean;
+  }
 ) {
-  if (purchaseType === "FACTORY_ORDER") return;
-  const invalidContainer = containers.find((container) => {
+  if (args.purchaseType === "FACTORY_ORDER" && args.usesInternalContainerNumbering) return;
+  const invalidContainer = args.containers.find((container) => {
     const containerNumber = trimOrNull(container.containerNumber);
     if (!containerNumber) return false;
     return !/^[A-Z]{4}\d{7}$/.test(containerNumber.toUpperCase());
@@ -1901,6 +1970,28 @@ function validateManualContainerNumbers(
   if (invalidContainer?.containerNumber) {
     throw new Error("Container Number must match 4 letters followed by 7 digits.");
   }
+  if (args.purchaseType === "FACTORY_ORDER" && args.requireFactoryContainerNumbersOnSubmit) {
+    const missingContainer = args.containers.find(
+      (container) => !trimOrNull(container.containerNumber)
+    );
+    if (missingContainer) {
+      throw new Error("Container Number is required for factory orders when the owner uses manual numbering.");
+    }
+  }
+}
+
+async function resolveOwnerUsesInternalContainerNumbering(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  ownerId: string | null | undefined
+) {
+  if (!ownerId) return false;
+  const { data, error } = await supabase
+    .from("container_owners")
+    .select("uses_internal_container_numbering")
+    .eq("id", ownerId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.uses_internal_container_numbering === true;
 }
 
 function buildOrderFields(
@@ -1954,6 +2045,14 @@ function buildFinanceFields(input: PurchaseOrderDraftInput) {
       input.paymentMode === "ADVANCE_PAYMENT" ? input.settlementAdvancePaymentPercentage : null,
     settlement_balance_trigger_event: trimOrNull(input.settlementBalanceTriggerEvent),
     settlement_currency: trimOrNull(input.settlementCurrency),
+    settlement_prepayment_pool:
+      input.paymentMode === "PREPAYMENT" || input.paymentMode === "ADVANCE_PAYMENT"
+        ? input.settlementPrepaymentPool
+        : null,
+    settlement_prepayment_threshold:
+      input.paymentMode === "PREPAYMENT" || input.paymentMode === "ADVANCE_PAYMENT"
+        ? input.settlementPrepaymentThreshold
+        : null,
     settlement_current_prepaid_balance: input.settlementCurrentPrepaidBalance,
     vendor_bank_information: input.vendorBankInformation,
   };
@@ -1976,6 +2075,9 @@ function buildItemRowsForInsert(orderId: string, input: PurchaseOrderDraftInput)
     machine_type: trimOrNull(item.machineType),
     yom: item.yom,
     offline_date: item.offlineDate || null,
+    tare_weight: item.tareWeight,
+    maximum_weight: item.maximumWeight,
+    csc_number: trimOrNull(item.cscNumber),
     planned_qty: item.plannedQty,
     unit_price: item.unitPrice,
     settlement_price: item.unitPrice,
@@ -2038,6 +2140,7 @@ function buildContainerPayloadForSubmit(args: {
   input: PurchaseOrderDraftInput;
   orderId: string;
   vendorReleaseDate: string | null;
+  usesInternalContainerNumbering: boolean;
   itemByKey: Map<string, {
     id: string;
     location_city_id: string | null;
@@ -2073,13 +2176,240 @@ function buildContainerPayloadForSubmit(args: {
         args.input.purchaseType === "FACTORY_ORDER"
           ? container.offlineDate || null
           : args.vendorReleaseDate ?? null,
+      tare_weight: container.tareWeight,
+      maximum_weight: container.maximumWeight,
+      csc_number: trimOrNull(container.cscNumber),
       purchase_price: itemRow.unit_price,
       container_number:
-        args.input.purchaseType === "FACTORY_ORDER"
+        args.input.purchaseType === "FACTORY_ORDER" && args.usesInternalContainerNumbering
           ? null
           : trimOrNull(container.containerNumber),
     };
   });
+}
+
+function resolvePurchaseContainerStatuses(args: {
+  purchaseType: PurchaseType;
+  usesInternalContainerNumbering: boolean;
+  offlineDate: string | null | undefined;
+  containerNumber: string | null | undefined;
+}) {
+  const containerStatus =
+    args.purchaseType === "FACTORY_ORDER"
+      ? args.offlineDate
+        ? "IN_YARD"
+        : "PURCHASED"
+      : trimOrNull(args.containerNumber)
+        ? "IN_YARD"
+        : "PURCHASED";
+
+  return {
+    containerStatus,
+    itemStatus: containerStatus === "IN_YARD" ? "INBOUND" : "BOX_NO_ASSIGNED",
+  } as const;
+}
+
+function ensureFactoryProgressEditPayloadAllowed(
+  currentOrder: PurchaseOrderDetail,
+  input: PurchaseOrderDraftInput
+) {
+  if (input.purchaseType !== currentOrder.purchaseType) {
+    throw new Error("Purchase Type cannot be changed in the current order status.");
+  }
+  if (input.supplierId !== currentOrder.supplierId) {
+    throw new Error("Supplier cannot be changed in the current order status.");
+  }
+  if (input.ownerId !== currentOrder.ownerId) {
+    throw new Error("Owner cannot be changed in the current order status.");
+  }
+  if (input.buyerId !== currentOrder.buyerId) {
+    throw new Error("Buyer cannot be changed in the current order status.");
+  }
+  if (input.purchaseDate !== currentOrder.purchaseDate) {
+    throw new Error("Purchase Date cannot be changed in the current order status.");
+  }
+  if (input.estimatedOfflineTime !== currentOrder.estimatedOfflineTime) {
+    throw new Error("Estimated Offline Date cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.contractNumber) !== trimOrNull(currentOrder.contractNumber)) {
+    throw new Error("Contract Number cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.invoiceNumber) !== trimOrNull(currentOrder.invoiceNumber)) {
+    throw new Error("Invoice Number cannot be changed in the current order status.");
+  }
+  if (input.freeday !== currentOrder.freeday) {
+    throw new Error("Freeday cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.vendorReleaseNumber) !== trimOrNull(currentOrder.vendorReleaseNumber)) {
+    throw new Error("Vendor Release Number cannot be changed in the current order status.");
+  }
+  if (input.vendorReleaseDate !== currentOrder.vendorReleaseDate) {
+    throw new Error("Vendor Release Date cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.remark) !== trimOrNull(currentOrder.remark)) {
+    throw new Error("Remark cannot be changed in the current order status.");
+  }
+  if (input.paymentMode !== currentOrder.paymentMode) {
+    throw new Error("Payment Mode cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.paymentAccount) !== trimOrNull(currentOrder.paymentAccount)) {
+    throw new Error("Payment Account cannot be changed in the current order status.");
+  }
+  if (input.dueDate !== currentOrder.dueDate) {
+    throw new Error("Due Date cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.settlementPaymentTerm) !== trimOrNull(currentOrder.settlementPaymentTerm)) {
+    throw new Error("Settlement Payment Term cannot be changed in the current order status.");
+  }
+  if (input.settlementCreditDays !== currentOrder.settlementCreditDays) {
+    throw new Error("Settlement Credit Days cannot be changed in the current order status.");
+  }
+  if (input.settlementCreditLimit !== currentOrder.settlementCreditLimit) {
+    throw new Error("Settlement Credit Limit cannot be changed in the current order status.");
+  }
+  if (
+    input.settlementAdvancePaymentPercentage !== currentOrder.settlementAdvancePaymentPercentage
+  ) {
+    throw new Error("Advance Payment Percentage cannot be changed in the current order status.");
+  }
+  if (
+    trimOrNull(input.settlementBalanceTriggerEvent) !==
+    trimOrNull(currentOrder.settlementBalanceTriggerEvent)
+  ) {
+    throw new Error("Balance Trigger Event cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.settlementCurrency) !== trimOrNull(currentOrder.settlementCurrency)) {
+    throw new Error("Settlement Currency cannot be changed in the current order status.");
+  }
+  if (input.settlementPrepaymentPool !== currentOrder.settlementPrepaymentPool) {
+    throw new Error("Prepayment Pool cannot be changed in the current order status.");
+  }
+  if (input.settlementPrepaymentThreshold !== currentOrder.settlementPrepaymentThreshold) {
+    throw new Error("Prepayment Threshold cannot be changed in the current order status.");
+  }
+  if (
+    input.settlementCurrentPrepaidBalance !== currentOrder.settlementCurrentPrepaidBalance
+  ) {
+    throw new Error("Current Prepaid Balance cannot be changed in the current order status.");
+  }
+  if (
+    JSON.stringify(input.vendorBankInformation ?? null) !==
+    JSON.stringify(currentOrder.vendorBankInformation ?? null)
+  ) {
+    throw new Error("Vendor bank information cannot be changed in the current order status.");
+  }
+  if (JSON.stringify(input.materialTypes) !== JSON.stringify(currentOrder.materialTypes.map((row) => ({
+    materialType: row.materialType,
+    materialVendorId: row.materialVendorId,
+  })))) {
+    throw new Error("Material Vendors cannot be changed in the current order status.");
+  }
+  if (input.items.length !== currentOrder.items.length) {
+    throw new Error("Purchase items cannot be restructured in the current order status.");
+  }
+
+  for (let index = 0; index < currentOrder.items.length; index += 1) {
+    const currentItem = currentOrder.items[index];
+    const nextItem = input.items[index];
+    if (!currentItem || !nextItem || nextItem.itemKey !== currentItem.id) {
+      throw new Error("Purchase items cannot be restructured in the current order status.");
+    }
+    if (nextItem.locationCityId !== currentItem.locationCityId) {
+      throw new Error("Location cannot be changed in the current order status.");
+    }
+    if (nextItem.depotId !== currentItem.depotId) {
+      throw new Error("Depot cannot be changed in the current order status.");
+    }
+    if (nextItem.containerSizeCodeId !== currentItem.containerSizeCodeId) {
+      throw new Error("Size/Type cannot be changed in the current order status.");
+    }
+    if (nextItem.containerTypeCodeId !== currentItem.containerTypeCodeId) {
+      throw new Error("Size/Type cannot be changed in the current order status.");
+    }
+    if (nextItem.containerConditionCodeId !== currentItem.containerConditionCodeId) {
+      throw new Error("Condition cannot be changed in the current order status.");
+    }
+    if (trimOrNull(nextItem.color) !== trimOrNull(currentItem.color)) {
+      throw new Error("Color cannot be changed in the current order status.");
+    }
+    if (nextItem.flp !== currentItem.flp) {
+      throw new Error("FLP cannot be changed in the current order status.");
+    }
+    if (nextItem.lbx !== currentItem.lbx) {
+      throw new Error("LBX cannot be changed in the current order status.");
+    }
+    if (nextItem.lockingBarsCount !== currentItem.lockingBarsCount) {
+      throw new Error("Locking Bars cannot be changed in the current order status.");
+    }
+    if (nextItem.ventsCount !== currentItem.ventsCount) {
+      throw new Error("Vents cannot be changed in the current order status.");
+    }
+    if (trimOrNull(nextItem.machineType) !== trimOrNull(currentItem.machineType)) {
+      throw new Error("Machine Type cannot be changed in the current order status.");
+    }
+    if (nextItem.yom !== currentItem.yom) {
+      throw new Error("YOM cannot be changed in the current order status.");
+    }
+    if (nextItem.plannedQty !== currentItem.plannedQty) {
+      throw new Error("Planned Qty cannot be changed in the current order status.");
+    }
+    if (nextItem.unitPrice !== currentItem.unitPrice) {
+      throw new Error("Unit Price cannot be changed in the current order status.");
+    }
+    if (trimOrNull(nextItem.remark) !== trimOrNull(currentItem.remark)) {
+      throw new Error("Item remark cannot be changed in the current order status.");
+    }
+  }
+
+  const currentContainersByItem = new Map<string, PurchaseOrderContainer[]>();
+  for (const container of currentOrder.containers) {
+    const key = container.purchaseOrderItemId ?? "";
+    const bucket = currentContainersByItem.get(key) ?? [];
+    bucket.push(container);
+    currentContainersByItem.set(key, bucket);
+  }
+
+  for (let index = 0; index < currentOrder.items.length; index += 1) {
+    const currentItem = currentOrder.items[index];
+    const nextItem = input.items[index];
+    if (!currentItem || !nextItem) continue;
+    const currentContainers = currentContainersByItem.get(currentItem.id) ?? [];
+    const nextContainers = input.containers.filter((container) => container.itemKey === nextItem.itemKey);
+    if (nextContainers.length !== currentContainers.length) {
+      throw new Error("Container rows cannot be restructured in the current order status.");
+    }
+    for (let containerIndex = 0; containerIndex < currentContainers.length; containerIndex += 1) {
+      const currentContainer = currentContainers[containerIndex];
+      const nextContainer = nextContainers[containerIndex];
+      if (!currentContainer || !nextContainer) {
+        throw new Error("Container rows cannot be restructured in the current order status.");
+      }
+      if (trimOrNull(nextContainer.containerNumber) !== trimOrNull(currentContainer.containerNumber)) {
+        throw new Error("Container Number cannot be changed in the current order status.");
+      }
+      if (trimOrNull(nextContainer.color) !== trimOrNull(currentContainer.color)) {
+        throw new Error("Container Color cannot be changed in the current order status.");
+      }
+      if (nextContainer.flp !== currentContainer.flp) {
+        throw new Error("Container FLP cannot be changed in the current order status.");
+      }
+      if (nextContainer.lbx !== currentContainer.lbx) {
+        throw new Error("Container LBX cannot be changed in the current order status.");
+      }
+      if (nextContainer.lockingBarsCount !== currentContainer.lockingBarsCount) {
+        throw new Error("Container Locking Bars cannot be changed in the current order status.");
+      }
+      if (nextContainer.ventsCount !== currentContainer.ventsCount) {
+        throw new Error("Container Vents cannot be changed in the current order status.");
+      }
+      if (trimOrNull(nextContainer.machineType) !== trimOrNull(currentContainer.machineType)) {
+        throw new Error("Container Machine Type cannot be changed in the current order status.");
+      }
+      if (nextContainer.yom !== currentContainer.yom) {
+        throw new Error("Container YOM cannot be changed in the current order status.");
+      }
+    }
+  }
 }
 
 function ensurePendingEditPayloadMatchesCurrent(
@@ -2128,7 +2458,15 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
   orderNo: string;
 }> {
   const supabase = createServerSupabaseClient();
-  validateManualContainerNumbers(input.purchaseType, input.containers);
+  const usesInternalContainerNumbering = await resolveOwnerUsesInternalContainerNumbering(
+    supabase,
+    input.ownerId
+  );
+  validateManualContainerNumbers({
+    purchaseType: input.purchaseType,
+    usesInternalContainerNumbering,
+    containers: input.containers,
+  });
 
   if (!input.orderNo?.trim()) {
     throw new Error("PO Number is required.");
@@ -2288,6 +2626,9 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
     machine_type: item.machineType?.trim() || null,
     yom: item.yom,
     offline_date: item.offlineDate || null,
+    tare_weight: item.tareWeight,
+    maximum_weight: item.maximumWeight,
+    csc_number: trimOrNull(item.cscNumber),
     planned_qty: item.plannedQty,
     unit_price: item.unitPrice,
     settlement_price: item.unitPrice,
@@ -2439,7 +2780,16 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
   orderStatus: PurchaseOrderStatus;
 }> {
   const supabase = createServerSupabaseClient();
-  validateManualContainerNumbers(input.purchaseType, input.containers);
+  const usesInternalContainerNumbering = await resolveOwnerUsesInternalContainerNumbering(
+    supabase,
+    input.ownerId
+  );
+  validateManualContainerNumbers({
+    purchaseType: input.purchaseType,
+    usesInternalContainerNumbering,
+    containers: input.containers,
+    requireFactoryContainerNumbersOnSubmit: true,
+  });
 
   if (!input.orderNo?.trim()) {
     throw new Error("PO Number is required.");
@@ -2552,6 +2902,9 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
       machine_type: trimOrNull(item.machineType),
       yom: item.yom,
       offline_date: item.offlineDate || null,
+      tare_weight: item.tareWeight,
+      maximum_weight: item.maximumWeight,
+      csc_number: trimOrNull(item.cscNumber),
       planned_qty: item.plannedQty,
       unit_price: item.unitPrice,
       settlement_price: item.unitPrice,
@@ -2612,9 +2965,12 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
           input.purchaseType === "FACTORY_ORDER"
             ? container.offlineDate || null
             : orderRow.vendor_release_date ?? null,
+        tare_weight: container.tareWeight,
+        maximum_weight: container.maximumWeight,
+        csc_number: trimOrNull(container.cscNumber),
         purchase_price: itemRow.unit_price,
         container_number:
-          input.purchaseType === "FACTORY_ORDER"
+          input.purchaseType === "FACTORY_ORDER" && usesInternalContainerNumbering
             ? null
             : trimOrNull(container.containerNumber),
       };
@@ -2654,6 +3010,10 @@ export async function updatePurchaseOrderDraft(
   orderNo: string;
 }> {
   const supabase = createServerSupabaseClient();
+  const usesInternalContainerNumbering = await resolveOwnerUsesInternalContainerNumbering(
+    supabase,
+    input.ownerId
+  );
   const { data: orderRow, error: orderError } = await supabase
     .from("purchase_order")
     .select("id, order_no, order_status")
@@ -2667,6 +3027,11 @@ export async function updatePurchaseOrderDraft(
 
   if (!input.purchaseType) throw new Error("Purchase Type is required.");
   if (input.items.length === 0) throw new Error("At least one purchase item is required.");
+  validateManualContainerNumbers({
+    purchaseType: input.purchaseType,
+    usesInternalContainerNumbering,
+    containers: input.containers,
+  });
 
   await validateRalColors(supabase, [
     ...input.items.map((item) => item.color),
@@ -2704,6 +3069,10 @@ export async function submitPurchaseOrderDraftUpdate(
   orderStatus: PurchaseOrderStatus;
 }> {
   const supabase = createServerSupabaseClient();
+  const usesInternalContainerNumbering = await resolveOwnerUsesInternalContainerNumbering(
+    supabase,
+    input.ownerId
+  );
   const { data: orderRow, error: orderError } = await supabase
     .from("purchase_order")
     .select("id, order_no, order_status, vendor_release_date")
@@ -2715,6 +3084,12 @@ export async function submitPurchaseOrderDraftUpdate(
     throw new Error(`Only DRAFT purchase orders can be submitted from edit. Current status: ${orderRow.order_status}.`);
   }
 
+  validateManualContainerNumbers({
+    purchaseType: input.purchaseType,
+    usesInternalContainerNumbering,
+    containers: input.containers,
+    requireFactoryContainerNumbersOnSubmit: true,
+  });
   validateSubmitRequiredFields(input);
   await validateRalColors(supabase, [
     ...input.items.map((item) => item.color),
@@ -2755,6 +3130,7 @@ export async function submitPurchaseOrderDraftUpdate(
     orderId,
     vendorReleaseDate:
       shouldShowVendorReleaseFields(input.purchaseType) ? input.vendorReleaseDate ?? null : null,
+    usesInternalContainerNumbering,
     itemByKey,
   });
 
@@ -2784,16 +3160,38 @@ export async function updatePurchaseOrderPending(
   orderStatus: PurchaseOrderStatus;
 }> {
   const supabase = createServerSupabaseClient();
+  const usesInternalContainerNumbering = await resolveOwnerUsesInternalContainerNumbering(
+    supabase,
+    input.ownerId
+  );
   const currentOrder = await getPurchaseOrderDetail(orderId);
   if (!currentOrder) throw new Error("Purchase order not found.");
-  if (!isEditablePurchaseOrderStatus(currentOrder.orderStatus) || currentOrder.orderStatus === "DRAFT") {
+  const editPermissions = getOrderEditPermissions(currentOrder);
+  if (!editPermissions.canEnterEdit || currentOrder.orderStatus === "DRAFT") {
     throw new Error(
-      `Only submitted/released purchase orders can be updated here. Current status: ${currentOrder.orderStatus}.`
+      `This purchase order cannot be updated in status ${currentOrder.orderStatus}.`
     );
   }
+  if (!editPermissions.canSubmitChanges) {
+    throw new Error(`Submit is not allowed for purchase order status ${currentOrder.orderStatus}.`);
+  }
 
-  ensurePendingEditPayloadMatchesCurrent(currentOrder, input);
-  validateManualContainerNumbers(currentOrder.purchaseType, input.containers);
+  if (editPermissions.requiresAtLeastOneItemOnSubmit && input.items.length === 0) {
+    throw new Error("At least one purchase item is required.");
+  }
+  if (editPermissions.editableFieldSet === "factory_progress_limited") {
+    ensureFactoryProgressEditPayloadAllowed(currentOrder, input);
+  }
+
+  validateManualContainerNumbers({
+    purchaseType: input.purchaseType,
+    usesInternalContainerNumbering,
+    containers: input.containers,
+    requireFactoryContainerNumbersOnSubmit: true,
+  });
+  if (editPermissions.requiresMandatoryValidationOnSubmit) {
+    validateSubmitRequiredFields(input);
+  }
   await validateRalColors(supabase, [
     ...input.items.map((item) => item.color),
     ...input.containers.map((container) => container.color),
@@ -2802,25 +3200,37 @@ export async function updatePurchaseOrderPending(
   const { error: updateOrderError } = await supabase
     .from("purchase_order")
     .update({
-      contract_number: trimOrNull(input.contractNumber),
-      invoice_number: trimOrNull(input.invoiceNumber),
-      freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
-      vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
-        ? trimOrNull(input.vendorReleaseNumber)
-        : null,
-      vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
-        ? input.vendorReleaseDate || null
-        : null,
-      payment_mode: input.paymentMode,
-      remark: trimOrNull(input.remark),
+      ...buildOrderFields(input, currentOrder.orderStatus),
+      order_no: currentOrder.orderNo,
       ...buildFinanceFields(input),
     })
     .eq("id", orderId);
   if (updateOrderError) throw new Error(updateOrderError.message);
 
+  const cleanedMaterialTypes = sanitizeMaterialTypesForSubmit(input.purchaseType, input.materialTypes);
+  const { error: deleteMaterialsError } = await supabase
+    .from("purchase_order_material_type")
+    .delete()
+    .eq("purchase_order_id", orderId);
+  if (deleteMaterialsError) throw new Error(deleteMaterialsError.message);
+
+  if (shouldShowMaterialTypes(input.purchaseType)) {
+    const { error: materialTypesError } = await supabase
+      .from("purchase_order_material_type")
+      .insert(
+        cleanedMaterialTypes.map((row) => ({
+          purchase_order_id: orderId,
+          material_type: row.materialType,
+          material_vendor_id: row.materialVendorId,
+        }))
+      );
+    if (materialTypesError) throw new Error(materialTypesError.message);
+  }
+
   const currentContainers = [...currentOrder.containers].sort((left, right) =>
     Date.parse(left.createdAt) - Date.parse(right.createdAt) || left.id.localeCompare(right.id)
   );
+  const currentItemsById = new Map(currentOrder.items.map((item) => [item.id, item]));
   const containersByItem = new Map<string, PurchaseOrderContainer[]>();
   for (const container of currentContainers) {
     if (!container.purchaseOrderItemId) continue;
@@ -2834,45 +3244,135 @@ export async function updatePurchaseOrderPending(
     bucket.push(container);
     inputContainersByItem.set(container.itemKey, bucket);
   }
+  const containersToInsertViaSubmitRpc: Array<{
+    purchase_order_item_id: string;
+    location_city_id: string | null;
+    depot_id: string | null;
+    container_size_code_id: string | null;
+    container_type_code_id: string | null;
+    container_condition_code_id: string | null;
+    color: string | null;
+    flp: boolean;
+    lbx: boolean;
+    locking_bars_count: number | null;
+    vents_count: number | null;
+    machine_type: string | null;
+    yom: number | null;
+    offline_date: string | null;
+    tare_weight: number | null;
+    maximum_weight: number | null;
+    csc_number: string | null;
+    purchase_price: number | null;
+    container_number: string | null;
+  }> = [];
 
-  for (const item of currentOrder.items) {
-    const nextItem = input.items.find((entry) => entry.itemKey === item.id);
-    if (!nextItem) throw new Error(`Purchase items cannot be restructured for item line ${item.lineNo}.`);
+  const retainedItemIds = new Set<string>();
+  const resolvedItemIdsByInputKey = new Map<string, string>();
+  const currentMaxLineNo = Math.max(0, ...currentOrder.items.map((item) => item.lineNo ?? 0));
+  const temporaryLineNoBase = currentMaxLineNo + input.items.length + 100;
 
-    const { error: updateItemError } = await supabase
+  const deletedItemIds = currentOrder.items
+    .map((item) => item.id)
+    .filter((itemId) => !input.items.some((nextItem) => nextItem.itemKey === itemId));
+
+  if (deletedItemIds.length > 0) {
+    const { error: deleteContainersError } = await supabase
+      .from("purchase_order_container")
+      .delete()
+      .in("purchase_order_item_id", deletedItemIds);
+    if (deleteContainersError) throw new Error(deleteContainersError.message);
+
+    const { error: deleteItemsError } = await supabase
       .from("purchase_order_item")
-      .update({
-        container_size_code_id: nextItem.containerSizeCodeId,
-        container_type_code_id: nextItem.containerTypeCodeId,
-        color: trimOrNull(nextItem.color),
-        flp: nextItem.flp,
-        lbx: nextItem.lbx,
-        locking_bars_count: nextItem.lockingBarsCount,
-        vents_count: nextItem.ventsCount,
-        offline_date:
-          currentOrder.purchaseType === "FACTORY_ORDER"
-            ? nextItem.offlineDate || null
-            : input.vendorReleaseDate || null,
-        planned_qty: nextItem.plannedQty,
-        unit_price: nextItem.unitPrice,
-        settlement_price: nextItem.unitPrice,
-        line_amount: nextItem.lineAmount,
-      })
-      .eq("id", item.id);
-    if (updateItemError) throw new Error(updateItemError.message);
+      .delete()
+      .in("id", deletedItemIds);
+    if (deleteItemsError) throw new Error(deleteItemsError.message);
+  }
 
-    const existingForItem = containersByItem.get(item.id) ?? [];
-    const nextForItem = inputContainersByItem.get(item.id) ?? [];
+  for (let index = 0; index < input.items.length; index += 1) {
+    const nextItem = input.items[index];
+    if (!nextItem) continue;
+
+    const itemPayload = {
+      line_no: temporaryLineNoBase + index,
+      location_city_id: nextItem.locationCityId,
+      depot_id: nextItem.depotId,
+      container_size_code_id: nextItem.containerSizeCodeId,
+      container_type_code_id: nextItem.containerTypeCodeId,
+      container_condition_code_id: nextItem.containerConditionCodeId,
+      color: trimOrNull(nextItem.color),
+      flp: nextItem.flp,
+      lbx: nextItem.lbx,
+      locking_bars_count: nextItem.lockingBarsCount,
+      vents_count: nextItem.ventsCount,
+      machine_type: trimOrNull(nextItem.machineType),
+      yom: nextItem.yom,
+      offline_date:
+        input.purchaseType === "FACTORY_ORDER"
+          ? nextItem.offlineDate || null
+          : input.vendorReleaseDate || null,
+      tare_weight: nextItem.tareWeight,
+      maximum_weight: nextItem.maximumWeight,
+      csc_number: trimOrNull(nextItem.cscNumber),
+      planned_qty: nextItem.plannedQty,
+      unit_price: nextItem.unitPrice,
+      settlement_price: nextItem.unitPrice,
+      financial_cost: null,
+      line_amount: computeLineAmount(nextItem.plannedQty, nextItem.unitPrice),
+      remark: trimOrNull(nextItem.remark),
+    };
+
+    if (currentItemsById.has(nextItem.itemKey)) {
+      const existingItemId = nextItem.itemKey;
+      const { error: updateItemError } = await supabase
+        .from("purchase_order_item")
+        .update(itemPayload)
+        .eq("id", existingItemId);
+      if (updateItemError) throw new Error(updateItemError.message);
+      retainedItemIds.add(existingItemId);
+      resolvedItemIdsByInputKey.set(nextItem.itemKey, existingItemId);
+      continue;
+    }
+
+    const { data: insertedItem, error: insertItemError } = await supabase
+      .from("purchase_order_item")
+      .insert({
+        purchase_order_id: orderId,
+        ...itemPayload,
+      })
+      .select("id")
+      .single();
+    if (insertItemError) throw new Error(insertItemError.message);
+    retainedItemIds.add(insertedItem.id);
+    resolvedItemIdsByInputKey.set(nextItem.itemKey, insertedItem.id);
+  }
+
+  for (let index = 0; index < input.items.length; index += 1) {
+    const nextItem = input.items[index];
+    if (!nextItem) continue;
+    const resolvedItemId = resolvedItemIdsByInputKey.get(nextItem.itemKey);
+    if (!resolvedItemId) {
+      throw new Error(`Purchase item could not be resolved for key ${nextItem.itemKey}.`);
+    }
+
+    const { error: resequenceItemError } = await supabase
+      .from("purchase_order_item")
+      .update({ line_no: index + 1 })
+      .eq("id", resolvedItemId);
+    if (resequenceItemError) throw new Error(resequenceItemError.message);
+  }
+
+  for (const nextItem of input.items) {
+    const resolvedItemId = resolvedItemIdsByInputKey.get(nextItem.itemKey);
+    if (!resolvedItemId) {
+      throw new Error(`Purchase item could not be resolved for key ${nextItem.itemKey}.`);
+    }
+
+    const existingForItem = containersByItem.get(resolvedItemId) ?? [];
+    const nextForItem = inputContainersByItem.get(nextItem.itemKey) ?? [];
 
     if (nextForItem.length < existingForItem.length) {
-      const removableContainers = existingForItem.slice(nextForItem.length);
-      const numberedContainer = removableContainers.find((container) => trimOrNull(container.containerNumber));
-      if (numberedContainer) {
-        throw new Error(
-          `Planned Qty cannot be reduced for item line ${item.lineNo} after container numbers have been assigned.`
-        );
-      }
-      const removableIds = removableContainers.map((container) => container.id);
+      const removableIds = existingForItem.slice(nextForItem.length).map((container) => container.id);
       if (removableIds.length > 0) {
         const { error: deleteContainerError } = await supabase
           .from("purchase_order_container")
@@ -2884,17 +3384,31 @@ export async function updatePurchaseOrderPending(
 
     for (let index = 0; index < nextForItem.length; index += 1) {
       const nextContainer = nextForItem[index];
-      if (!nextContainer) throw new Error(`Container structure cannot be changed for item line ${item.lineNo}.`);
+      if (!nextContainer) continue;
       const existingContainer = existingForItem[index];
+      const offlineDate =
+        input.purchaseType === "FACTORY_ORDER"
+          ? nextContainer.offlineDate || null
+          : input.vendorReleaseDate || null;
+      const containerNumber =
+        input.purchaseType === "FACTORY_ORDER" && usesInternalContainerNumbering
+          ? existingContainer?.containerNumber ?? null
+          : trimOrNull(nextContainer.containerNumber);
+      const { containerStatus, itemStatus } = resolvePurchaseContainerStatuses({
+        purchaseType: input.purchaseType,
+        usesInternalContainerNumbering,
+        offlineDate,
+        containerNumber,
+      });
 
       const containerPayload = {
         purchase_order_id: orderId,
-        purchase_order_item_id: item.id,
-        location_city_id: item.locationCityId,
-        depot_id: item.depotId,
+        purchase_order_item_id: resolvedItemId,
+        location_city_id: nextItem.locationCityId,
+        depot_id: nextItem.depotId,
         container_size_code_id: nextItem.containerSizeCodeId,
         container_type_code_id: nextItem.containerTypeCodeId,
-        container_condition_code_id: item.containerConditionCodeId,
+        container_condition_code_id: nextItem.containerConditionCodeId,
         color: trimOrNull(nextContainer.color),
         flp: nextContainer.flp,
         lbx: nextContainer.lbx,
@@ -2902,14 +3416,15 @@ export async function updatePurchaseOrderPending(
         vents_count: nextContainer.ventsCount,
         machine_type: trimOrNull(nextContainer.machineType),
         yom: nextContainer.yom,
-        offline_date:
-          currentOrder.purchaseType === "FACTORY_ORDER"
-            ? nextContainer.offlineDate || null
-            : input.vendorReleaseDate || null,
-        container_number:
-          currentOrder.purchaseType === "FACTORY_ORDER"
-            ? existingContainer?.containerNumber ?? null
-            : trimOrNull(nextContainer.containerNumber),
+        offline_date: offlineDate,
+        tare_weight: nextContainer.tareWeight,
+        maximum_weight: nextContainer.maximumWeight,
+        csc_number: trimOrNull(nextContainer.cscNumber),
+        container_number: containerNumber,
+        item_status: itemStatus,
+        purchase_price: nextItem.unitPrice ?? existingContainer?.purchasePrice ?? 0,
+        financial_cost: existingContainer?.financialCost ?? 0,
+        container_status: containerStatus,
       };
 
       if (existingContainer) {
@@ -2918,13 +3433,45 @@ export async function updatePurchaseOrderPending(
           .update(containerPayload)
           .eq("id", existingContainer.id);
         if (updateContainerError) throw new Error(updateContainerError.message);
-      } else {
-        const { error: insertContainerError } = await supabase
-          .from("purchase_order_container")
-          .insert(containerPayload);
-        if (insertContainerError) throw new Error(insertContainerError.message);
+        continue;
       }
+
+      containersToInsertViaSubmitRpc.push({
+        purchase_order_item_id: resolvedItemId,
+        location_city_id: nextItem.locationCityId,
+        depot_id: nextItem.depotId,
+        container_size_code_id: nextItem.containerSizeCodeId,
+        container_type_code_id: nextItem.containerTypeCodeId,
+        container_condition_code_id: nextItem.containerConditionCodeId,
+        color: trimOrNull(nextContainer.color),
+        flp: nextContainer.flp,
+        lbx: nextContainer.lbx,
+        locking_bars_count: nextContainer.lockingBarsCount,
+        vents_count: nextContainer.ventsCount,
+        machine_type: trimOrNull(nextContainer.machineType),
+        yom: nextContainer.yom,
+        offline_date: offlineDate,
+        tare_weight: nextContainer.tareWeight,
+        maximum_weight: nextContainer.maximumWeight,
+        csc_number: trimOrNull(nextContainer.cscNumber),
+        purchase_price: nextItem.unitPrice,
+        container_number:
+          input.purchaseType === "FACTORY_ORDER" && usesInternalContainerNumbering
+            ? null
+            : trimOrNull(nextContainer.containerNumber),
+      });
     }
+  }
+
+  if (containersToInsertViaSubmitRpc.length > 0) {
+    const { error: submitInsertError } = await supabase.rpc(
+      "purchase_submit_insert_containers",
+      {
+        p_order_id: orderId,
+        p_containers: containersToInsertViaSubmitRpc,
+      }
+    );
+    if (submitInsertError) throw new Error(submitInsertError.message);
   }
 
   const nextStatus = await recalculatePurchaseOrderStatus(supabase, orderId);
@@ -2945,7 +3492,6 @@ export async function submitPurchaseOrderPending(
   orderNo: string;
   orderStatus: PurchaseOrderStatus;
 }> {
-  validateManualContainerNumbers(input.purchaseType, input.containers);
   return updatePurchaseOrderPending(orderId, input);
 }
 

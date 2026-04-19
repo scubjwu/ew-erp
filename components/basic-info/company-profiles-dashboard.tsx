@@ -505,7 +505,7 @@ export function CompanyProfilesDashboard({
               <SearchAutocompleteField
                 label="Company Name"
                 field="companyNameEn"
-                value={draftFilters.companyNameEn}
+                value={draftFilters.companyNameEn ?? ""}
                 placeholder="Fuzzy match company name"
                 onChange={(value) =>
                   setDraftFilters((current) => ({
@@ -525,7 +525,7 @@ export function CompanyProfilesDashboard({
               <SearchAutocompleteField
                 label="Company Name in Chinese"
                 field="companyNameCn"
-                value={draftFilters.companyNameCn}
+                value={draftFilters.companyNameCn ?? ""}
                 placeholder="Fuzzy match Chinese company name"
                 onChange={(value) =>
                   setDraftFilters((current) => ({
@@ -545,7 +545,7 @@ export function CompanyProfilesDashboard({
               <SearchAutocompleteField
                 label="Address"
                 field="address"
-                value={draftFilters.address}
+                value={draftFilters.address ?? ""}
                 placeholder="Fuzzy match address"
                 onChange={(value) =>
                   setDraftFilters((current) => ({
@@ -565,7 +565,7 @@ export function CompanyProfilesDashboard({
               <SearchAutocompleteField
                 label="Phone"
                 field="phone"
-                value={draftFilters.phone}
+                value={draftFilters.phone ?? ""}
                 placeholder="Fuzzy match phone"
                 onChange={(value) =>
                   setDraftFilters((current) => ({
@@ -585,7 +585,7 @@ export function CompanyProfilesDashboard({
               <SearchAutocompleteField
                 label="Email"
                 field="email"
-                value={draftFilters.email}
+                value={draftFilters.email ?? ""}
                 placeholder="Fuzzy match email"
                 onChange={(value) =>
                   setDraftFilters((current) => ({

@@ -79,10 +79,13 @@ function dedupeAutocompleteOptions(options: MaterialVendorAutocompleteOption[]) 
   });
 }
 
-function applyMaterialVendorSort<T extends { order: (...args: unknown[]) => T }>(
-  query: T,
+function applyMaterialVendorSort<
+  TQuery extends { order: (...args: any[]) => TResult },
+  TResult
+>(
+  query: TQuery,
   sort: { sortBy: MaterialVendorSortBy; sortDirection: MaterialVendorSortDirection }
-) {
+): TResult {
   const mapping = MATERIAL_VENDOR_SORT_COLUMN_MAP[sort.sortBy];
   return query.order(mapping.column, {
     ascending: sort.sortDirection === "asc",

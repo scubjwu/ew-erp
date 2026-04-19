@@ -10,12 +10,13 @@ import { LesseeForm } from "@/components/lessees/lessee-form";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function EditLesseePage({ params }: PageProps) {
+  const { id } = await params;
   const [lessee, regionOptions, picOptions] = await Promise.all([
-    getLesseeById(params.id),
+    getLesseeById(id),
     getLesseeRegionOptions(),
     getLesseePicOptions(),
   ]);

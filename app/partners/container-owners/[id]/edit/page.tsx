@@ -10,12 +10,13 @@ import { ContainerOwnerForm } from "@/components/container-owners/container-owne
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function EditContainerOwnerPage({ params }: PageProps) {
+  const { id } = await params;
   const [owner, regionOptions, picOptions] = await Promise.all([
-    getContainerOwnerById(params.id),
+    getContainerOwnerById(id),
     getContainerOwnerRegionOptions(),
     getContainerOwnerPicOptions(),
   ]);

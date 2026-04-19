@@ -103,10 +103,13 @@ async function resolveRegionIdsForQuery(regionQuery: string) {
   return (data ?? []).map((row) => row.id).filter(Boolean) as string[];
 }
 
-function applyVendorSort<T extends { order: (...args: unknown[]) => T }>(
-  query: T,
+function applyVendorSort<
+  TQuery extends { order: (...args: any[]) => TResult },
+  TResult
+>(
+  query: TQuery,
   sort: { sortBy: VendorSortBy; sortDirection: VendorSortDirection }
-) {
+): TResult {
   const mapping = VENDOR_SORT_COLUMN_MAP[sort.sortBy];
   if (mapping.foreignTable) {
     return query.order(mapping.column, {

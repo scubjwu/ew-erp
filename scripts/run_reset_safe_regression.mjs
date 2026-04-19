@@ -371,6 +371,7 @@ async function createRegressionFixtures(supabase, stamp) {
         container_owner_code: `O${last5}`,
         legal_company_name: `Reset Safe Owner ${stamp}`,
         company_name: `Reset Safe Owner Alias ${stamp}`,
+        uses_internal_container_numbering: true,
         address: "Reset Safe Owner Address",
         region_id: china.id,
         country: "China",
@@ -477,6 +478,9 @@ async function createRegressionFixtures(supabase, stamp) {
         machine_type: "RS-MODEL",
         yom: 2026,
         offline_date: "2026-04-10",
+        tare_weight: 2200,
+        maximum_weight: 30480,
+        csc_number: `CSC-ITEM-${stamp}`,
         planned_qty: 2,
         unit_price: 1200,
         financial_cost: 45,
@@ -504,8 +508,14 @@ async function createRegressionFixtures(supabase, stamp) {
         color: "RAL1001",
         flp: true,
         lbx: false,
+        locking_bars_count: 4,
+        vents_count: 2,
+        machine_type: "RS-MODEL",
         yom: 2026,
         offline_date: "2026-04-11",
+        tare_weight: 2350,
+        maximum_weight: 30480,
+        csc_number: `CSC-CONTAINER-${stamp}`,
         purchase_price: 1250,
         financial_cost: 45,
         container_status: "IN_YARD",
@@ -556,7 +566,15 @@ async function assertRestored(supabase, markers) {
   const lesseeAttachments = await must(supabase.from("lessee_attachment_links").select("id").eq("lessee_id", lessee.id), "verify restored lessee attachment");
   if ((lesseeAttachments ?? []).length !== 1) fail("Restored lessee attachment missing");
 
-  const owner = await must(supabase.from("container_owners").select("id, remark").eq("container_owner_code", markers.ownerCode).single(), "verify restored owner");
+  const owner = await must(
+    supabase
+      .from("container_owners")
+      .select("id, remark, uses_internal_container_numbering")
+      .eq("container_owner_code", markers.ownerCode)
+      .single(),
+    "verify restored owner"
+  );
+  if (owner.uses_internal_container_numbering !== true) fail("Restored owner numbering eligibility mismatch");
   const ownerAttachments = await must(supabase.from("container_owner_attachment_links").select("id").eq("container_owner_id", owner.id), "verify restored owner attachment");
   if ((ownerAttachments ?? []).length !== 1) fail("Restored container owner attachment missing");
 
@@ -576,16 +594,30 @@ async function assertRestored(supabase, markers) {
   if (purchaseOrder.vendor_release_date !== "2026-04-12") fail("Restored purchase order vendor release date mismatch");
 
   const purchaseItems = await must(
-    supabase.from("purchase_order_item").select("id, yom, offline_date").eq("purchase_order_id", purchaseOrder.id),
+    supabase
+      .from("purchase_order_item")
+      .select("id, yom, offline_date, tare_weight, maximum_weight, payload_weight, csc_number")
+      .eq("purchase_order_id", purchaseOrder.id),
     "verify restored purchase items"
   );
   if ((purchaseItems ?? []).length !== 1) fail("Restored purchase item missing");
+  if (Number(purchaseItems[0].tare_weight) !== 2200) fail("Restored purchase item tare weight mismatch");
+  if (Number(purchaseItems[0].maximum_weight) !== 30480) fail("Restored purchase item maximum weight mismatch");
+  if (Number(purchaseItems[0].payload_weight) !== 28280) fail("Restored purchase item payload weight mismatch");
+  if (purchaseItems[0].csc_number !== `CSC-ITEM-${markers.stamp}`) fail("Restored purchase item CSC number mismatch");
 
   const purchaseContainers = await must(
-    supabase.from("purchase_order_container").select("id, container_status, offline_date").eq("purchase_order_id", purchaseOrder.id),
+    supabase
+      .from("purchase_order_container")
+      .select("id, container_status, offline_date, tare_weight, maximum_weight, payload_weight, csc_number")
+      .eq("purchase_order_id", purchaseOrder.id),
     "verify restored purchase containers"
   );
   if ((purchaseContainers ?? []).length !== 1) fail("Restored purchase container missing");
+  if (Number(purchaseContainers[0].tare_weight) !== 2350) fail("Restored purchase container tare weight mismatch");
+  if (Number(purchaseContainers[0].maximum_weight) !== 30480) fail("Restored purchase container maximum weight mismatch");
+  if (Number(purchaseContainers[0].payload_weight) !== 28130) fail("Restored purchase container payload weight mismatch");
+  if (purchaseContainers[0].csc_number !== `CSC-CONTAINER-${markers.stamp}`) fail("Restored purchase container CSC number mismatch");
 
   const purchaseMaterialTypes = await must(
     supabase.from("purchase_order_material_type").select("id, material_vendor_id").eq("purchase_order_id", purchaseOrder.id),

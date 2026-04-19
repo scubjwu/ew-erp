@@ -337,9 +337,9 @@ export function SaleToCustomerModal({
       uniformStatus as (typeof EDITABLE_STATUS_OPTIONS)[number]
     );
     setStatus(statusIsValid ? uniformStatus : "Gatebuy");
-    setDepotName(uniformDepotName);
-    setDepotAddr(uniformDepotAddr);
-    setDepotTel(uniformDepotTel);
+    setDepotName(uniformDepotName ?? "");
+    setDepotAddr(uniformDepotAddr ?? "");
+    setDepotTel(uniformDepotTel ?? "");
     setDpp("100");
     setIsPreviewOpen(false);
     setRecipients("");

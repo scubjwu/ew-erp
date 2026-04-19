@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -352,7 +352,7 @@ export function DepotCodeFormDialog({
   const [tab, setTab] = useState<TabKey>("info");
 
   const form = useForm<DepotFormValues>({
-    resolver: zodResolver(depotSchema),
+    resolver: zodResolver(depotSchema) as Resolver<DepotFormValues>,
     defaultValues: DEFAULT_VALUES,
   });
 

@@ -6,11 +6,12 @@ import { CustomerForm } from "@/components/customers/customer-form";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function ViewPartnerCustomerPage({ params }: PageProps) {
-  const customer = await getCustomerById(params.id);
+  const { id } = await params;
+  const customer = await getCustomerById(id);
   if (!customer) {
     notFound();
   }

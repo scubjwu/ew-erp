@@ -8,7 +8,7 @@ import {
   cancelPurchaseOrder,
   partialCancelPurchaseOrderItems,
 } from "@/app/purchase/po-management/actions";
-import type { PurchaseOrderDetail } from "@/types/purchase";
+import { getPurchaseOrderEditPermissions, type PurchaseOrderDetail } from "@/types/purchase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -134,11 +134,10 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
   const [savingCancels, setSavingCancels] = useState(false);
   const [cancelQtyByItem, setCancelQtyByItem] = useState<Record<string, string>>({});
 
-  const canEdit =
-    order.orderStatus === "DRAFT" ||
-    order.orderStatus === "SUBMITTED" ||
-    order.orderStatus === "IN_PRODUCTION" ||
-    order.orderStatus === "RELEASED";
+  const canEdit = getPurchaseOrderEditPermissions(
+    order.purchaseType,
+    order.orderStatus
+  ).canEnterEdit;
   const canCancelWholeOrder =
     order.orderStatus !== "COMPLETED" && order.orderStatus !== "CANCELLED";
   const canPartialCancel =
@@ -335,6 +334,10 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                   <TableHead>Machine Type</TableHead>
                   <TableHead>YOM</TableHead>
                   <TableHead>Offline Date</TableHead>
+                  <TableHead>Tare Weight</TableHead>
+                  <TableHead>Maximum Weight</TableHead>
+                  <TableHead>Payload Weight</TableHead>
+                  <TableHead>CSC Number</TableHead>
                   <TableHead>Planned Qty</TableHead>
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Financial Cost</TableHead>
@@ -350,7 +353,7 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                 {order.items.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={21}
+                      colSpan={25}
                       className="h-24 text-center text-sm text-muted-foreground"
                     >
                       No PO items found.
@@ -377,6 +380,10 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                       <TableCell>{item.machineType ?? "-"}</TableCell>
                       <TableCell>{formatPlainNumber(item.yom)}</TableCell>
                       <TableCell>{formatDate(item.offlineDate)}</TableCell>
+                      <TableCell>{formatNumber(item.tareWeight)}</TableCell>
+                      <TableCell>{formatNumber(item.maximumWeight)}</TableCell>
+                      <TableCell>{formatNumber(item.payloadWeight)}</TableCell>
+                      <TableCell>{item.cscNumber ?? "-"}</TableCell>
                       <TableCell>{formatNumber(item.plannedQty)}</TableCell>
                       <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
                       <TableCell>{formatCurrency(item.financialCost)}</TableCell>

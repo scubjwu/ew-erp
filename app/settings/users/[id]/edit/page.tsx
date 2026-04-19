@@ -6,12 +6,13 @@ import { UserForm } from "@/components/settings/user-form";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function EditUserPage({ params }: PageProps) {
+  const { id } = await params;
   const [user, roleOptions] = await Promise.all([
-    getUserById(params.id),
+    getUserById(id),
     getUserRoleOptions(),
   ]);
 

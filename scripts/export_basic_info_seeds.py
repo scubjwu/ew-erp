@@ -59,6 +59,11 @@ DO_NOT_PRESERVE_WHEN_EMPTY = {
     "purchase_finance_record",
 }
 
+EXCLUDED_EXPORT_COLUMNS = {
+    "purchase_order_item": {"payload_weight"},
+    "purchase_order_container": {"payload_weight"},
+}
+
 def run_psql(sql: str) -> str:
     normalized_sql = " ".join(sql.split())
     result = subprocess.run(
@@ -92,7 +97,12 @@ where table_schema = 'public'
 order by ordinal_position;
 """
     output = run_psql(sql)
-    return [line.strip() for line in output.splitlines() if line.strip()]
+    excluded = EXCLUDED_EXPORT_COLUMNS.get(table_name, set())
+    return [
+        line.strip()
+        for line in output.splitlines()
+        if line.strip() and line.strip() not in excluded
+    ]
 
 
 def load_column_types(table_name: str) -> dict[str, str]:

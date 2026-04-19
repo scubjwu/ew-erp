@@ -285,6 +285,7 @@ function containerOwnerResult(
         container_owner_code: "OABCDE",
         legal_company_name: "Owner One",
         company_name: "Owner Alias",
+        uses_internal_container_numbering: false,
         primary_contact_person: "David",
         contact_email: "owner@example.com",
         contact_tel: "456789",

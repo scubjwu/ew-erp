@@ -111,6 +111,7 @@ function detailOrder(overrides?: Record<string, unknown>) {
       container_owner_code: "O12345",
       company_name: "Owner One",
       legal_company_name: null,
+      uses_internal_container_numbering: false,
     },
     buyer: {
       id: "buyer-1",
@@ -135,6 +136,10 @@ function detailOrder(overrides?: Record<string, unknown>) {
         machineType: "Carrier PrimeLINE",
         yom: 2026,
         offlineDate: "2026-04-10",
+        tareWeight: 2200,
+        maximumWeight: 30480,
+        payloadWeight: 28280,
+        cscNumber: "CSC-ITEM-1",
         plannedQty: 2,
         unitPrice: 2000,
         financialCost: 150,
@@ -169,6 +174,10 @@ function detailOrder(overrides?: Record<string, unknown>) {
         machineType: "Carrier PrimeLINE",
         yom: 2026,
         offlineDate: "2026-04-10",
+        tareWeight: 2350,
+        maximumWeight: 30480,
+        payloadWeight: 28130,
+        cscNumber: "CSC-CONTAINER-1",
         purchasePrice: 2000,
         financialCost: 150,
         containerStatus: "IN_YARD",
@@ -249,6 +258,10 @@ function containersDetail(overrides?: Record<string, unknown>) {
         machineType: "Daikin LXE",
         yom: 2026,
         offlineDate: "2026-04-11",
+        tareWeight: 2350,
+        maximumWeight: 30480,
+        payloadWeight: 28130,
+        cscNumber: "CSC-CONTAINER-1",
         purchasePrice: 2050,
         financialCost: 175,
         containerStatus: "PICKED_UP",
@@ -277,7 +290,7 @@ describe("Purchase detail views", () => {
         "Review PO business details, item lines, material types, and finance sync status."
       )
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Edit PO")).toBeInTheDocument();
+    expect(screen.queryByText("Edit PO")).not.toBeInTheDocument();
     expect(screen.getByText("Save")).toBeInTheDocument();
     expect(screen.getByText("Cancel Entire PO")).toBeInTheDocument();
     expect(screen.getByText("View Containers")).toBeInTheDocument();
@@ -292,6 +305,10 @@ describe("Purchase detail views", () => {
     expect(screen.getByText("Finance Status")).toBeInTheDocument();
     expect(screen.getByText("财务未同步")).toBeInTheDocument();
     expect(screen.getByText("Vendor Release Number")).toBeInTheDocument();
+    expect(screen.getByText("Tare Weight")).toBeInTheDocument();
+    expect(screen.getByText("Maximum Weight")).toBeInTheDocument();
+    expect(screen.getAllByText("Payload Weight")).not.toHaveLength(0);
+    expect(screen.getAllByText("CSC Number")).not.toHaveLength(0);
     expect(screen.getByText("Vents")).toBeInTheDocument();
     expect(screen.queryByText("Line No")).not.toBeInTheDocument();
     expect(screen.queryByText("Container Summary")).not.toBeInTheDocument();
@@ -318,13 +335,34 @@ describe("Purchase detail views", () => {
     expect(screen.getByText("Edit PO")).toBeInTheDocument();
   });
 
+  it("allows editing for partial released purchase orders", () => {
+    render(<PurchaseOrderDetailView order={detailOrder({ orderStatus: "PARTIAL_RELEASED" })} />);
+
+    expect(screen.getByText("Edit PO")).toBeInTheDocument();
+  });
+
+  it("hides editing for completed purchase orders", () => {
+    render(<PurchaseOrderDetailView order={detailOrder({ orderStatus: "COMPLETED" })} />);
+
+    expect(screen.queryByText("Edit PO")).not.toBeInTheDocument();
+  });
+
+  it("hides editing for cancelled purchase orders", () => {
+    render(<PurchaseOrderDetailView order={detailOrder({ orderStatus: "CANCELLED" })} />);
+
+    expect(screen.queryByText("Edit PO")).not.toBeInTheDocument();
+  });
+
   it("renders container detail rows with explicit boolean values and container-only fields", () => {
     render(<PurchaseItemContainersView data={containersDetail()} />);
 
     expect(screen.getByText("Container Details")).toBeInTheDocument();
     expect(screen.getByText("Purchase Price")).toBeInTheDocument();
+    expect(screen.getAllByText("Payload Weight")).not.toHaveLength(0);
+    expect(screen.getAllByText("CSC Number")).not.toHaveLength(0);
     expect(screen.getByText("Machine Type")).toBeInTheDocument();
     expect(screen.getByText("MSCU1234567")).toBeInTheDocument();
+    expect(screen.getByText("CSC-CONTAINER-1")).toBeInTheDocument();
     expect(screen.getAllByText("No")).not.toHaveLength(0);
     expect(screen.getByText("Yes")).toBeInTheDocument();
   });

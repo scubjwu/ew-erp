@@ -71,6 +71,7 @@ const initialOwner: ContainerOwner = {
   container_owner_code: "OABCDE",
   legal_company_name: "Owner One",
   company_name: "Owner Alias",
+  uses_internal_container_numbering: true,
   address: "Address",
   region_id: "region-1",
   region: { id: "region-1", region_code: "CN", region_name: "China" },
@@ -119,6 +120,7 @@ describe("ContainerOwnerForm", () => {
     );
     expect(await screen.findByRole("button", { name: "Save Changes" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /legal company name/i })).toHaveValue("Owner One");
+    expect(screen.getByLabelText(/Use Our Container Numbering/i)).toBeChecked();
 
     rerender(
       <ContainerOwnerForm

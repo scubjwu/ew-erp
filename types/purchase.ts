@@ -4,9 +4,104 @@ export type PurchaseOrderStatus =
   | "DRAFT"
   | "SUBMITTED"
   | "IN_PRODUCTION"
+  | "PARTIAL_RELEASED"
   | "RELEASED"
   | "COMPLETED"
   | "CANCELLED";
+
+export type PurchaseEditFieldSet = "all" | "factory_progress_limited" | "none";
+
+export interface PurchaseOrderEditPermissions {
+  canEnterEdit: boolean;
+  canSaveDraftLikeChanges: boolean;
+  canSubmitChanges: boolean;
+  editableFieldSet: PurchaseEditFieldSet;
+  requiresMandatoryValidationOnSubmit: boolean;
+  requiresAtLeastOneItemOnSubmit: boolean;
+}
+
+export function getPurchaseOrderEditPermissions(
+  purchaseType: PurchaseType,
+  orderStatus: PurchaseOrderStatus
+): PurchaseOrderEditPermissions {
+  if (purchaseType === "FACTORY_ORDER") {
+    switch (orderStatus) {
+      case "DRAFT":
+        return {
+          canEnterEdit: true,
+          canSaveDraftLikeChanges: true,
+          canSubmitChanges: true,
+          editableFieldSet: "all",
+          requiresMandatoryValidationOnSubmit: true,
+          requiresAtLeastOneItemOnSubmit: true,
+        };
+      case "SUBMITTED":
+        return {
+          canEnterEdit: true,
+          canSaveDraftLikeChanges: false,
+          canSubmitChanges: true,
+          editableFieldSet: "all",
+          requiresMandatoryValidationOnSubmit: true,
+          requiresAtLeastOneItemOnSubmit: true,
+        };
+      case "IN_PRODUCTION":
+      case "PARTIAL_RELEASED":
+        return {
+          canEnterEdit: true,
+          canSaveDraftLikeChanges: false,
+          canSubmitChanges: true,
+          editableFieldSet: "factory_progress_limited",
+          requiresMandatoryValidationOnSubmit: true,
+          requiresAtLeastOneItemOnSubmit: true,
+        };
+      case "RELEASED":
+      case "COMPLETED":
+      case "CANCELLED":
+        return {
+          canEnterEdit: false,
+          canSaveDraftLikeChanges: false,
+          canSubmitChanges: false,
+          editableFieldSet: "none",
+          requiresMandatoryValidationOnSubmit: false,
+          requiresAtLeastOneItemOnSubmit: false,
+        };
+    }
+  }
+
+  switch (orderStatus) {
+    case "DRAFT":
+      return {
+        canEnterEdit: true,
+        canSaveDraftLikeChanges: true,
+        canSubmitChanges: true,
+        editableFieldSet: "all",
+        requiresMandatoryValidationOnSubmit: true,
+        requiresAtLeastOneItemOnSubmit: true,
+      };
+    case "SUBMITTED":
+    case "RELEASED":
+      return {
+        canEnterEdit: true,
+        canSaveDraftLikeChanges: false,
+        canSubmitChanges: true,
+        editableFieldSet: "all",
+        requiresMandatoryValidationOnSubmit: true,
+        requiresAtLeastOneItemOnSubmit: true,
+      };
+    case "IN_PRODUCTION":
+    case "PARTIAL_RELEASED":
+    case "COMPLETED":
+    case "CANCELLED":
+      return {
+        canEnterEdit: false,
+        canSaveDraftLikeChanges: false,
+        canSubmitChanges: false,
+        editableFieldSet: "none",
+        requiresMandatoryValidationOnSubmit: false,
+        requiresAtLeastOneItemOnSubmit: false,
+      };
+  }
+}
 
 export type PurchaseInboundStatus = "NOT_STARTED" | "PARTIAL" | "COMPLETED";
 
@@ -34,6 +129,7 @@ export interface PurchaseOwnerRef {
   container_owner_code: string | null;
   company_name: string | null;
   legal_company_name: string | null;
+  uses_internal_container_numbering: boolean;
 }
 
 export interface PurchaseBuyerRef {
@@ -161,6 +257,10 @@ export interface PurchaseOrderItem {
   machineType: string | null;
   yom: number | null;
   offlineDate: string | null;
+  tareWeight: number | null;
+  maximumWeight: number | null;
+  payloadWeight: number | null;
+  cscNumber: string | null;
   plannedQty: number;
   unitPrice: number | null;
   financialCost: number | null;
@@ -196,6 +296,10 @@ export interface PurchaseOrderContainer {
   machineType: string | null;
   yom: number | null;
   offlineDate: string | null;
+  tareWeight: number | null;
+  maximumWeight: number | null;
+  payloadWeight: number | null;
+  cscNumber: string | null;
   purchasePrice: number | null;
   financialCost: number | null;
   containerStatus: string | null;
@@ -281,6 +385,9 @@ export interface PurchaseOrderDraftItemInput {
   machineType: string | null;
   yom: number | null;
   offlineDate: string | null;
+  tareWeight: number | null;
+  maximumWeight: number | null;
+  cscNumber: string | null;
   plannedQty: number;
   unitPrice: number | null;
   lineAmount: number | null;
@@ -298,6 +405,9 @@ export interface PurchaseOrderDraftContainerInput {
   machineType: string | null;
   yom: number | null;
   offlineDate: string | null;
+  tareWeight: number | null;
+  maximumWeight: number | null;
+  cscNumber: string | null;
 }
 
 export interface PurchaseDraftMaterialTypeInput {
@@ -327,6 +437,8 @@ export interface PurchaseOrderDraftInput {
   settlementAdvancePaymentPercentage: number | null;
   settlementBalanceTriggerEvent: string | null;
   settlementCurrency: string | null;
+  settlementPrepaymentPool: boolean | null;
+  settlementPrepaymentThreshold: number | null;
   settlementCurrentPrepaidBalance: number | null;
   vendorBankInformation: PurchaseBankInformationSnapshot | null;
   remark: string | null;

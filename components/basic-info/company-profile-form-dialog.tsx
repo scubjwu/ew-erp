@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
 import { revalidateCompanyProfilesPage } from "@/app/basic-info/companies/actions";
@@ -137,7 +137,7 @@ export function CompanyProfileFormDialog({
 }: CompanyProfileFormDialogProps) {
   const [saving, setSaving] = useState(false);
   const form = useForm<CompanyProfileFormValues>({
-    resolver: zodResolver(companyProfileFormSchema),
+    resolver: zodResolver(companyProfileFormSchema) as Resolver<CompanyProfileFormValues>,
     defaultValues: DEFAULT_VALUES,
   });
 
