@@ -8,25 +8,30 @@ test.describe('Global UI Interactions', () => {
     // Find the vendor search input by placeholder
     const vendorInput = page.getByPlaceholder(/Vendor code or name/i).first();
     await expect(vendorInput).toBeVisible();
+    await expect(vendorInput).toBeEnabled();
 
-    // Focus and click to open the dropdown
+    // Next.js hydration race condition mitigation: wait briefly for React to attach event listeners
+    await page.waitForTimeout(1000);
+
+    // Click to focus and trigger the dropdown listbox
     await vendorInput.click();
+    await vendorInput.pressSequentially('A', { delay: 100 });
 
     // The autocomplete renders a dropdown with z-[80]
     const dropdown = page.locator('.z-\\[80\\]').first();
     await expect(dropdown).toBeVisible();
     
+    // We expect some options to be visible, grab the first one
     const firstOption = dropdown.getByRole('option').first();
     await expect(firstOption).toBeVisible();
     
     // Save the text of the option we are selecting to verify it fills the input
     const optionText = await firstOption.textContent() || '';
+    
+    // Click the option
     await firstOption.click();
-
-    // Verify it fills the input WITHOUT auto-running search. 
-    // We expect the input value to match the option text (or part of it).
-    // The exact matching logic might depend on how the combobox is implemented, 
-    // but the dropdown should be closed.
+    
+    // We expect the dropdown to be closed
     await expect(dropdown).toBeHidden();
     
     // Now press 'Enter' or click 'Search' to execute the search

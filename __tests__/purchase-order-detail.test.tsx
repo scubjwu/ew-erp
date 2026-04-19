@@ -2,10 +2,9 @@ import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-const { cancelPurchaseOrder, partialCancelPurchaseOrderItems, routerRefresh, toast } = vi.hoisted(
+const { cancelPurchaseOrder, routerRefresh, toast } = vi.hoisted(
   () => ({
     cancelPurchaseOrder: vi.fn(),
-    partialCancelPurchaseOrderItems: vi.fn(),
     routerRefresh: vi.fn(),
     toast: vi.fn(),
   })
@@ -34,7 +33,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app/purchase/po-management/actions", () => ({
   cancelPurchaseOrder,
-  partialCancelPurchaseOrderItems,
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -67,7 +65,6 @@ function detailOrder(overrides?: Record<string, unknown>) {
     contractNumber: "CT-001",
     invoiceNumber: "INV-001",
     freeday: 7,
-    vendorReleaseNumber: "REL-001",
     vendorReleaseDate: "2026-04-11",
     remark: "PO remark",
     exchangeRate: 1,
@@ -135,11 +132,14 @@ function detailOrder(overrides?: Record<string, unknown>) {
         ventsCount: 2,
         machineType: "Carrier PrimeLINE",
         yom: 2026,
+        estimatedOfflineDate: "2026-04-09",
         offlineDate: "2026-04-10",
+        vendorReleaseNumber: null,
         tareWeight: 2200,
         maximumWeight: 30480,
         payloadWeight: 28280,
         cscNumber: "CSC-ITEM-1",
+        containerNumberRange: "MSCU1234567 - MSCU1234578",
         plannedQty: 2,
         unitPrice: 2000,
         financialCost: 150,
@@ -173,6 +173,7 @@ function detailOrder(overrides?: Record<string, unknown>) {
         ventsCount: 2,
         machineType: "Carrier PrimeLINE",
         yom: 2026,
+        estimatedOfflineDate: "2026-04-09",
         offlineDate: "2026-04-10",
         tareWeight: 2350,
         maximumWeight: 30480,
@@ -238,6 +239,7 @@ function containersDetail(overrides?: Record<string, unknown>) {
   return {
     orderId: "po-1",
     orderNo: "PO-001",
+    purchaseType: "FACTORY_ORDER",
     item: detailOrder().items[0],
     containers: [
       {
@@ -257,6 +259,7 @@ function containersDetail(overrides?: Record<string, unknown>) {
         ventsCount: 1,
         machineType: "Daikin LXE",
         yom: 2026,
+        estimatedOfflineDate: "2026-04-10",
         offlineDate: "2026-04-11",
         tareWeight: 2350,
         maximumWeight: 30480,
@@ -291,7 +294,7 @@ describe("Purchase detail views", () => {
       )
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Edit PO")).not.toBeInTheDocument();
-    expect(screen.getByText("Save")).toBeInTheDocument();
+    expect(screen.queryByText("Save")).not.toBeInTheDocument();
     expect(screen.getByText("Cancel Entire PO")).toBeInTheDocument();
     expect(screen.getByText("View Containers")).toBeInTheDocument();
     expect(screen.getByText("Purchase Order Details")).toBeInTheDocument();
@@ -300,25 +303,69 @@ describe("Purchase detail views", () => {
     expect(screen.getByText("Settlement Details")).toBeInTheDocument();
     expect(screen.getByText("Vendor Bank Information")).toBeInTheDocument();
     expect(screen.getByText("A/P Overview")).toBeInTheDocument();
-    expect(screen.getByText("Cancel Qty")).toBeInTheDocument();
+    expect(screen.queryByText("Cancel Qty")).not.toBeInTheDocument();
     expect(screen.queryByText("Finance Sync")).not.toBeInTheDocument();
     expect(screen.getByText("Finance Status")).toBeInTheDocument();
     expect(screen.getByText("财务未同步")).toBeInTheDocument();
-    expect(screen.getByText("Vendor Release Number")).toBeInTheDocument();
+    expect(screen.queryByText("Vendor Release Number")).not.toBeInTheDocument();
     expect(screen.getByText("Tare Weight")).toBeInTheDocument();
     expect(screen.getByText("Maximum Weight")).toBeInTheDocument();
     expect(screen.getAllByText("Payload Weight")).not.toHaveLength(0);
     expect(screen.getAllByText("CSC Number")).not.toHaveLength(0);
+    expect(screen.getByText("Container Number Range")).toBeInTheDocument();
+    expect(screen.getByText("MSCU123456 - MSCU123457")).toBeInTheDocument();
     expect(screen.getByText("Vents")).toBeInTheDocument();
+    expect(screen.getByText("Offline Date / Release Date")).toBeInTheDocument();
     expect(screen.queryByText("Line No")).not.toBeInTheDocument();
     expect(screen.queryByText("Container Summary")).not.toBeInTheDocument();
     expect(screen.queryByText("Container Number")).not.toBeInTheDocument();
-    expect(screen.getByText("Estimated Offline Date")).toBeInTheDocument();
+    expect(screen.getAllByText("Estimated Offline Date")).not.toHaveLength(0);
+    expect(screen.getAllByText("4/9/2026")).not.toHaveLength(0);
+    expect(screen.queryByText("Freeday")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vendor Release Date")).not.toBeInTheDocument();
+    expect(screen.queryByText("Exchange Rate")).not.toBeInTheDocument();
     expect(screen.queryByText("Estimated Offline Time")).not.toBeInTheDocument();
     expect(screen.queryByText("Inbound Status")).not.toBeInTheDocument();
     expect(screen.getByText("2026")).toBeInTheDocument();
     expect(screen.queryByText("2,026")).not.toBeInTheDocument();
     expect(screen.getAllByText("No")).not.toHaveLength(0);
+    const actionsHeader = screen.getByRole("columnheader", { name: "Actions" });
+    expect(actionsHeader.className).toContain("sticky");
+    expect(actionsHeader.className).toContain("right-0");
+  });
+
+  it("hides non-factory-excluded header fields and shows vendor release number at item level", () => {
+    render(
+      <PurchaseOrderDetailView
+        order={detailOrder({
+          purchaseType: "USED_CONTAINER",
+          estimatedOfflineTime: null,
+          contractNumber: null,
+          invoiceNumber: null,
+          vendorReleaseDate: "2026-04-11",
+          exchangeRate: 1,
+          freeday: 7,
+          items: [
+            {
+              ...detailOrder().items[0],
+              vendorReleaseNumber: "VRN-001",
+              containerNumberRange: null,
+            },
+          ],
+          materialTypes: [],
+        })}
+      />
+    );
+
+    expect(screen.queryByText("Estimated Offline Date")).not.toBeInTheDocument();
+    expect(screen.queryByText("Contract Number")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invoice Number")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vendor Release Date")).not.toBeInTheDocument();
+    expect(screen.queryByText("Exchange Rate")).not.toBeInTheDocument();
+    expect(screen.getByText("Freeday")).toBeInTheDocument();
+    expect(screen.getByText("Vendor Release Number")).toBeInTheDocument();
+    expect(screen.getByText("VRN-001")).toBeInTheDocument();
+    expect(screen.queryByText("Container Number Range")).not.toBeInTheDocument();
   });
 
   it("renders pending finance status in PO finance even when no finance record exists", () => {
@@ -358,10 +405,13 @@ describe("Purchase detail views", () => {
 
     expect(screen.getByText("Container Details")).toBeInTheDocument();
     expect(screen.getByText("Purchase Price")).toBeInTheDocument();
+    expect(screen.getAllByText("Estimated Offline Date")).not.toHaveLength(0);
+    expect(screen.getByText("4/10/2026")).toBeInTheDocument();
     expect(screen.getAllByText("Payload Weight")).not.toHaveLength(0);
     expect(screen.getAllByText("CSC Number")).not.toHaveLength(0);
+    expect(screen.getByText("Container Number Range")).toBeInTheDocument();
     expect(screen.getByText("Machine Type")).toBeInTheDocument();
-    expect(screen.getByText("MSCU1234567")).toBeInTheDocument();
+    expect(screen.getAllByText("MSCU1234567")).not.toHaveLength(0);
     expect(screen.getByText("CSC-CONTAINER-1")).toBeInTheDocument();
     expect(screen.getAllByText("No")).not.toHaveLength(0);
     expect(screen.getByText("Yes")).toBeInTheDocument();

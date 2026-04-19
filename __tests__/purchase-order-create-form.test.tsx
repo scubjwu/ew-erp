@@ -186,7 +186,6 @@ const initialSubmittedOrder = {
   contractNumber: null,
   invoiceNumber: null,
   freeday: null,
-  vendorReleaseNumber: null,
   vendorReleaseDate: "2026-04-20",
   remark: null,
   exchangeRate: 1,
@@ -245,7 +244,9 @@ const initialSubmittedOrder = {
       ventsCount: 1,
       machineType: null,
       yom: 2026,
+      estimatedOfflineDate: null,
       offlineDate: null,
+      vendorReleaseNumber: null,
       tareWeight: 2200,
       maximumWeight: 30480,
       payloadWeight: 28280,
@@ -285,7 +286,9 @@ const initialSubmittedOrder = {
       ventsCount: 1,
       machineType: null,
       yom: 2026,
+      estimatedOfflineDate: "2026-04-18",
       offlineDate: "2026-04-20",
+      vendorReleaseNumber: "VRN-ITEM-2",
       tareWeight: 2350,
       maximumWeight: 30480,
       payloadWeight: 28130,
@@ -321,7 +324,7 @@ describe("PurchaseOrderCreateForm", () => {
     expect(screen.getAllByText("FLP")).not.toHaveLength(0);
     expect(screen.getAllByText("LBX")).not.toHaveLength(0);
     expect(screen.getByText("Material Vendors")).toBeInTheDocument();
-    expect(screen.getByText("Estimated Offline Date")).toBeInTheDocument();
+    expect(screen.getAllByText("Estimated Offline Date")).not.toHaveLength(0);
     expect(screen.queryByText("Freeday")).not.toBeInTheDocument();
     expect(screen.getAllByDisplayValue("油漆")).not.toHaveLength(0);
     expect(screen.getAllByDisplayValue("密封胶")).not.toHaveLength(0);
@@ -335,7 +338,7 @@ describe("PurchaseOrderCreateForm", () => {
     expect(screen.queryByText("Contract Number")).not.toBeInTheDocument();
     expect(screen.queryByText("Invoice Number")).not.toBeInTheDocument();
     expect(screen.getByText("Freeday")).toBeInTheDocument();
-    expect(screen.getByText("Vendor Release Number")).toBeInTheDocument();
+    expect(screen.getAllByText("Vendor Release Number")).not.toHaveLength(0);
   });
 
   it("shows payment-mode-specific finance fields", async () => {
@@ -404,7 +407,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     expect(firstDataRow).toBeTruthy();
     const cells = within(firstDataRow!).getAllByRole("cell");
 
@@ -469,7 +472,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     expect(firstDataRow).toBeTruthy();
     const locationCell = within(firstDataRow!).getAllByRole("cell")[0];
     const actionsCell = within(firstDataRow!).getAllByRole("cell").at(-1);
@@ -538,7 +541,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     const cells = within(firstDataRow!).getAllByRole("cell");
 
     await user.click(within(cells[15]).getByRole("button", { name: "0" }));
@@ -571,11 +574,12 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     const cells = within(firstDataRow!).getAllByRole("cell");
 
-    await user.click(within(cells[15]).getByRole("button", { name: "0" }));
-    await user.type(within(cells[15]).getByRole("spinbutton"), "1{Enter}");
+    expect(within(cells[15]).getByText("-")).toBeInTheDocument();
+    await user.click(within(cells[17]).getByRole("button", { name: "0" }));
+    await user.type(within(cells[17]).getByRole("spinbutton"), "1{Enter}");
     await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
 
     expect(screen.getByText("Auto-generated")).toBeInTheDocument();
@@ -595,11 +599,12 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     const cells = within(firstDataRow!).getAllByRole("cell");
 
-    await user.click(within(cells[15]).getByRole("button", { name: "0" }));
-    await user.type(within(cells[15]).getByRole("spinbutton"), "1{Enter}");
+    expect(within(cells[15]).getByText("-")).toBeInTheDocument();
+    await user.click(within(cells[17]).getByRole("button", { name: "0" }));
+    await user.type(within(cells[17]).getByRole("spinbutton"), "1{Enter}");
     await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
 
     expect(screen.getByPlaceholderText("ABCD1234567")).toBeInTheDocument();
@@ -639,7 +644,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     const cells = within(firstDataRow!).getAllByRole("cell");
 
     await user.click(within(cells[0]).getByRole("button", { name: "-" }));
@@ -714,9 +719,10 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     expect(firstDataRow).toBeTruthy();
     const cells = within(firstDataRow!).getAllByRole("cell");
+    expect(screen.getByText("Cancel Qty")).toBeInTheDocument();
 
     await user.click(within(cells[2]).getByRole("button", { name: "20GP" }));
     fireEvent.change(within(cells[2]).getByRole("combobox"), {
@@ -750,8 +756,18 @@ describe("PurchaseOrderCreateForm", () => {
     await user.clear(within(cells[15]).getByRole("spinbutton"));
     await user.type(within(cells[15]).getByRole("spinbutton"), "2{Enter}");
 
-    await user.click(within(cells[18]).getByRole("button", { name: "-" }));
-    await user.type(within(cells[18]).getByDisplayValue(""), "2026-05-01{Enter}");
+    await user.click(within(cells[18]).getByRole("spinbutton"));
+    await user.clear(within(cells[18]).getByRole("spinbutton"));
+    await user.type(within(cells[18]).getByRole("spinbutton"), "1");
+
+    await user.click(within(cells[21]).getByRole("button", { name: "-" }));
+    await user.clear(within(cells[21]).getByRole("textbox"));
+    await user.type(within(cells[21]).getByRole("textbox"), "VRN-ITEM-UPDATED{Enter}");
+
+    await user.click(within(cells[22]).getByRole("button", { name: "-" }));
+    const offlineDateInput = cells[22]?.querySelector("input");
+    expect(offlineDateInput).toBeTruthy();
+    await user.type(offlineDateInput as HTMLInputElement, "2026-05-01{Enter}");
 
     expect(screen.queryByRole("button", { name: /Save Changes/i })).not.toBeInTheDocument();
 
@@ -768,7 +784,58 @@ describe("PurchaseOrderCreateForm", () => {
     expect(payload.items[0].maximumWeight).toBe(30400);
     expect(payload.items[0].cscNumber).toBe("CSC-ITEM-UPDATED");
     expect(payload.items[0].plannedQty).toBe(2);
+    expect(payload.items[0].cancelQty).toBe(1);
+    expect(payload.items[0].vendorReleaseNumber).toBe("VRN-ITEM-UPDATED");
     expect(payload.items[0].offlineDate).toBe("2026-05-01");
+    expect(payload.containers[0].offlineDate).toBe("2026-05-01");
+  });
+
+  it("shows uncancelled totals in edit mode footer", () => {
+    render(
+      <PurchaseOrderCreateForm
+        options={options}
+        initialOrder={{
+          ...initialSubmittedOrder,
+          items: [
+            {
+              ...initialSubmittedOrder.items[0],
+              plannedQty: 20,
+              unitPrice: 600,
+              lineAmount: 12000,
+              cancelledQty: 7,
+              remainingQty: 13,
+            },
+          ],
+        }}
+        mode="edit"
+        editPermissions={getPurchaseOrderEditPermissions(
+          initialSubmittedOrder.purchaseType,
+          initialSubmittedOrder.orderStatus
+        )}
+      />
+    );
+
+    expect(screen.getByText("Total Qty: 13")).toBeInTheDocument();
+    expect(screen.getByText("Total Amount: 7,800.00")).toBeInTheDocument();
+  });
+
+  it("does not show cancel qty for draft edit mode", () => {
+    render(
+      <PurchaseOrderCreateForm
+        options={options}
+        initialOrder={{
+          ...initialSubmittedOrder,
+          orderStatus: "DRAFT",
+        }}
+        mode="edit"
+        editPermissions={getPurchaseOrderEditPermissions(
+          initialSubmittedOrder.purchaseType,
+          "DRAFT"
+        )}
+      />
+    );
+
+    expect(screen.queryByText("Cancel Qty")).not.toBeInTheDocument();
   });
 
   it("allows adding item lines when pending edit order has no existing items", async () => {
@@ -797,7 +864,7 @@ describe("PurchaseOrderCreateForm", () => {
 
     const firstDataRow = screen
       .getAllByRole("row")
-      .find((row) => within(row).queryAllByRole("cell").length === 20);
+      .find((row) => within(row).queryAllByRole("cell").length >= 20);
     expect(firstDataRow).toBeTruthy();
   });
 

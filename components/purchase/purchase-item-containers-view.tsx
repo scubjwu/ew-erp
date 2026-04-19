@@ -62,7 +62,7 @@ export function PurchaseItemContainersView({
 }: {
   data: PurchaseOrderItemContainersDetail;
 }) {
-  const { orderId, orderNo, item, containers } = data;
+  const { orderId, orderNo, purchaseType, item, containers } = data;
 
   return (
     <div className="min-h-screen bg-background">
@@ -100,6 +100,14 @@ export function PurchaseItemContainersView({
                 {item.depot ? `${item.depot.depot_code} · ${item.depot.depot_name}` : "-"}
               </div>
             </div>
+            {purchaseType === "FACTORY_ORDER" ? (
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Container Number Range
+                </div>
+                <div className="mt-1 text-sm">{item.containerNumberRange ?? "-"}</div>
+              </div>
+            ) : null}
             <div>
               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Size/Type
@@ -136,6 +144,22 @@ export function PurchaseItemContainersView({
               </div>
               <div className="mt-1 text-sm">{item.cscNumber ?? "-"}</div>
             </div>
+            {purchaseType !== "FACTORY_ORDER" ? (
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Vendor Release Number
+                </div>
+                <div className="mt-1 text-sm">{item.vendorReleaseNumber ?? "-"}</div>
+              </div>
+            ) : null}
+            {purchaseType === "FACTORY_ORDER" ? (
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Estimated Offline Date
+                </div>
+                <div className="mt-1 text-sm">{formatDate(item.estimatedOfflineDate)}</div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -159,6 +183,9 @@ export function PurchaseItemContainersView({
                   <TableHead>Vents</TableHead>
                   <TableHead>Machine Type</TableHead>
                   <TableHead>YOM</TableHead>
+                  {purchaseType === "FACTORY_ORDER" ? (
+                    <TableHead>Estimated Offline Date</TableHead>
+                  ) : null}
                   <TableHead>Offline Date</TableHead>
                   <TableHead>Tare Weight</TableHead>
                   <TableHead>Maximum Weight</TableHead>
@@ -173,7 +200,7 @@ export function PurchaseItemContainersView({
                 {containers.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={20}
+                      colSpan={purchaseType === "FACTORY_ORDER" ? 21 : 20}
                       className="h-24 text-center text-sm text-muted-foreground"
                     >
                       No containers found for this PO item.
@@ -202,6 +229,9 @@ export function PurchaseItemContainersView({
                       <TableCell>{formatNumber(container.ventsCount)}</TableCell>
                       <TableCell>{container.machineType ?? "-"}</TableCell>
                       <TableCell>{formatNumber(container.yom)}</TableCell>
+                      {purchaseType === "FACTORY_ORDER" ? (
+                        <TableCell>{formatDate(container.estimatedOfflineDate)}</TableCell>
+                      ) : null}
                       <TableCell>{formatDate(container.offlineDate)}</TableCell>
                       <TableCell>{formatNumber(container.tareWeight)}</TableCell>
                       <TableCell>{formatNumber(container.maximumWeight)}</TableCell>

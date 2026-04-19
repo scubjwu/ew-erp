@@ -83,6 +83,13 @@ export function AutocompleteFilterInput({
 
   return (
     <div ref={rootRef} className="relative space-y-1.5">
+      <div 
+        id="debug-autocomplete-state" 
+        data-open={open} 
+        data-options={filteredOptions.length} 
+        data-input={inputValue}
+        style={{ display: 'none' }} 
+      />
       <div className="text-sm font-medium">
         {label}
         {required ? (

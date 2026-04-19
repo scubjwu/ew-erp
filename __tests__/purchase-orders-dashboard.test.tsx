@@ -143,7 +143,6 @@ function purchaseResult(
         contractNumber: null,
         invoiceNumber: null,
         freeday: null,
-        vendorReleaseNumber: null,
         vendorReleaseDate: null,
         remark: null,
         exchangeRate: 1,

@@ -62,13 +62,33 @@ export function computeLineAmount(
   return Number((qty * price).toFixed(2));
 }
 
-export function computeTotals(items: PurchaseOrderDraftItemInput[]) {
+export function computeTotals(
+  items: Array<
+    PurchaseOrderDraftItemInput & {
+      cancelledQty?: number | null;
+      remainingQty?: number | null;
+      cancelQty?: number | null;
+    }
+  >
+) {
   return items.reduce(
     (acc, item) => {
       const plannedQty = Number(item.plannedQty ?? 0);
-      const lineAmount = computeLineAmount(item.plannedQty, item.unitPrice);
+      const cancelledQty = Number(item.cancelledQty ?? 0);
+      const pendingCancelQty = Number(item.cancelQty ?? 0);
+      const persistedRemainingQty =
+        item.remainingQty == null ? null : Number(item.remainingQty);
+      const effectiveQtyBase =
+        persistedRemainingQty != null && Number.isFinite(persistedRemainingQty)
+          ? persistedRemainingQty
+          : plannedQty - (Number.isFinite(cancelledQty) ? cancelledQty : 0);
+      const effectiveQty = Math.max(
+        0,
+        effectiveQtyBase - (Number.isFinite(pendingCancelQty) ? pendingCancelQty : 0)
+      );
+      const lineAmount = computeLineAmount(effectiveQty, item.unitPrice);
       return {
-        totalPlannedQty: acc.totalPlannedQty + (Number.isFinite(plannedQty) ? plannedQty : 0),
+        totalPlannedQty: acc.totalPlannedQty + (Number.isFinite(effectiveQty) ? effectiveQty : 0),
         totalAmount: Number((acc.totalAmount + lineAmount).toFixed(2)),
       };
     },
@@ -232,7 +252,7 @@ export function getDefaultContainerOfflineDate(input: {
   if (input.purchaseType === "FACTORY_ORDER") {
     return input.itemOfflineDate ?? null;
   }
-  return input.vendorReleaseDate ?? null;
+  return input.itemOfflineDate ?? null;
 }
 
 export function buildDefaultDraftContainersForItem(input: {
@@ -252,6 +272,8 @@ export function buildDefaultDraftContainersForItem(input: {
     ventsCount: input.item.ventsCount,
     machineType: input.item.machineType ?? null,
     yom: input.item.yom ?? null,
+    estimatedOfflineDate:
+      input.purchaseType === "FACTORY_ORDER" ? input.item.estimatedOfflineDate ?? null : null,
     offlineDate: getDefaultContainerOfflineDate({
       purchaseType: input.purchaseType,
       itemOfflineDate: input.item.offlineDate,

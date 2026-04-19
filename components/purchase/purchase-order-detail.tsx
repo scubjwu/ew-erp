@@ -6,12 +6,14 @@ import { useState } from "react";
 
 import {
   cancelPurchaseOrder,
-  partialCancelPurchaseOrderItems,
 } from "@/app/purchase/po-management/actions";
 import { getPurchaseOrderEditPermissions, type PurchaseOrderDetail } from "@/types/purchase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  ACTIONS_STICKY_CELL_CLASS,
+  ACTIONS_STICKY_HEAD_CLASS,
+} from "@/components/shared/page-standard/table-standard";
 import {
   Table,
   TableBody,
@@ -117,6 +119,23 @@ function bankInfoRows(order: PurchaseOrderDetail) {
   ] as const;
 }
 
+function formatContainerNumberRangeDisplay(value: string | null | undefined) {
+  if (!value) return "-";
+
+  const shorten = (part: string) => {
+    const trimmed = part.trim();
+    const match = trimmed.match(/^([A-Za-z]{4})(\d{6})\d+$/);
+    if (!match) return trimmed;
+    return `${match[1].toUpperCase()}${match[2]}`;
+  };
+
+  if (!value.includes(" - ")) return shorten(value);
+
+  const [start, end] = value.split(" - ");
+  if (!start || !end) return value;
+  return `${shorten(start)} - ${shorten(end)}`;
+}
+
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
@@ -131,8 +150,9 @@ function DetailField({ label, value }: { label: string; value: string }) {
 export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail }) {
   const router = useRouter();
   const [cancelling, setCancelling] = useState(false);
-  const [savingCancels, setSavingCancels] = useState(false);
-  const [cancelQtyByItem, setCancelQtyByItem] = useState<Record<string, string>>({});
+  const isFactoryOrder = order.purchaseType === "FACTORY_ORDER";
+  const isNonFactoryOrder =
+    order.purchaseType === "NEW_CONTAINER" || order.purchaseType === "USED_CONTAINER";
 
   const canEdit = getPurchaseOrderEditPermissions(
     order.purchaseType,
@@ -140,17 +160,6 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
   ).canEnterEdit;
   const canCancelWholeOrder =
     order.orderStatus !== "COMPLETED" && order.orderStatus !== "CANCELLED";
-  const canPartialCancel =
-    order.containers.length > 0 &&
-    order.orderStatus !== "COMPLETED" &&
-    order.orderStatus !== "CANCELLED";
-  const pendingPartialCancels = order.items
-    .map((item) => ({
-      itemId: item.id,
-      cancelQty: Number(cancelQtyByItem[item.id] || 0),
-      remainingQty: Number(item.remainingQty ?? 0),
-    }))
-    .filter((item) => item.cancelQty > 0);
 
   async function handleCancelOrder() {
     setCancelling(true);
@@ -172,37 +181,6 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
     }
   }
 
-  async function handleSaveCancels() {
-    if (pendingPartialCancels.length === 0) {
-      toast({
-        title: "No partial cancel changes",
-        description: "Enter a Cancel Qty before saving.",
-      });
-      return;
-    }
-
-    setSavingCancels(true);
-    try {
-      await partialCancelPurchaseOrderItems(
-        order.id,
-        pendingPartialCancels.map(({ itemId, cancelQty }) => ({ itemId, cancelQty }))
-      );
-      toast({
-        title: "Partial cancel applied",
-        description: `Saved ${pendingPartialCancels.length} item cancellation update(s).`,
-      });
-      router.refresh();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Could not apply partial cancel",
-        description: getErrorMessage(error),
-      });
-    } finally {
-      setSavingCancels(false);
-    }
-  }
-
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
@@ -214,20 +192,6 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
             {canEdit ? (
               <Button asChild variant="outline">
                 <Link href={`/purchase/po-management/${order.id}/edit`}>Edit PO</Link>
-              </Button>
-            ) : null}
-            {canPartialCancel ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={
-                  savingCancels ||
-                  pendingPartialCancels.length === 0 ||
-                  pendingPartialCancels.some((item) => item.cancelQty > item.remainingQty)
-                }
-                onClick={() => void handleSaveCancels()}
-              >
-                Save
               </Button>
             ) : null}
             {canCancelWholeOrder ? (
@@ -266,26 +230,22 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
               value={[codeLabel(order.buyer), companyLabel(order.buyer)].filter(Boolean).join(" · ") || "-"}
             />
             <DetailField label="Purchase Date" value={formatDate(order.purchaseDate)} />
-            <DetailField
-              label="Estimated Offline Date"
-              value={formatDate(order.estimatedOfflineTime)}
-            />
-            <DetailField label="Contract Number" value={order.contractNumber ?? "-"} />
-            <DetailField label="Invoice Number" value={order.invoiceNumber ?? "-"} />
-            <DetailField label="Freeday" value={formatNumber(order.freeday)} />
-            <DetailField
-              label="Vendor Release Number"
-              value={order.vendorReleaseNumber ?? "-"}
-            />
-            <DetailField
-              label="Vendor Release Date"
-              value={formatDate(order.vendorReleaseDate)}
-            />
+            {isFactoryOrder ? (
+              <DetailField
+                label="Estimated Offline Date"
+                value={formatDate(order.estimatedOfflineTime)}
+              />
+            ) : null}
+            {isFactoryOrder ? (
+              <DetailField label="Contract Number" value={order.contractNumber ?? "-"} />
+            ) : null}
+            {isFactoryOrder ? (
+              <DetailField label="Invoice Number" value={order.invoiceNumber ?? "-"} />
+            ) : null}
+            {isNonFactoryOrder ? (
+              <DetailField label="Freeday" value={formatNumber(order.freeday)} />
+            ) : null}
             <DetailField label="Order Status" value={order.orderStatus} />
-            <DetailField
-              label="Exchange Rate"
-              value={order.exchangeRate == null ? "-" : String(order.exchangeRate)}
-            />
             <DetailField label="Remarks" value={order.remark ?? "-"} />
           </CardContent>
         </Card>
@@ -324,6 +284,9 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                 <TableRow>
                   <TableHead>Location</TableHead>
                   <TableHead>Depot</TableHead>
+                  {order.purchaseType === "FACTORY_ORDER" ? (
+                    <TableHead>Container Number Range</TableHead>
+                  ) : null}
                   <TableHead>Size/Type</TableHead>
                   <TableHead>Condition</TableHead>
                   <TableHead>Color</TableHead>
@@ -333,7 +296,13 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                   <TableHead>Vents</TableHead>
                   <TableHead>Machine Type</TableHead>
                   <TableHead>YOM</TableHead>
-                  <TableHead>Offline Date</TableHead>
+                  {order.purchaseType !== "FACTORY_ORDER" ? (
+                    <TableHead>Vendor Release Number</TableHead>
+                  ) : null}
+                  {order.purchaseType === "FACTORY_ORDER" ? (
+                    <TableHead>Estimated Offline Date</TableHead>
+                  ) : null}
+                  <TableHead>Offline Date / Release Date</TableHead>
                   <TableHead>Tare Weight</TableHead>
                   <TableHead>Maximum Weight</TableHead>
                   <TableHead>Payload Weight</TableHead>
@@ -343,17 +312,16 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                   <TableHead>Financial Cost</TableHead>
                   <TableHead>Settlement Price</TableHead>
                   <TableHead>Line Amount</TableHead>
-                  <TableHead>Cancel Qty</TableHead>
                   <TableHead>Cancelled Qty</TableHead>
                   <TableHead>Remaining Qty</TableHead>
-                  <TableHead className="w-[180px]">Actions</TableHead>
+                  <TableHead className={ACTIONS_STICKY_HEAD_CLASS}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {order.items.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={25}
+                      colSpan={order.purchaseType === "FACTORY_ORDER" ? 26 : 25}
                       className="h-24 text-center text-sm text-muted-foreground"
                     >
                       No PO items found.
@@ -370,6 +338,11 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                           ? `${item.depot.depot_code} · ${item.depot.depot_name}`
                           : "-"}
                       </TableCell>
+                      {order.purchaseType === "FACTORY_ORDER" ? (
+                        <TableCell>
+                          {formatContainerNumberRangeDisplay(item.containerNumberRange)}
+                        </TableCell>
+                      ) : null}
                       <TableCell>{sizeTypeLabel(item)}</TableCell>
                       <TableCell>{conditionLabel(item)}</TableCell>
                       <TableCell>{item.color ?? "-"}</TableCell>
@@ -379,6 +352,12 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                       <TableCell>{formatNumber(item.ventsCount)}</TableCell>
                       <TableCell>{item.machineType ?? "-"}</TableCell>
                       <TableCell>{formatPlainNumber(item.yom)}</TableCell>
+                      {order.purchaseType !== "FACTORY_ORDER" ? (
+                        <TableCell>{item.vendorReleaseNumber ?? "-"}</TableCell>
+                      ) : null}
+                      {order.purchaseType === "FACTORY_ORDER" ? (
+                        <TableCell>{formatDate(item.estimatedOfflineDate)}</TableCell>
+                      ) : null}
                       <TableCell>{formatDate(item.offlineDate)}</TableCell>
                       <TableCell>{formatNumber(item.tareWeight)}</TableCell>
                       <TableCell>{formatNumber(item.maximumWeight)}</TableCell>
@@ -389,27 +368,9 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                       <TableCell>{formatCurrency(item.financialCost)}</TableCell>
                       <TableCell>{formatCurrency(item.settlementPrice)}</TableCell>
                       <TableCell>{formatCurrency(item.lineAmount)}</TableCell>
-                      <TableCell>
-                        {canPartialCancel ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            className="h-8 w-20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            value={cancelQtyByItem[item.id] ?? ""}
-                            onChange={(event) =>
-                              setCancelQtyByItem((current) => ({
-                                ...current,
-                                [item.id]: event.target.value,
-                              }))
-                            }
-                          />
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
                       <TableCell>{formatNumber(item.cancelledQty)}</TableCell>
                       <TableCell>{formatNumber(item.remainingQty)}</TableCell>
-                      <TableCell>
+                      <TableCell className={ACTIONS_STICKY_CELL_CLASS}>
                         <div className="flex flex-wrap items-center gap-2">
                           <Button asChild variant="outline" size="sm">
                             <Link

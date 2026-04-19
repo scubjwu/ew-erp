@@ -198,7 +198,6 @@ export interface PurchaseOrderBase {
   contractNumber: string | null;
   invoiceNumber: string | null;
   freeday: number | null;
-  vendorReleaseNumber: string | null;
   vendorReleaseDate: string | null;
   remark: string | null;
   exchangeRate: number | null;
@@ -256,11 +255,14 @@ export interface PurchaseOrderItem {
   ventsCount: number | null;
   machineType: string | null;
   yom: number | null;
+  estimatedOfflineDate: string | null;
   offlineDate: string | null;
+  vendorReleaseNumber: string | null;
   tareWeight: number | null;
   maximumWeight: number | null;
   payloadWeight: number | null;
   cscNumber: string | null;
+  containerNumberRange?: string | null;
   plannedQty: number;
   unitPrice: number | null;
   financialCost: number | null;
@@ -295,6 +297,7 @@ export interface PurchaseOrderContainer {
   ventsCount: number | null;
   machineType: string | null;
   yom: number | null;
+  estimatedOfflineDate: string | null;
   offlineDate: string | null;
   tareWeight: number | null;
   maximumWeight: number | null;
@@ -366,6 +369,7 @@ export interface PurchaseOrderDetail extends PurchaseOrderBase {
 export interface PurchaseOrderItemContainersDetail {
   orderId: string;
   orderNo: string;
+  purchaseType: PurchaseType;
   item: PurchaseOrderItem;
   containers: PurchaseOrderContainer[];
 }
@@ -384,14 +388,18 @@ export interface PurchaseOrderDraftItemInput {
   ventsCount: number | null;
   machineType: string | null;
   yom: number | null;
+  estimatedOfflineDate: string | null;
   offlineDate: string | null;
+  vendorReleaseNumber: string | null;
   tareWeight: number | null;
   maximumWeight: number | null;
   cscNumber: string | null;
+  containerNumberRange?: string | null;
   plannedQty: number;
   unitPrice: number | null;
   lineAmount: number | null;
   remark: string | null;
+  cancelQty?: number | null;
 }
 
 export interface PurchaseOrderDraftContainerInput {
@@ -404,6 +412,7 @@ export interface PurchaseOrderDraftContainerInput {
   ventsCount: number | null;
   machineType: string | null;
   yom: number | null;
+  estimatedOfflineDate: string | null;
   offlineDate: string | null;
   tareWeight: number | null;
   maximumWeight: number | null;
@@ -426,7 +435,6 @@ export interface PurchaseOrderDraftInput {
   contractNumber: string | null;
   invoiceNumber: string | null;
   freeday: number | null;
-  vendorReleaseNumber: string | null;
   vendorReleaseDate: string | null;
   paymentMode: PurchasePaymentMode | null;
   paymentAccount: string | null;

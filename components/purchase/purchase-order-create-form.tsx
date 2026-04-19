@@ -75,6 +75,9 @@ type Props = {
 
 type DraftItemRow = PurchaseOrderDraftItemInput & {
   key: string;
+  containerNumberRange?: string | null;
+  cancelledQty?: number | null;
+  remainingQty?: number | null;
   conditionDirty: boolean;
   flpDirty: boolean;
   lbxDirty: boolean;
@@ -104,18 +107,26 @@ type EditableCellKey = {
     | "vents"
     | "machineType"
     | "yom"
+    | "estimatedOfflineDate"
     | "tareWeight"
     | "maximumWeight"
     | "payloadWeight"
     | "cscNumber"
+    | "vendorReleaseNumber"
     | "plannedQty"
     | "unitPrice"
     | "offlineDate";
 };
 
-type EditableContainerField = "offlineDate" | "tareWeight" | "maximumWeight" | "cscNumber";
+type EditableContainerField =
+  | "estimatedOfflineDate"
+  | "offlineDate"
+  | "tareWeight"
+  | "maximumWeight"
+  | "cscNumber";
 
 const FACTORY_PROGRESS_EDITABLE_COLUMNS = new Set<EditableCellKey["column"]>([
+  "estimatedOfflineDate",
   "offlineDate",
   "tareWeight",
   "maximumWeight",
@@ -123,6 +134,7 @@ const FACTORY_PROGRESS_EDITABLE_COLUMNS = new Set<EditableCellKey["column"]>([
 ]);
 
 const FACTORY_PROGRESS_EDITABLE_CONTAINER_COLUMNS = new Set<EditableContainerField>([
+  "estimatedOfflineDate",
   "offlineDate",
   "tareWeight",
   "maximumWeight",
@@ -185,14 +197,20 @@ function createEmptyItem(
     ventsCount: null,
     machineType: null,
     yom: defaultYear,
+    estimatedOfflineDate: null,
     offlineDate: null,
+    vendorReleaseNumber: null,
     tareWeight: null,
     maximumWeight: null,
     cscNumber: null,
+    containerNumberRange: null,
     plannedQty: 0,
     unitPrice: null,
     lineAmount: 0,
     remark: null,
+    cancelQty: null,
+    cancelledQty: null,
+    remainingQty: null,
     conditionDirty: false,
     flpDirty: false,
     lbxDirty: false,
@@ -263,14 +281,18 @@ function syncContainersWithItems(input: {
       const base = defaults[index];
       const prior = existing[index];
       next.push(
-        prior
+            prior
           ? {
               ...prior,
               itemKey: item.itemKey,
+              estimatedOfflineDate:
+                input.purchaseType === "FACTORY_ORDER"
+                  ? prior.estimatedOfflineDate ?? base.estimatedOfflineDate
+                  : null,
               offlineDate:
                 input.purchaseType === "FACTORY_ORDER"
                   ? prior.offlineDate ?? base.offlineDate
-                  : input.vendorReleaseDate ?? null,
+                  : base.offlineDate,
             }
           : createDraftContainerRow(base)
       );
@@ -319,21 +341,22 @@ const PURCHASE_ITEM_COLUMNS = [
   { key: "vents", label: "Vents", width: 110 },
   { key: "machineType", label: "Machine Type", width: 150 },
   { key: "yom", label: "YOM", width: 100 },
+  { key: "estimatedOfflineDate", label: "Estimated Offline Date", width: 170 },
   { key: "tareWeight", label: "Tare Weight", width: 120 },
   { key: "maximumWeight", label: "Maximum Weight", width: 140 },
   { key: "payloadWeight", label: "Payload Weight", width: 130 },
   { key: "cscNumber", label: "CSC Number", width: 150 },
+  { key: "containerNumberRange", label: "Container Number Range", width: 220 },
   { key: "plannedQty", label: "Planned Qty", width: 120 },
   { key: "unitPrice", label: "Unit Price", width: 130 },
   { key: "lineAmount", label: "Line Amount", width: 140 },
+  { key: "cancelQty", label: "Cancel Qty", width: 120 },
+  { key: "cancelledQty", label: "Cancelled Qty", width: 120 },
+  { key: "remainingQty", label: "Remaining Qty", width: 120 },
+  { key: "vendorReleaseNumber", label: "Vendor Release Number", width: 170 },
   { key: "offlineDate", label: "Offline Date / Release Date", width: 170 },
   { key: "actions", label: "Actions", width: 180 },
 ] as const;
-
-const PURCHASE_ITEM_TABLE_MIN_WIDTH = PURCHASE_ITEM_COLUMNS.reduce(
-  (total, column) => total + column.width,
-  0
-);
 
 function isRequiredItemColumn(
   column: (typeof PURCHASE_ITEM_COLUMNS)[number]["key"],
@@ -692,7 +715,6 @@ function buildInitialFinanceState(): DraftFormState {
     contractNumber: null,
     invoiceNumber: null,
     freeday: null,
-    vendorReleaseNumber: null,
     vendorReleaseDate: null,
     paymentMode: "PREPAYMENT",
     paymentAccount: null,
@@ -737,7 +759,6 @@ function buildFormStateFromOrder(order: PurchaseOrderDetail): DraftFormState {
     contractNumber: order.contractNumber,
     invoiceNumber: order.invoiceNumber,
     freeday: order.freeday,
-    vendorReleaseNumber: order.vendorReleaseNumber,
     vendorReleaseDate: order.vendorReleaseDate,
     paymentMode: order.paymentMode,
     paymentAccount: order.paymentAccount,
@@ -772,14 +793,20 @@ function buildDraftItemsFromOrder(order: PurchaseOrderDetail): DraftItemRow[] {
     ventsCount: item.ventsCount,
     machineType: item.machineType,
     yom: item.yom,
+    estimatedOfflineDate: item.estimatedOfflineDate,
     offlineDate: item.offlineDate,
+    vendorReleaseNumber: item.vendorReleaseNumber,
     tareWeight: item.tareWeight,
     maximumWeight: item.maximumWeight,
     cscNumber: item.cscNumber,
+    containerNumberRange: item.containerNumberRange,
     plannedQty: item.plannedQty,
     unitPrice: item.unitPrice,
     lineAmount: item.lineAmount,
     remark: item.remark,
+    cancelQty: null,
+    cancelledQty: item.cancelledQty,
+    remainingQty: item.remainingQty,
     conditionDirty: false,
     flpDirty: false,
     lbxDirty: false,
@@ -800,6 +827,7 @@ function buildDraftContainersFromOrder(order: PurchaseOrderDetail): DraftContain
     ventsCount: container.ventsCount,
     machineType: container.machineType,
     yom: container.yom,
+    estimatedOfflineDate: container.estimatedOfflineDate,
     offlineDate: container.offlineDate,
     tareWeight: container.tareWeight,
     maximumWeight: container.maximumWeight,
@@ -969,6 +997,30 @@ export function PurchaseOrderCreateForm({
   const financeFieldsLocked = isEditMode && !fullEditAllowed;
   const materialTypesLocked = isEditMode && !fullEditAllowed;
   const itemStructureLocked = isEditMode && !fullEditAllowed;
+  const showCancelQtyColumn = Boolean(
+    isEditMode &&
+      resolvedEditPermissions &&
+      !resolvedEditPermissions.canSaveDraftLikeChanges &&
+      resolvedEditPermissions.canSubmitChanges
+  );
+  const visibleItemColumns = useMemo(
+    () =>
+      PURCHASE_ITEM_COLUMNS.filter(
+        (column) =>
+          (column.key !== "estimatedOfflineDate" || form.purchaseType === "FACTORY_ORDER") &&
+          (column.key !== "containerNumberRange" || form.purchaseType === "FACTORY_ORDER") &&
+          (column.key !== "vendorReleaseNumber" || shouldShowVendorReleaseFields(form.purchaseType)) &&
+          ((column.key !== "cancelQty" &&
+            column.key !== "cancelledQty" &&
+            column.key !== "remainingQty") ||
+            showCancelQtyColumn)
+      ),
+    [form.purchaseType, showCancelQtyColumn]
+  );
+  const purchaseItemTableMinWidth = useMemo(
+    () => visibleItemColumns.reduce((total, column) => total + column.width, 0),
+    [visibleItemColumns]
+  );
 
   function canEditItemColumn(column: EditableCellKey["column"]) {
     if (editableFieldSet === "all") return true;
@@ -1016,9 +1068,6 @@ export function PurchaseOrderCreateForm({
         ? current.estimatedOfflineTime
         : null,
       freeday: shouldShowVendorReleaseFields(value) ? current.freeday : null,
-      vendorReleaseNumber: shouldShowVendorReleaseFields(value)
-        ? current.vendorReleaseNumber
-        : null,
       vendorReleaseDate: shouldShowVendorReleaseFields(value)
         ? current.vendorReleaseDate
         : null,
@@ -1027,6 +1076,9 @@ export function PurchaseOrderCreateForm({
       current.map((item) =>
         ({
           ...item,
+          vendorReleaseNumber: shouldShowVendorReleaseFields(value)
+            ? item.vendorReleaseNumber
+            : null,
           containerConditionCodeId: item.conditionDirty
             ? item.containerConditionCodeId
             : findConditionIdByCode(options.conditions, getDefaultConditionCode(value)),
@@ -1313,18 +1365,6 @@ export function PurchaseOrderCreateForm({
               />
             </div>
 
-            {shouldShowEstimatedOfflineTime(form.purchaseType) ? (
-              <div className="space-y-1.5">
-                <RequiredLabel>Estimated Offline Date</RequiredLabel>
-                <Input
-                  type="date"
-                  value={form.estimatedOfflineTime ?? ""}
-                  onChange={(event) => updateForm("estimatedOfflineTime", event.target.value || null)}
-                  disabled={headerFieldsLocked}
-                />
-              </div>
-            ) : null}
-
             {!shouldShowVendorReleaseFields(form.purchaseType) ? (
               <>
                 <div className="space-y-1.5">
@@ -1356,23 +1396,6 @@ export function PurchaseOrderCreateForm({
                     min="0"
                     value={form.freeday ?? ""}
                     onChange={(event) => updateForm("freeday", parseNumberInput(event.target.value))}
-                    disabled={headerFieldsLocked}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <RequiredLabel>Vendor Release Number</RequiredLabel>
-                  <Input
-                    value={form.vendorReleaseNumber ?? ""}
-                    onChange={(event) => updateForm("vendorReleaseNumber", event.target.value || null)}
-                    disabled={headerFieldsLocked}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <RequiredLabel>Vendor Release Date</RequiredLabel>
-                  <Input
-                    type="date"
-                    value={form.vendorReleaseDate ?? ""}
-                    onChange={(event) => updateForm("vendorReleaseDate", event.target.value || null)}
                     disabled={headerFieldsLocked}
                   />
                 </div>
@@ -1449,14 +1472,14 @@ export function PurchaseOrderCreateForm({
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative overflow-x-auto">
-            <div className="border-b bg-muted/20" style={{ minWidth: PURCHASE_ITEM_TABLE_MIN_WIDTH }}>
+            <div className="border-b bg-muted/20" style={{ minWidth: purchaseItemTableMinWidth }}>
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: PURCHASE_ITEM_COLUMNS.map((column) => `${column.width}px`).join(" "),
+                  gridTemplateColumns: visibleItemColumns.map((column) => `${column.width}px`).join(" "),
                 }}
               >
-                  {PURCHASE_ITEM_COLUMNS.map((column) =>
+                  {visibleItemColumns.map((column) =>
                     column.key === "actions" ? (
                       <div
                         key={column.key}
@@ -1488,10 +1511,10 @@ export function PurchaseOrderCreateForm({
 
               <table
                 className="w-full caption-bottom border-separate border-spacing-0 text-sm"
-                style={{ minWidth: PURCHASE_ITEM_TABLE_MIN_WIDTH }}
+                style={{ minWidth: purchaseItemTableMinWidth }}
               >
                 <colgroup>
-                  {PURCHASE_ITEM_COLUMNS.map((column) => (
+                  {visibleItemColumns.map((column) => (
                     <col key={column.key} style={{ width: column.width }} />
                   ))}
                 </colgroup>
@@ -1752,6 +1775,25 @@ export function PurchaseOrderCreateForm({
                     />
                   </TableCell>
 
+                  {form.purchaseType === "FACTORY_ORDER" ? (
+                    <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                      <EditableInputCell
+                        active={isEditing("estimatedOfflineDate")}
+                        value={item.estimatedOfflineDate ?? ""}
+                        display={displayValue(item.estimatedOfflineDate)}
+                        type="date"
+                        onActivate={() => activateCell(item.key, "estimatedOfflineDate")}
+                        onDeactivate={deactivateCell}
+                        onChange={(value) =>
+                          updateItem(item.key, (current) => ({
+                            ...current,
+                            estimatedOfflineDate: value || null,
+                          }))
+                        }
+                      />
+                    </TableCell>
+                  ) : null}
+
                   <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
                     <EditableInputCell
                       active={isEditing("tareWeight")}
@@ -1816,6 +1858,14 @@ export function PurchaseOrderCreateForm({
                     />
                   </TableCell>
 
+                  {form.purchaseType === "FACTORY_ORDER" ? (
+                    <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                      <div className="flex h-10 items-center justify-center px-2 text-sm">
+                        {displayValue(item.containerNumberRange)}
+                      </div>
+                    </TableCell>
+                  ) : null}
+
                   <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
                     <EditableInputCell
                       active={isEditing("plannedQty")}
@@ -1870,6 +1920,54 @@ export function PurchaseOrderCreateForm({
                     </div>
                   </TableCell>
 
+                  {showCancelQtyColumn ? (
+                    <>
+                      <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={item.cancelQty ?? ""}
+                          className="h-8 border-0 px-2 text-center shadow-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          onChange={(event) =>
+                            updateItem(item.key, (current) => ({
+                              ...current,
+                              cancelQty: parseNumberInput(event.target.value),
+                            }))
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                        <div className="flex h-10 items-center justify-center px-2 text-sm">
+                          {displayValue(item.cancelledQty)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                        <div className="flex h-10 items-center justify-center px-2 text-sm">
+                          {displayValue(item.remainingQty)}
+                        </div>
+                      </TableCell>
+                    </>
+                  ) : null}
+
+                  {shouldShowVendorReleaseFields(form.purchaseType) ? (
+                    <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                      <EditableInputCell
+                        active={isEditing("vendorReleaseNumber")}
+                        value={item.vendorReleaseNumber ?? ""}
+                        display={displayValue(item.vendorReleaseNumber)}
+                        onActivate={() => activateCell(item.key, "vendorReleaseNumber")}
+                        onDeactivate={deactivateCell}
+                        onChange={(value) =>
+                          updateItem(item.key, (current) => ({
+                            ...current,
+                            vendorReleaseNumber: value || null,
+                          }))
+                        }
+                      />
+                    </TableCell>
+                  ) : null}
+
                   <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
                     <EditableInputCell
                       active={isEditing("offlineDate")}
@@ -1916,22 +2014,27 @@ export function PurchaseOrderCreateForm({
                 </TableRow>
                 {containersExpanded ? (
                 <TableRow>
-                  <TableCell colSpan={PURCHASE_ITEM_COLUMNS.length} className="border-b bg-muted/10 px-3 py-3">
+                  <TableCell colSpan={visibleItemColumns.length} className="border-b bg-muted/10 px-3 py-3">
                     <div className="space-y-2">
                       <div className="text-xs font-medium text-muted-foreground">
                         Containers for line {index + 1}: {itemContainers.length}
                       </div>
                       <div className="overflow-x-auto">
                         <div
-                          className="grid min-w-[1480px] border border-border bg-background"
+                          className="grid border border-border bg-background"
                           style={{
                             gridTemplateColumns:
-                              "180px 100px 160px 130px 90px 90px 140px 90px 160px 120px 140px 130px 150px",
+                              form.purchaseType === "FACTORY_ORDER"
+                                ? "180px 100px 170px 160px 130px 90px 90px 140px 90px 160px 120px 140px 130px 150px"
+                                : "180px 100px 160px 130px 90px 90px 140px 90px 160px 120px 140px 130px 150px",
                           }}
                         >
                           {[
                             "Container Number",
                             "YOM",
+                            ...(form.purchaseType === "FACTORY_ORDER"
+                              ? ["Estimated Offline Date"]
+                              : []),
                             "Offline Date / Release Date",
                             "Color",
                             "FLP",
@@ -1987,6 +2090,23 @@ export function PurchaseOrderCreateForm({
                                   className="[appearance:textfield] h-8 border-0 px-2 text-center shadow-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 />
                               </div>
+                              {form.purchaseType === "FACTORY_ORDER" ? (
+                                <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
+                                  <Input
+                                    type="date"
+                                    value={container.estimatedOfflineDate ?? ""}
+                                    readOnly={!canEditContainerColumn("estimatedOfflineDate")}
+                                    disabled={!canEditContainerColumn("estimatedOfflineDate")}
+                                    onChange={(event) =>
+                                      updateContainer(container.key, (current) => ({
+                                        ...current,
+                                        estimatedOfflineDate: event.target.value || null,
+                                      }))
+                                    }
+                                    className="h-8 border-0 px-2 text-center shadow-none"
+                                  />
+                                </div>
+                              ) : null}
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
                                 <Input
                                   type="date"
@@ -2180,7 +2300,7 @@ export function PurchaseOrderCreateForm({
 
             <div className="border-t bg-muted/20 px-4 py-3">
               <div className="flex flex-wrap items-center justify-end gap-4 text-sm font-medium">
-              <div>Total Planned Qty: {totals.totalPlannedQty}</div>
+              <div>Total Qty: {totals.totalPlannedQty}</div>
               <div>Total Amount: {totals.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </div>
             </div>

@@ -433,21 +433,20 @@ async function createRegressionFixtures(supabase, stamp) {
       .from("purchase_order")
       .insert({
         order_no: `PO-RS-${stamp}`,
-        purchase_type: "FACTORY_ORDER",
+        purchase_type: "USED_CONTAINER",
         supplier_id: createdVendor.id,
         owner_id: createdOwner.id,
         buyer_id: createdUser.id,
         purchase_date: "2026-04-03",
-        estimated_offline_time: "2026-04-10T00:00:00Z",
-        contract_number: `CT-${stamp}`,
-        invoice_number: `INV-${stamp}`,
+        estimated_offline_time: null,
+        contract_number: null,
+        invoice_number: null,
         payment_mode: "PREPAYMENT",
         payment_account: `RESET-SAFE-ACCOUNT-${stamp}`,
         due_date: "2026-05-03",
         freeday: 7,
-        vendor_release_number: `VRN-${stamp}`,
         vendor_release_date: "2026-04-12",
-        order_status: "IN_PRODUCTION",
+        order_status: "RELEASED",
         inbound_status: "PARTIAL",
         settlement_currency: "USD",
         exchange_rate: 1,
@@ -477,7 +476,9 @@ async function createRegressionFixtures(supabase, stamp) {
         vents_count: 2,
         machine_type: "RS-MODEL",
         yom: 2026,
+        estimated_offline_date: "2026-04-09",
         offline_date: "2026-04-10",
+        vendor_release_number: `VRN-${stamp}`,
         tare_weight: 2200,
         maximum_weight: 30480,
         csc_number: `CSC-ITEM-${stamp}`,
@@ -512,6 +513,7 @@ async function createRegressionFixtures(supabase, stamp) {
         vents_count: 2,
         machine_type: "RS-MODEL",
         yom: 2026,
+        estimated_offline_date: "2026-04-10",
         offline_date: "2026-04-11",
         tare_weight: 2350,
         maximum_weight: 30480,
@@ -525,18 +527,6 @@ async function createRegressionFixtures(supabase, stamp) {
       .select("id")
       .single(),
     "create reset-safe purchase container"
-  );
-
-  await must(
-    supabase
-      .from("purchase_order_material_type")
-      .insert({
-        purchase_order_id: purchaseOrder.id,
-        material_type: "地板",
-      })
-      .select("id")
-      .single(),
-    "create reset-safe purchase material type"
   );
 
   return { ids, markers: {
@@ -581,7 +571,7 @@ async function assertRestored(supabase, markers) {
   const purchaseOrder = await must(
     supabase
       .from("purchase_order")
-      .select("id, total_planned_qty, total_available_qty, grand_total, vendor_bank_information, freeday, vendor_release_number, vendor_release_date")
+      .select("id, total_planned_qty, total_available_qty, grand_total, vendor_bank_information, freeday, vendor_release_date")
       .eq("order_no", markers.purchaseOrderNo)
       .single(),
     "verify restored purchase order"
@@ -590,13 +580,12 @@ async function assertRestored(supabase, markers) {
   if (purchaseOrder.total_available_qty !== 1) fail("Restored purchase order available qty mismatch");
   if (Number(purchaseOrder.grand_total) !== 2500) fail("Restored purchase order grand total mismatch");
   if (purchaseOrder.freeday !== 7) fail("Restored purchase order freeday mismatch");
-  if (purchaseOrder.vendor_release_number !== `VRN-${markers.stamp}`) fail("Restored purchase order vendor release number mismatch");
   if (purchaseOrder.vendor_release_date !== "2026-04-12") fail("Restored purchase order vendor release date mismatch");
 
   const purchaseItems = await must(
     supabase
       .from("purchase_order_item")
-      .select("id, yom, offline_date, tare_weight, maximum_weight, payload_weight, csc_number")
+      .select("id, yom, estimated_offline_date, offline_date, vendor_release_number, tare_weight, maximum_weight, payload_weight, csc_number")
       .eq("purchase_order_id", purchaseOrder.id),
     "verify restored purchase items"
   );
@@ -605,11 +594,13 @@ async function assertRestored(supabase, markers) {
   if (Number(purchaseItems[0].maximum_weight) !== 30480) fail("Restored purchase item maximum weight mismatch");
   if (Number(purchaseItems[0].payload_weight) !== 28280) fail("Restored purchase item payload weight mismatch");
   if (purchaseItems[0].csc_number !== `CSC-ITEM-${markers.stamp}`) fail("Restored purchase item CSC number mismatch");
+  if (purchaseItems[0].vendor_release_number !== `VRN-${markers.stamp}`) fail("Restored purchase item vendor release number mismatch");
+  if (purchaseItems[0].estimated_offline_date !== "2026-04-09") fail("Restored purchase item estimated offline date mismatch");
 
   const purchaseContainers = await must(
     supabase
       .from("purchase_order_container")
-      .select("id, container_status, offline_date, tare_weight, maximum_weight, payload_weight, csc_number")
+      .select("id, container_status, estimated_offline_date, offline_date, tare_weight, maximum_weight, payload_weight, csc_number")
       .eq("purchase_order_id", purchaseOrder.id),
     "verify restored purchase containers"
   );
@@ -618,13 +609,7 @@ async function assertRestored(supabase, markers) {
   if (Number(purchaseContainers[0].maximum_weight) !== 30480) fail("Restored purchase container maximum weight mismatch");
   if (Number(purchaseContainers[0].payload_weight) !== 28130) fail("Restored purchase container payload weight mismatch");
   if (purchaseContainers[0].csc_number !== `CSC-CONTAINER-${markers.stamp}`) fail("Restored purchase container CSC number mismatch");
-
-  const purchaseMaterialTypes = await must(
-    supabase.from("purchase_order_material_type").select("id, material_vendor_id").eq("purchase_order_id", purchaseOrder.id),
-    "verify restored purchase material types"
-  );
-  if ((purchaseMaterialTypes ?? []).length !== 1) fail("Restored purchase material type missing");
-  if (!purchaseMaterialTypes[0].material_vendor_id) fail("Restored purchase material vendor resolution missing");
+  if (purchaseContainers[0].estimated_offline_date !== "2026-04-10") fail("Restored purchase container estimated offline date mismatch");
 
   const financeRecords = await must(
     supabase.from("purchase_finance_record").select("id, grand_total").eq("purchase_order_id", purchaseOrder.id),
@@ -727,7 +712,6 @@ function assertSeedFilesContain(markers) {
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order.sql"), markers.purchaseOrderNo],
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order_item.sql"), markers.purchaseOrderNo],
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order_container.sql"), markers.purchaseOrderNo],
-    [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order_material_type.sql"), markers.purchaseOrderNo],
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_finance_record.sql"), markers.purchaseOrderNo],
   ];
   for (const [filePath, marker] of checks) {

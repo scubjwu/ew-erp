@@ -223,7 +223,6 @@ type PurchaseOrderRowRaw = {
   contract_number: string | null;
   invoice_number: string | null;
   freeday: number | null;
-  vendor_release_number: string | null;
   vendor_release_date: string | null;
   remark: string | null;
   exchange_rate: number | null;
@@ -321,7 +320,9 @@ type PurchaseOrderItemDetailRowRaw = {
   vents_count: number | null;
   machine_type: string | null;
   yom: number | null;
+  estimated_offline_date: string | null;
   offline_date: string | null;
+  vendor_release_number: string | null;
   tare_weight: number | null;
   maximum_weight: number | null;
   payload_weight: number | null;
@@ -378,6 +379,7 @@ type PurchaseOrderContainerRowRaw = {
   vents_count: number | null;
   machine_type: string | null;
   yom: number | null;
+  estimated_offline_date: string | null;
   offline_date: string | null;
   tare_weight: number | null;
   maximum_weight: number | null;
@@ -518,7 +520,9 @@ function mapPurchaseOrderItem(row: PurchaseOrderItemDetailRowRaw): PurchaseOrder
     ventsCount: row.vents_count,
     machineType: row.machine_type,
     yom: row.yom,
+    estimatedOfflineDate: row.estimated_offline_date,
     offlineDate: row.offline_date,
+    vendorReleaseNumber: row.vendor_release_number,
     tareWeight: row.tare_weight,
     maximumWeight: row.maximum_weight,
     payloadWeight: row.payload_weight,
@@ -557,6 +561,7 @@ function mapPurchaseOrderContainer(row: PurchaseOrderContainerRowRaw): PurchaseO
     ventsCount: row.vents_count,
     machineType: row.machine_type,
     yom: row.yom,
+    estimatedOfflineDate: row.estimated_offline_date,
     offlineDate: row.offline_date,
     tareWeight: row.tare_weight,
     maximumWeight: row.maximum_weight,
@@ -584,11 +589,29 @@ function isAvailableContainerStatus(status: string | null | undefined) {
   return status === "IN_YARD" || status === "PICKED_UP";
 }
 
+function computeContainerNumberRange(
+  purchaseType: PurchaseType,
+  containers: PurchaseOrderContainer[]
+) {
+  if (purchaseType !== "FACTORY_ORDER") return null;
+
+  const activeNumbers = containers
+    .filter((container) => !isCancelledContainerStatus(container.containerStatus))
+    .map((container) => container.containerNumber?.trim() || null)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => left.localeCompare(right));
+
+  if (activeNumbers.length === 0) return null;
+  if (activeNumbers.length === 1) return activeNumbers[0];
+  return `${activeNumbers[0]} - ${activeNumbers[activeNumbers.length - 1]}`;
+}
+
 function getOrderEditPermissions(order: Pick<PurchaseOrderDetail, "purchaseType" | "orderStatus">) {
   return getPurchaseOrderEditPermissions(order.purchaseType, order.orderStatus);
 }
 
 function attachItemCancellationCounts(
+  purchaseType: PurchaseType,
   items: PurchaseOrderItem[],
   containers: PurchaseOrderContainer[]
 ) {
@@ -599,6 +622,7 @@ function attachItemCancellationCounts(
       availableQty: number;
     }
   >();
+  const containersByItem = new Map<string, PurchaseOrderContainer[]>();
 
   for (const container of containers) {
     if (!container.purchaseOrderItemId) continue;
@@ -609,12 +633,20 @@ function attachItemCancellationCounts(
     if (isCancelledContainerStatus(container.containerStatus)) current.cancelledQty += 1;
     if (isAvailableContainerStatus(container.containerStatus)) current.availableQty += 1;
     counts.set(container.purchaseOrderItemId, current);
+
+    const bucket = containersByItem.get(container.purchaseOrderItemId) ?? [];
+    bucket.push(container);
+    containersByItem.set(container.purchaseOrderItemId, bucket);
   }
 
   return items.map((item) => {
     const current = counts.get(item.id) ?? { cancelledQty: 0, availableQty: 0 };
     return {
       ...item,
+      containerNumberRange: computeContainerNumberRange(
+        purchaseType,
+        containersByItem.get(item.id) ?? []
+      ),
       cancelledQty: current.cancelledQty,
       remainingQty: Math.max(item.plannedQty - current.availableQty - current.cancelledQty, 0),
     };
@@ -705,7 +737,6 @@ function mapPurchaseRow(
     contractNumber: row.contract_number,
     invoiceNumber: row.invoice_number,
     freeday: row.freeday,
-    vendorReleaseNumber: row.vendor_release_number,
     vendorReleaseDate: row.vendor_release_date,
     remark: row.remark,
     exchangeRate: row.exchange_rate,
@@ -835,7 +866,6 @@ async function loadPurchaseRows(baseFilters: {
         contract_number,
         invoice_number,
         freeday,
-        vendor_release_number,
         vendor_release_date,
         remark,
         exchange_rate,
@@ -1347,7 +1377,6 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           contract_number,
           invoice_number,
           freeday,
-          vendor_release_number,
           vendor_release_date,
           remark,
           exchange_rate,
@@ -1400,7 +1429,9 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           vents_count,
           machine_type,
           yom,
+          estimated_offline_date,
           offline_date,
+          vendor_release_number,
           tare_weight,
           maximum_weight,
           payload_weight,
@@ -1442,6 +1473,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           vents_count,
           machine_type,
           yom,
+          estimated_offline_date,
           offline_date,
           tare_weight,
           maximum_weight,
@@ -1528,6 +1560,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     ((containersResult.data ?? []) as unknown) as PurchaseOrderContainerRowRaw[]
   ).map(mapPurchaseOrderContainer);
   const items = attachItemCancellationCounts(
+    order.purchase_type as PurchaseType,
     (((itemsResult.data ?? []) as unknown) as PurchaseOrderItemDetailRowRaw[]).map(
       mapPurchaseOrderItem
     ),
@@ -1546,7 +1579,6 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     contractNumber: order.contract_number,
     invoiceNumber: order.invoice_number,
     freeday: order.freeday,
-    vendorReleaseNumber: order.vendor_release_number,
     vendorReleaseDate: order.vendor_release_date,
     remark: order.remark,
     exchangeRate: order.exchange_rate,
@@ -1599,7 +1631,7 @@ export async function getPurchaseOrderItemContainers(
   const [orderResult, itemResult, containersResult] = await Promise.all([
     supabase
       .from("purchase_order")
-      .select("id, order_no")
+      .select("id, order_no, purchase_type")
       .eq("id", orderId)
       .maybeSingle(),
     supabase
@@ -1621,7 +1653,9 @@ export async function getPurchaseOrderItemContainers(
           vents_count,
           machine_type,
           yom,
+          estimated_offline_date,
           offline_date,
+          vendor_release_number,
           tare_weight,
           maximum_weight,
           payload_weight,
@@ -1664,6 +1698,7 @@ export async function getPurchaseOrderItemContainers(
           vents_count,
           machine_type,
           yom,
+          estimated_offline_date,
           offline_date,
           tare_weight,
           maximum_weight,
@@ -1693,15 +1728,21 @@ export async function getPurchaseOrderItemContainers(
 
   if (!orderResult.data || !itemResult.data) return null;
 
+  const containers = (
+    ((containersResult.data ?? []) as unknown) as PurchaseOrderContainerRowRaw[]
+  ).map(mapPurchaseOrderContainer);
+  const item = attachItemCancellationCounts(
+    orderResult.data.purchase_type as PurchaseType,
+    [mapPurchaseOrderItem((itemResult.data as unknown) as PurchaseOrderItemDetailRowRaw)],
+    containers
+  )[0];
+
   return {
     orderId: orderResult.data.id,
     orderNo: orderResult.data.order_no,
-    item: mapPurchaseOrderItem(
-      (itemResult.data as unknown) as PurchaseOrderItemDetailRowRaw
-    ),
-    containers: (
-      ((containersResult.data ?? []) as unknown) as PurchaseOrderContainerRowRaw[]
-    ).map(mapPurchaseOrderContainer),
+    purchaseType: orderResult.data.purchase_type as PurchaseType,
+    item,
+    containers,
   };
 }
 
@@ -2010,9 +2051,6 @@ function buildOrderFields(
     contract_number: trimOrNull(input.contractNumber),
     invoice_number: trimOrNull(input.invoiceNumber),
     freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
-    vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
-      ? trimOrNull(input.vendorReleaseNumber)
-      : null,
     vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
       ? input.vendorReleaseDate || null
       : null,
@@ -2074,7 +2112,11 @@ function buildItemRowsForInsert(orderId: string, input: PurchaseOrderDraftInput)
     vents_count: item.ventsCount,
     machine_type: trimOrNull(item.machineType),
     yom: item.yom,
+    estimated_offline_date:
+      input.purchaseType === "FACTORY_ORDER" ? item.estimatedOfflineDate || null : null,
     offline_date: item.offlineDate || null,
+    vendor_release_number:
+      shouldShowVendorReleaseFields(input.purchaseType) ? trimOrNull(item.vendorReleaseNumber) : null,
     tare_weight: item.tareWeight,
     maximum_weight: item.maximumWeight,
     csc_number: trimOrNull(item.cscNumber),
@@ -2172,10 +2214,11 @@ function buildContainerPayloadForSubmit(args: {
       vents_count: container.ventsCount,
       machine_type: trimOrNull(container.machineType),
       yom: container.yom,
-      offline_date:
+      estimated_offline_date:
         args.input.purchaseType === "FACTORY_ORDER"
-          ? container.offlineDate || null
-          : args.vendorReleaseDate ?? null,
+          ? container.estimatedOfflineDate || null
+          : null,
+      offline_date: container.offlineDate || null,
       tare_weight: container.tareWeight,
       maximum_weight: container.maximumWeight,
       csc_number: trimOrNull(container.cscNumber),
@@ -2239,9 +2282,6 @@ function ensureFactoryProgressEditPayloadAllowed(
   }
   if (input.freeday !== currentOrder.freeday) {
     throw new Error("Freeday cannot be changed in the current order status.");
-  }
-  if (trimOrNull(input.vendorReleaseNumber) !== trimOrNull(currentOrder.vendorReleaseNumber)) {
-    throw new Error("Vendor Release Number cannot be changed in the current order status.");
   }
   if (input.vendorReleaseDate !== currentOrder.vendorReleaseDate) {
     throw new Error("Vendor Release Date cannot be changed in the current order status.");
@@ -2562,9 +2602,6 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
     contract_number: input.contractNumber?.trim() || null,
     invoice_number: input.invoiceNumber?.trim() || null,
     freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
-    vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
-      ? input.vendorReleaseNumber?.trim() || null
-      : null,
     vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
       ? input.vendorReleaseDate || null
       : null,
@@ -2845,9 +2882,6 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
       contract_number: trimOrNull(input.contractNumber),
       invoice_number: trimOrNull(input.invoiceNumber),
       freeday: shouldShowVendorReleaseFields(input.purchaseType) ? input.freeday : null,
-      vendor_release_number: shouldShowVendorReleaseFields(input.purchaseType)
-        ? trimOrNull(input.vendorReleaseNumber)
-        : null,
       vendor_release_date: shouldShowVendorReleaseFields(input.purchaseType)
         ? input.vendorReleaseDate || null
         : null,
@@ -2901,7 +2935,11 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
       vents_count: item.ventsCount,
       machine_type: trimOrNull(item.machineType),
       yom: item.yom,
+      estimated_offline_date:
+        input.purchaseType === "FACTORY_ORDER" ? item.estimatedOfflineDate || null : null,
       offline_date: item.offlineDate || null,
+      vendor_release_number:
+        shouldShowVendorReleaseFields(input.purchaseType) ? trimOrNull(item.vendorReleaseNumber) : null,
       tare_weight: item.tareWeight,
       maximum_weight: item.maximumWeight,
       csc_number: trimOrNull(item.cscNumber),
@@ -2962,9 +3000,7 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
         machine_type: trimOrNull(container.machineType),
         yom: container.yom,
         offline_date:
-          input.purchaseType === "FACTORY_ORDER"
-            ? container.offlineDate || null
-            : orderRow.vendor_release_date ?? null,
+          container.offlineDate || null,
         tare_weight: container.tareWeight,
         maximum_weight: container.maximumWeight,
         csc_number: trimOrNull(container.cscNumber),
@@ -3164,7 +3200,7 @@ export async function updatePurchaseOrderPending(
     supabase,
     input.ownerId
   );
-  const currentOrder = await getPurchaseOrderDetail(orderId);
+  let currentOrder = await getPurchaseOrderDetail(orderId);
   if (!currentOrder) throw new Error("Purchase order not found.");
   const editPermissions = getOrderEditPermissions(currentOrder);
   if (!editPermissions.canEnterEdit || currentOrder.orderStatus === "DRAFT") {
@@ -3196,6 +3232,51 @@ export async function updatePurchaseOrderPending(
     ...input.items.map((item) => item.color),
     ...input.containers.map((container) => container.color),
   ]);
+
+  const partialCancels = input.items
+    .map((item) => {
+      const cancelQty = item.cancelQty ?? 0;
+      return {
+        itemKey: item.itemKey,
+        cancelQty,
+      };
+    })
+    .filter((item) => item.cancelQty > 0);
+  const currentItemsByIdForCancel = new Map(currentOrder.items.map((item) => [item.id, item]));
+  for (const item of input.items) {
+    const rawCancelQty = item.cancelQty;
+    if (rawCancelQty == null || rawCancelQty === 0) continue;
+    if (!Number.isInteger(rawCancelQty) || rawCancelQty < 0) {
+      throw new Error("Cancel Qty must be a non-negative integer.");
+    }
+    const currentItem = currentItemsByIdForCancel.get(item.itemKey);
+    if (!currentItem) {
+      throw new Error("Cancel Qty can only be entered for existing PO items.");
+    }
+    if (rawCancelQty > Number(currentItem.remainingQty ?? 0)) {
+      throw new Error("Cancel Qty cannot exceed Remaining Qty.");
+    }
+  }
+  if (
+    partialCancels.length > 0 &&
+    (currentOrder.orderStatus === "DRAFT" ||
+      currentOrder.orderStatus === "COMPLETED" ||
+      currentOrder.orderStatus === "CANCELLED")
+  ) {
+    throw new Error(`Cancel Qty is not allowed for purchase order status ${currentOrder.orderStatus}.`);
+  }
+  if (partialCancels.length > 0) {
+    await applyPartialCancelPurchaseOrderItems(
+      supabase,
+      orderId,
+      partialCancels.map((item) => ({
+        itemId: item.itemKey,
+        cancelQty: item.cancelQty,
+      }))
+    );
+    currentOrder = await getPurchaseOrderDetail(orderId);
+    if (!currentOrder) throw new Error("Purchase order not found after partial cancel.");
+  }
 
   const { error: updateOrderError } = await supabase
     .from("purchase_order")
@@ -3307,10 +3388,11 @@ export async function updatePurchaseOrderPending(
       vents_count: nextItem.ventsCount,
       machine_type: trimOrNull(nextItem.machineType),
       yom: nextItem.yom,
-      offline_date:
-        input.purchaseType === "FACTORY_ORDER"
-          ? nextItem.offlineDate || null
-          : input.vendorReleaseDate || null,
+      estimated_offline_date:
+        input.purchaseType === "FACTORY_ORDER" ? nextItem.estimatedOfflineDate || null : null,
+      offline_date: nextItem.offlineDate || null,
+      vendor_release_number:
+        shouldShowVendorReleaseFields(input.purchaseType) ? trimOrNull(nextItem.vendorReleaseNumber) : null,
       tare_weight: nextItem.tareWeight,
       maximum_weight: nextItem.maximumWeight,
       csc_number: trimOrNull(nextItem.cscNumber),
@@ -3369,10 +3451,20 @@ export async function updatePurchaseOrderPending(
     }
 
     const existingForItem = containersByItem.get(resolvedItemId) ?? [];
-    const nextForItem = inputContainersByItem.get(nextItem.itemKey) ?? [];
+    const activeExistingForItem = existingForItem.filter(
+      (container) => !isCancelledContainerStatus(container.containerStatus)
+    );
+    const cancelledExistingCount = existingForItem.length - activeExistingForItem.length;
+    const rawNextForItem = inputContainersByItem.get(nextItem.itemKey) ?? [];
+    const nextForItem =
+      cancelledExistingCount > 0
+        ? rawNextForItem.slice(0, Math.max(rawNextForItem.length - cancelledExistingCount, 0))
+        : rawNextForItem;
 
-    if (nextForItem.length < existingForItem.length) {
-      const removableIds = existingForItem.slice(nextForItem.length).map((container) => container.id);
+    if (nextForItem.length < activeExistingForItem.length) {
+      const removableIds = activeExistingForItem
+        .slice(nextForItem.length)
+        .map((container) => container.id);
       if (removableIds.length > 0) {
         const { error: deleteContainerError } = await supabase
           .from("purchase_order_container")
@@ -3385,11 +3477,11 @@ export async function updatePurchaseOrderPending(
     for (let index = 0; index < nextForItem.length; index += 1) {
       const nextContainer = nextForItem[index];
       if (!nextContainer) continue;
-      const existingContainer = existingForItem[index];
+      const existingContainer = activeExistingForItem[index];
       const offlineDate =
         input.purchaseType === "FACTORY_ORDER"
           ? nextContainer.offlineDate || null
-          : input.vendorReleaseDate || null;
+          : nextItem.offlineDate || null;
       const containerNumber =
         input.purchaseType === "FACTORY_ORDER" && usesInternalContainerNumbering
           ? existingContainer?.containerNumber ?? null
@@ -3416,6 +3508,10 @@ export async function updatePurchaseOrderPending(
         vents_count: nextContainer.ventsCount,
         machine_type: trimOrNull(nextContainer.machineType),
         yom: nextContainer.yom,
+        estimated_offline_date:
+          input.purchaseType === "FACTORY_ORDER"
+            ? nextContainer.estimatedOfflineDate || null
+            : null,
         offline_date: offlineDate,
         tare_weight: nextContainer.tareWeight,
         maximum_weight: nextContainer.maximumWeight,
@@ -3450,6 +3546,10 @@ export async function updatePurchaseOrderPending(
         vents_count: nextContainer.ventsCount,
         machine_type: trimOrNull(nextContainer.machineType),
         yom: nextContainer.yom,
+        estimated_offline_date:
+          input.purchaseType === "FACTORY_ORDER"
+            ? nextContainer.estimatedOfflineDate || null
+            : null,
         offline_date: offlineDate,
         tare_weight: nextContainer.tareWeight,
         maximum_weight: nextContainer.maximumWeight,
@@ -3535,6 +3635,15 @@ export async function partialCancelPurchaseOrderItems(
   items: Array<{ itemId: string; cancelQty: number }>
 ): Promise<void> {
   const supabase = createServerSupabaseClient();
+  await applyPartialCancelPurchaseOrderItems(supabase, orderId, items);
+  revalidatePurchasePaths(orderId);
+}
+
+async function applyPartialCancelPurchaseOrderItems(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  orderId: string,
+  items: Array<{ itemId: string; cancelQty: number }>
+): Promise<void> {
   const { data: orderRow, error: orderError } = await supabase
     .from("purchase_order")
     .select("id, order_status, purchase_type")
@@ -3561,6 +3670,4 @@ export async function partialCancelPurchaseOrderItems(
   }
 
   await recalculatePurchaseOrderStatus(supabase, orderId);
-
-  revalidatePurchasePaths(orderId);
 }

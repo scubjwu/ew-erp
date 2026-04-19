@@ -928,20 +928,19 @@ async function main() {
         .from("purchase_order")
         .insert({
           order_no: purchaseOrderNo,
-          purchase_type: "FACTORY_ORDER",
+          purchase_type: "USED_CONTAINER",
           supplier_id: createdVendor.id,
           owner_id: createdOwner.id,
           buyer_id: baseUserId,
           purchase_date: "2026-04-03",
-          estimated_offline_time: "2026-04-10T08:00:00.000Z",
-          contract_number: `CT-${last5}`,
-          invoice_number: `INV-${last5}`,
+          estimated_offline_time: null,
+          contract_number: null,
+          invoice_number: null,
           freeday: 7,
-          vendor_release_number: `REL-${last5}`,
           vendor_release_date: "2026-04-12",
           remark: "regression-purchase-order",
           exchange_rate: 1,
-          order_status: "IN_PRODUCTION",
+          order_status: "RELEASED",
           inbound_status: "PARTIAL",
           payment_mode: "PREPAYMENT",
           payment_account: "Regression Payment Account",
@@ -980,6 +979,7 @@ async function main() {
           machine_type: "Carrier PrimeLINE",
           yom: 2026,
           offline_date: "2026-04-10",
+          vendor_release_number: `REL-${last5}`,
           planned_qty: 2,
           unit_price: 2000,
           financial_cost: 150,
@@ -1046,21 +1046,6 @@ async function main() {
         ])
         .select("id"),
       "create regression purchase order containers"
-    );
-
-    await must(
-      supabase
-        .from("purchase_order_material_type")
-        .insert({
-          purchase_order_id: createdPurchaseOrder.id,
-          material_type: "地板",
-          material_vendor_id: createdMaterialVendor.id,
-          material_vendor_name_snapshot: `Regression Material Vendor ${stamp} Updated`,
-          material_vendor_code_snapshot: createdMaterialVendor.vendor_code,
-        })
-        .select("id")
-        .single(),
-      "create regression purchase material type"
     );
 
     const checks = [];
@@ -1630,7 +1615,7 @@ async function main() {
       supabase
         .from("purchase_order")
         .select(
-          "id, freeday, vendor_release_number, vendor_release_date, total_planned_qty, total_available_qty, total_received_qty"
+          "id, freeday, vendor_release_date, total_planned_qty, total_available_qty, total_received_qty"
         )
         .eq("id", createdPurchaseOrder.id)
         .single(),
@@ -1639,11 +1624,24 @@ async function main() {
     checks.push([
       "purchase_order_detail_shape",
       purchaseOrderChecks.freeday === 7 &&
-        purchaseOrderChecks.vendor_release_number === `REL-${last5}` &&
         purchaseOrderChecks.vendor_release_date === "2026-04-12" &&
         purchaseOrderChecks.total_planned_qty === 2 &&
         purchaseOrderChecks.total_available_qty === 2 &&
         purchaseOrderChecks.total_received_qty === 1,
+    ]);
+
+    const purchaseOrderItemChecks = await must(
+      supabase
+        .from("purchase_order_item")
+        .select("vendor_release_number")
+        .eq("purchase_order_id", createdPurchaseOrder.id)
+        .eq("line_no", 1)
+        .single(),
+      "read regression purchase order item"
+    );
+    checks.push([
+      "purchase_order_item_vendor_release_number",
+      purchaseOrderItemChecks.vendor_release_number === `REL-${last5}`,
     ]);
 
     const purchaseFinanceChecks = await must(
@@ -1686,7 +1684,7 @@ async function main() {
       [`${appBaseUrl}/purchase/po-management`, ["PO Management", "Prepaid Balance"]],
       [
         `${appBaseUrl}/purchase/po-management/${createdPurchaseOrder.id}`,
-        ["Purchase Order Detail", purchaseOrderNo, "View Containers", "Finance Sync"],
+        ["Purchase Order Detail", purchaseOrderNo, "View Containers", "Finance Status"],
       ],
       [
         `${appBaseUrl}/purchase/po-management/${createdPurchaseOrder.id}/items/${createdPurchaseOrderItem.id}/containers`,

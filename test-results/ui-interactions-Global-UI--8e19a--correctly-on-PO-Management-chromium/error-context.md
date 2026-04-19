@@ -97,7 +97,7 @@ Call log:
               - generic [ref=e75]:
                 - generic [ref=e76]:
                   - generic [ref=e77]: Vendor
-                  - combobox "Vendor" [active] [ref=e78]
+                  - combobox "Vendor" [active] [ref=e78]: A
                 - generic [ref=e79]:
                   - generic [ref=e80]: Location
                   - combobox "Location" [ref=e81]
@@ -341,35 +341,40 @@ Call log:
   8  |     // Find the vendor search input by placeholder
   9  |     const vendorInput = page.getByPlaceholder(/Vendor code or name/i).first();
   10 |     await expect(vendorInput).toBeVisible();
-  11 | 
-  12 |     // Focus and click to open the dropdown
-  13 |     await vendorInput.click();
-  14 | 
-  15 |     // The autocomplete renders a dropdown with z-[80]
-  16 |     const dropdown = page.locator('.z-\\[80\\]').first();
-> 17 |     await expect(dropdown).toBeVisible();
+  11 |     await expect(vendorInput).toBeEnabled();
+  12 | 
+  13 |     // Next.js hydration race condition mitigation: wait briefly for React to attach event listeners
+  14 |     await page.waitForTimeout(1000);
+  15 | 
+  16 |     // Click to focus and trigger the dropdown listbox
+  17 |     await vendorInput.click();
+  18 |     await vendorInput.pressSequentially('A', { delay: 100 });
+  19 | 
+  20 |     // The autocomplete renders a dropdown with z-[80]
+  21 |     const dropdown = page.locator('.z-\\[80\\]').first();
+> 22 |     await expect(dropdown).toBeVisible();
      |                            ^ Error: expect(locator).toBeVisible() failed
-  18 |     
-  19 |     const firstOption = dropdown.getByRole('option').first();
-  20 |     await expect(firstOption).toBeVisible();
-  21 |     
-  22 |     // Save the text of the option we are selecting to verify it fills the input
-  23 |     const optionText = await firstOption.textContent() || '';
-  24 |     await firstOption.click();
-  25 | 
-  26 |     // Verify it fills the input WITHOUT auto-running search. 
-  27 |     // We expect the input value to match the option text (or part of it).
-  28 |     // The exact matching logic might depend on how the combobox is implemented, 
-  29 |     // but the dropdown should be closed.
-  30 |     await expect(dropdown).toBeHidden();
-  31 |     
-  32 |     // Now press 'Enter' or click 'Search' to execute the search
-  33 |     await page.getByText('Search', { exact: true }).click();
-  34 |     
-  35 |     // Verify that the table updates or a loading state occurs, 
-  36 |     // and the active-filter summary appears if applicable.
-  37 |     await expect(page.locator('table')).toBeVisible();
-  38 |   });
-  39 | });
-  40 | 
+  23 |     
+  24 |     // We expect some options to be visible, grab the first one
+  25 |     const firstOption = dropdown.getByRole('option').first();
+  26 |     await expect(firstOption).toBeVisible();
+  27 |     
+  28 |     // Save the text of the option we are selecting to verify it fills the input
+  29 |     const optionText = await firstOption.textContent() || '';
+  30 |     
+  31 |     // Click the option
+  32 |     await firstOption.click();
+  33 |     
+  34 |     // We expect the dropdown to be closed
+  35 |     await expect(dropdown).toBeHidden();
+  36 |     
+  37 |     // Now press 'Enter' or click 'Search' to execute the search
+  38 |     await page.getByText('Search', { exact: true }).click();
+  39 |     
+  40 |     // Verify that the table updates or a loading state occurs, 
+  41 |     // and the active-filter summary appears if applicable.
+  42 |     await expect(page.locator('table')).toBeVisible();
+  43 |   });
+  44 | });
+  45 | 
 ```
