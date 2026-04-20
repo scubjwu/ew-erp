@@ -247,6 +247,7 @@ const initialSubmittedOrder = {
       estimatedOfflineDate: null,
       offlineDate: null,
       vendorReleaseNumber: null,
+      plannedPod: "Long Beach",
       tareWeight: 2200,
       maximumWeight: 30480,
       payloadWeight: 28280,
@@ -817,6 +818,28 @@ describe("PurchaseOrderCreateForm", () => {
 
     expect(screen.getByText("Total Qty: 13")).toBeInTheDocument();
     expect(screen.getByText("Total Amount: 7,800.00")).toBeInTheDocument();
+  });
+
+  it("renders item-level planned POD in edit mode and keeps save enabled for released factory orders", () => {
+    render(
+      <PurchaseOrderCreateForm
+        options={options}
+        initialOrder={{
+          ...initialSubmittedOrder,
+          purchaseType: "FACTORY_ORDER",
+          orderStatus: "RELEASED",
+          items: initialSubmittedOrder.items.map((item) => ({
+            ...item,
+            plannedPod: "Seattle",
+          })),
+        }}
+        mode="edit"
+        editPermissions={getPurchaseOrderEditPermissions("FACTORY_ORDER", "RELEASED")}
+      />
+    );
+
+    expect(screen.getByText("Seattle")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save Changes/i })).toBeInTheDocument();
   });
 
   it("does not show cancel qty for draft edit mode", () => {

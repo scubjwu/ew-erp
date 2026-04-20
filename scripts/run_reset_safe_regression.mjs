@@ -479,6 +479,7 @@ async function createRegressionFixtures(supabase, stamp) {
         estimated_offline_date: "2026-04-09",
         offline_date: "2026-04-10",
         vendor_release_number: `VRN-${stamp}`,
+        planned_pod: `POD-${stamp}`,
         tare_weight: 2200,
         maximum_weight: 30480,
         csc_number: `CSC-ITEM-${stamp}`,
@@ -515,6 +516,7 @@ async function createRegressionFixtures(supabase, stamp) {
         yom: 2026,
         estimated_offline_date: "2026-04-10",
         offline_date: "2026-04-11",
+        planned_pod: `POD-${stamp}`,
         tare_weight: 2350,
         maximum_weight: 30480,
         csc_number: `CSC-CONTAINER-${stamp}`,
@@ -585,7 +587,7 @@ async function assertRestored(supabase, markers) {
   const purchaseItems = await must(
     supabase
       .from("purchase_order_item")
-      .select("id, yom, estimated_offline_date, offline_date, vendor_release_number, tare_weight, maximum_weight, payload_weight, csc_number")
+      .select("id, yom, estimated_offline_date, offline_date, vendor_release_number, planned_pod, tare_weight, maximum_weight, payload_weight, csc_number")
       .eq("purchase_order_id", purchaseOrder.id),
     "verify restored purchase items"
   );
@@ -595,12 +597,13 @@ async function assertRestored(supabase, markers) {
   if (Number(purchaseItems[0].payload_weight) !== 28280) fail("Restored purchase item payload weight mismatch");
   if (purchaseItems[0].csc_number !== `CSC-ITEM-${markers.stamp}`) fail("Restored purchase item CSC number mismatch");
   if (purchaseItems[0].vendor_release_number !== `VRN-${markers.stamp}`) fail("Restored purchase item vendor release number mismatch");
+  if (purchaseItems[0].planned_pod !== `POD-${markers.stamp}`) fail("Restored purchase item planned POD mismatch");
   if (purchaseItems[0].estimated_offline_date !== "2026-04-09") fail("Restored purchase item estimated offline date mismatch");
 
   const purchaseContainers = await must(
     supabase
       .from("purchase_order_container")
-      .select("id, container_status, estimated_offline_date, offline_date, tare_weight, maximum_weight, payload_weight, csc_number")
+      .select("id, container_status, estimated_offline_date, offline_date, planned_pod, tare_weight, maximum_weight, payload_weight, csc_number")
       .eq("purchase_order_id", purchaseOrder.id),
     "verify restored purchase containers"
   );
@@ -609,6 +612,7 @@ async function assertRestored(supabase, markers) {
   if (Number(purchaseContainers[0].maximum_weight) !== 30480) fail("Restored purchase container maximum weight mismatch");
   if (Number(purchaseContainers[0].payload_weight) !== 28130) fail("Restored purchase container payload weight mismatch");
   if (purchaseContainers[0].csc_number !== `CSC-CONTAINER-${markers.stamp}`) fail("Restored purchase container CSC number mismatch");
+  if (purchaseContainers[0].planned_pod !== `POD-${markers.stamp}`) fail("Restored purchase container planned POD mismatch");
   if (purchaseContainers[0].estimated_offline_date !== "2026-04-10") fail("Restored purchase container estimated offline date mismatch");
 
   const financeRecords = await must(

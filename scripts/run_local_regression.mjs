@@ -980,6 +980,7 @@ async function main() {
           yom: 2026,
           offline_date: "2026-04-10",
           vendor_release_number: `REL-${last5}`,
+          planned_pod: `POD-${last5}`,
           planned_qty: 2,
           unit_price: 2000,
           financial_cost: 150,
@@ -1014,6 +1015,7 @@ async function main() {
             machine_type: "Carrier PrimeLINE",
             yom: 2026,
             offline_date: "2026-04-10",
+            planned_pod: `POD-${last5}`,
             actual_offline_time: "2026-04-10T10:00:00.000Z",
             purchase_price: 2000,
             financial_cost: 150,
@@ -1037,6 +1039,7 @@ async function main() {
             machine_type: "Daikin LXE",
             yom: 2026,
             offline_date: "2026-04-11",
+            planned_pod: `POD-${last5}`,
             actual_offline_time: "2026-04-11T10:00:00.000Z",
             purchase_price: 2050,
             financial_cost: 175,
@@ -1633,7 +1636,7 @@ async function main() {
     const purchaseOrderItemChecks = await must(
       supabase
         .from("purchase_order_item")
-        .select("vendor_release_number")
+        .select("vendor_release_number, planned_pod")
         .eq("purchase_order_id", createdPurchaseOrder.id)
         .eq("line_no", 1)
         .single(),
@@ -1641,7 +1644,8 @@ async function main() {
     );
     checks.push([
       "purchase_order_item_vendor_release_number",
-      purchaseOrderItemChecks.vendor_release_number === `REL-${last5}`,
+      purchaseOrderItemChecks.vendor_release_number === `REL-${last5}` &&
+        purchaseOrderItemChecks.planned_pod === `POD-${last5}`,
     ]);
 
     const purchaseFinanceChecks = await must(
@@ -1657,6 +1661,20 @@ async function main() {
       purchaseFinanceChecks.order_no === purchaseOrderNo &&
         purchaseFinanceChecks.finance_status === "PENDING" &&
         Number(purchaseFinanceChecks.grand_total) === 4300,
+    ]);
+
+    const purchaseContainerChecks = await must(
+      supabase
+        .from("purchase_order_container")
+        .select("planned_pod")
+        .eq("purchase_order_id", createdPurchaseOrder.id)
+        .limit(1)
+        .single(),
+      "read regression purchase container"
+    );
+    checks.push([
+      "purchase_order_container_planned_pod",
+      purchaseContainerChecks.planned_pod === `POD-${last5}`,
     ]);
 
     const failedChecks = checks.filter(([, ok]) => !ok);

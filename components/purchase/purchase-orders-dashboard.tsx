@@ -236,7 +236,8 @@ function statusVariant(status: string) {
 }
 
 function canEditPurchaseOrder(purchaseType: PurchaseType, status: PurchaseOrderStatus) {
-  return getPurchaseOrderEditPermissions(purchaseType, status).canEnterEdit;
+  const permissions = getPurchaseOrderEditPermissions(purchaseType, status);
+  return permissions.canEnterEdit || permissions.canEditPlannedPod;
 }
 
 function SortButton({

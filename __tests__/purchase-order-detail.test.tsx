@@ -135,6 +135,7 @@ function detailOrder(overrides?: Record<string, unknown>) {
         estimatedOfflineDate: "2026-04-09",
         offlineDate: "2026-04-10",
         vendorReleaseNumber: null,
+        plannedPod: "Los Angeles",
         tareWeight: 2200,
         maximumWeight: 30480,
         payloadWeight: 28280,
@@ -175,6 +176,7 @@ function detailOrder(overrides?: Record<string, unknown>) {
         yom: 2026,
         estimatedOfflineDate: "2026-04-09",
         offlineDate: "2026-04-10",
+        plannedPod: "Los Angeles",
         tareWeight: 2350,
         maximumWeight: 30480,
         payloadWeight: 28130,
@@ -293,7 +295,7 @@ describe("Purchase detail views", () => {
         "Review PO business details, item lines, material types, and finance sync status."
       )
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("Edit PO")).not.toBeInTheDocument();
+    expect(screen.getByText("Edit PO")).toBeInTheDocument();
     expect(screen.queryByText("Save")).not.toBeInTheDocument();
     expect(screen.getByText("Cancel Entire PO")).toBeInTheDocument();
     expect(screen.getByText("View Containers")).toBeInTheDocument();
@@ -326,6 +328,8 @@ describe("Purchase detail views", () => {
     expect(screen.queryByText("Exchange Rate")).not.toBeInTheDocument();
     expect(screen.queryByText("Estimated Offline Time")).not.toBeInTheDocument();
     expect(screen.queryByText("Inbound Status")).not.toBeInTheDocument();
+    expect(screen.getByText("Planned POD")).toBeInTheDocument();
+    expect(screen.getByText("Los Angeles")).toBeInTheDocument();
     expect(screen.getByText("2026")).toBeInTheDocument();
     expect(screen.queryByText("2,026")).not.toBeInTheDocument();
     expect(screen.getAllByText("No")).not.toHaveLength(0);
@@ -384,6 +388,12 @@ describe("Purchase detail views", () => {
 
   it("allows editing for partial released purchase orders", () => {
     render(<PurchaseOrderDetailView order={detailOrder({ orderStatus: "PARTIAL_RELEASED" })} />);
+
+    expect(screen.getByText("Edit PO")).toBeInTheDocument();
+  });
+
+  it("allows planned POD editing entry for released factory purchase orders", () => {
+    render(<PurchaseOrderDetailView order={detailOrder({ orderStatus: "RELEASED" })} />);
 
     expect(screen.getByText("Edit PO")).toBeInTheDocument();
   });

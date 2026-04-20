@@ -60,7 +60,7 @@ DO_NOT_PRESERVE_WHEN_EMPTY = {
 }
 
 EXCLUDED_EXPORT_COLUMNS = {
-    "purchase_order": {"vendor_release_number"},
+    "purchase_order": {"vendor_release_number", "planned_pod"},
     "purchase_order_item": {"payload_weight"},
     "purchase_order_container": {"payload_weight"},
 }

@@ -13,6 +13,7 @@ export type PurchaseEditFieldSet = "all" | "factory_progress_limited" | "none";
 
 export interface PurchaseOrderEditPermissions {
   canEnterEdit: boolean;
+  canEditPlannedPod: boolean;
   canSaveDraftLikeChanges: boolean;
   canSubmitChanges: boolean;
   editableFieldSet: PurchaseEditFieldSet;
@@ -29,6 +30,7 @@ export function getPurchaseOrderEditPermissions(
       case "DRAFT":
         return {
           canEnterEdit: true,
+          canEditPlannedPod: true,
           canSaveDraftLikeChanges: true,
           canSubmitChanges: true,
           editableFieldSet: "all",
@@ -38,6 +40,7 @@ export function getPurchaseOrderEditPermissions(
       case "SUBMITTED":
         return {
           canEnterEdit: true,
+          canEditPlannedPod: true,
           canSaveDraftLikeChanges: false,
           canSubmitChanges: true,
           editableFieldSet: "all",
@@ -48,6 +51,7 @@ export function getPurchaseOrderEditPermissions(
       case "PARTIAL_RELEASED":
         return {
           canEnterEdit: true,
+          canEditPlannedPod: true,
           canSaveDraftLikeChanges: false,
           canSubmitChanges: true,
           editableFieldSet: "factory_progress_limited",
@@ -55,10 +59,20 @@ export function getPurchaseOrderEditPermissions(
           requiresAtLeastOneItemOnSubmit: true,
         };
       case "RELEASED":
+        return {
+          canEnterEdit: false,
+          canEditPlannedPod: true,
+          canSaveDraftLikeChanges: false,
+          canSubmitChanges: false,
+          editableFieldSet: "none",
+          requiresMandatoryValidationOnSubmit: false,
+          requiresAtLeastOneItemOnSubmit: false,
+        };
       case "COMPLETED":
       case "CANCELLED":
         return {
           canEnterEdit: false,
+          canEditPlannedPod: false,
           canSaveDraftLikeChanges: false,
           canSubmitChanges: false,
           editableFieldSet: "none",
@@ -72,6 +86,7 @@ export function getPurchaseOrderEditPermissions(
     case "DRAFT":
       return {
         canEnterEdit: true,
+        canEditPlannedPod: true,
         canSaveDraftLikeChanges: true,
         canSubmitChanges: true,
         editableFieldSet: "all",
@@ -82,6 +97,7 @@ export function getPurchaseOrderEditPermissions(
     case "RELEASED":
       return {
         canEnterEdit: true,
+        canEditPlannedPod: true,
         canSaveDraftLikeChanges: false,
         canSubmitChanges: true,
         editableFieldSet: "all",
@@ -94,6 +110,7 @@ export function getPurchaseOrderEditPermissions(
     case "CANCELLED":
       return {
         canEnterEdit: false,
+        canEditPlannedPod: orderStatus !== "COMPLETED" && orderStatus !== "CANCELLED",
         canSaveDraftLikeChanges: false,
         canSubmitChanges: false,
         editableFieldSet: "none",
@@ -258,6 +275,7 @@ export interface PurchaseOrderItem {
   estimatedOfflineDate: string | null;
   offlineDate: string | null;
   vendorReleaseNumber: string | null;
+  plannedPod: string | null;
   tareWeight: number | null;
   maximumWeight: number | null;
   payloadWeight: number | null;
@@ -299,6 +317,7 @@ export interface PurchaseOrderContainer {
   yom: number | null;
   estimatedOfflineDate: string | null;
   offlineDate: string | null;
+  plannedPod: string | null;
   tareWeight: number | null;
   maximumWeight: number | null;
   payloadWeight: number | null;
@@ -391,6 +410,7 @@ export interface PurchaseOrderDraftItemInput {
   estimatedOfflineDate: string | null;
   offlineDate: string | null;
   vendorReleaseNumber: string | null;
+  plannedPod?: string | null;
   tareWeight: number | null;
   maximumWeight: number | null;
   cscNumber: string | null;

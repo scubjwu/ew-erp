@@ -113,6 +113,7 @@ type EditableCellKey = {
     | "payloadWeight"
     | "cscNumber"
     | "vendorReleaseNumber"
+    | "plannedPod"
     | "plannedQty"
     | "unitPrice"
     | "offlineDate";
@@ -200,6 +201,7 @@ function createEmptyItem(
     estimatedOfflineDate: null,
     offlineDate: null,
     vendorReleaseNumber: null,
+    plannedPod: null,
     tareWeight: null,
     maximumWeight: null,
     cscNumber: null,
@@ -355,6 +357,7 @@ const PURCHASE_ITEM_COLUMNS = [
   { key: "remainingQty", label: "Remaining Qty", width: 120 },
   { key: "vendorReleaseNumber", label: "Vendor Release Number", width: 170 },
   { key: "offlineDate", label: "Offline Date / Release Date", width: 170 },
+  { key: "plannedPod", label: "Planned POD", width: 170 },
   { key: "actions", label: "Actions", width: 180 },
 ] as const;
 
@@ -796,6 +799,7 @@ function buildDraftItemsFromOrder(order: PurchaseOrderDetail): DraftItemRow[] {
     estimatedOfflineDate: item.estimatedOfflineDate,
     offlineDate: item.offlineDate,
     vendorReleaseNumber: item.vendorReleaseNumber,
+    plannedPod: item.plannedPod,
     tareWeight: item.tareWeight,
     maximumWeight: item.maximumWeight,
     cscNumber: item.cscNumber,
@@ -997,6 +1001,12 @@ export function PurchaseOrderCreateForm({
   const financeFieldsLocked = isEditMode && !fullEditAllowed;
   const materialTypesLocked = isEditMode && !fullEditAllowed;
   const itemStructureLocked = isEditMode && !fullEditAllowed;
+  const canSavePlannedPodOnly = Boolean(
+    isEditMode &&
+      resolvedEditPermissions?.canEditPlannedPod &&
+      !resolvedEditPermissions?.canSaveDraftLikeChanges &&
+      !resolvedEditPermissions?.canSubmitChanges
+  );
   const showCancelQtyColumn = Boolean(
     isEditMode &&
       resolvedEditPermissions &&
@@ -1023,6 +1033,9 @@ export function PurchaseOrderCreateForm({
   );
 
   function canEditItemColumn(column: EditableCellKey["column"]) {
+    if (column === "plannedPod") {
+      return !isEditMode || Boolean(resolvedEditPermissions?.canEditPlannedPod);
+    }
     if (editableFieldSet === "all") return true;
     if (editableFieldSet === "factory_progress_limited") {
       return FACTORY_PROGRESS_EDITABLE_COLUMNS.has(column);
@@ -1175,7 +1188,7 @@ export function PurchaseOrderCreateForm({
   }
 
   async function handleSaveDraft() {
-    if (!canSaveDraftLikeChanges) return;
+    if (!canSaveDraftLikeChanges && !canSavePlannedPodOnly) return;
     setSaving(true);
     try {
       validateManualContainerNumbers(false);
@@ -1191,7 +1204,9 @@ export function PurchaseOrderCreateForm({
       };
       const result =
         isEditMode && initialOrder
-          ? await updatePurchaseOrderDraft(initialOrder.id, payload)
+          ? await (canSaveDraftLikeChanges
+              ? updatePurchaseOrderDraft(initialOrder.id, payload)
+              : updatePurchaseOrderPending(initialOrder.id, payload))
           : await createPurchaseOrderDraft(payload);
       toast({
         title: isEditMode ? "Purchase order updated" : "Draft saved",
@@ -1985,6 +2000,22 @@ export function PurchaseOrderCreateForm({
                     />
                   </TableCell>
 
+                  <TableCell className="h-11 border-b px-1 py-0 text-center align-middle">
+                    <EditableInputCell
+                      active={isEditing("plannedPod")}
+                      value={item.plannedPod ?? ""}
+                      display={displayValue(item.plannedPod)}
+                      onActivate={() => activateCell(item.key, "plannedPod")}
+                      onDeactivate={deactivateCell}
+                      onChange={(value) =>
+                        updateItem(item.key, (current) => ({
+                          ...current,
+                          plannedPod: value || null,
+                        }))
+                      }
+                    />
+                  </TableCell>
+
                   <TableCell className="sticky right-0 z-[70] h-11 border-b border-l bg-card px-1 py-0 text-center align-middle shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]">
                     <div className="flex h-9 items-center justify-center gap-1 px-1">
                       <Button
@@ -2559,7 +2590,7 @@ export function PurchaseOrderCreateForm({
               Cancel
             </Link>
           </Button>
-          {canSaveDraftLikeChanges ? (
+          {canSaveDraftLikeChanges || canSavePlannedPodOnly ? (
             <Button
               type="button"
               variant="outline"

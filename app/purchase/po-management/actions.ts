@@ -323,6 +323,7 @@ type PurchaseOrderItemDetailRowRaw = {
   estimated_offline_date: string | null;
   offline_date: string | null;
   vendor_release_number: string | null;
+  planned_pod: string | null;
   tare_weight: number | null;
   maximum_weight: number | null;
   payload_weight: number | null;
@@ -381,6 +382,7 @@ type PurchaseOrderContainerRowRaw = {
   yom: number | null;
   estimated_offline_date: string | null;
   offline_date: string | null;
+  planned_pod: string | null;
   tare_weight: number | null;
   maximum_weight: number | null;
   payload_weight: number | null;
@@ -523,6 +525,7 @@ function mapPurchaseOrderItem(row: PurchaseOrderItemDetailRowRaw): PurchaseOrder
     estimatedOfflineDate: row.estimated_offline_date,
     offlineDate: row.offline_date,
     vendorReleaseNumber: row.vendor_release_number,
+    plannedPod: row.planned_pod,
     tareWeight: row.tare_weight,
     maximumWeight: row.maximum_weight,
     payloadWeight: row.payload_weight,
@@ -563,6 +566,7 @@ function mapPurchaseOrderContainer(row: PurchaseOrderContainerRowRaw): PurchaseO
     yom: row.yom,
     estimatedOfflineDate: row.estimated_offline_date,
     offlineDate: row.offline_date,
+    plannedPod: row.planned_pod,
     tareWeight: row.tare_weight,
     maximumWeight: row.maximum_weight,
     payloadWeight: row.payload_weight,
@@ -972,6 +976,7 @@ async function loadPurchaseContainers(orderIds: string[]) {
         machine_type,
         yom,
         offline_date,
+        planned_pod,
         tare_weight,
         maximum_weight,
         payload_weight,
@@ -1432,6 +1437,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           estimated_offline_date,
           offline_date,
           vendor_release_number,
+          planned_pod,
           tare_weight,
           maximum_weight,
           payload_weight,
@@ -1475,6 +1481,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
           yom,
           estimated_offline_date,
           offline_date,
+          planned_pod,
           tare_weight,
           maximum_weight,
           payload_weight,
@@ -1656,6 +1663,7 @@ export async function getPurchaseOrderItemContainers(
           estimated_offline_date,
           offline_date,
           vendor_release_number,
+          planned_pod,
           tare_weight,
           maximum_weight,
           payload_weight,
@@ -1700,6 +1708,7 @@ export async function getPurchaseOrderItemContainers(
           yom,
           estimated_offline_date,
           offline_date,
+          planned_pod,
           tare_weight,
           maximum_weight,
           payload_weight,
@@ -1972,7 +1981,7 @@ export async function getPurchaseOrderEditForm(id: string): Promise<{
     throw new Error("Purchase order not found.");
   }
   const editPermissions = getOrderEditPermissions(order);
-  if (editPermissions.canEnterEdit) {
+  if (editPermissions.canEnterEdit || editPermissions.canEditPlannedPod) {
     return { options, order, editPermissions };
   }
   throw new Error(`Purchase order ${order.orderNo} cannot be edited in status ${order.orderStatus}.`);
@@ -2117,6 +2126,7 @@ function buildItemRowsForInsert(orderId: string, input: PurchaseOrderDraftInput)
     offline_date: item.offlineDate || null,
     vendor_release_number:
       shouldShowVendorReleaseFields(input.purchaseType) ? trimOrNull(item.vendorReleaseNumber) : null,
+    planned_pod: trimOrNull(item.plannedPod),
     tare_weight: item.tareWeight,
     maximum_weight: item.maximumWeight,
     csc_number: trimOrNull(item.cscNumber),
@@ -2127,6 +2137,30 @@ function buildItemRowsForInsert(orderId: string, input: PurchaseOrderDraftInput)
     line_amount: computeLineAmount(item.plannedQty, item.unitPrice),
     remark: trimOrNull(item.remark),
   }));
+}
+
+async function syncPlannedPodForContainersByItem(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  itemPlannedPods: Array<{ itemId: string; plannedPod: string | null }>
+) {
+  for (const row of itemPlannedPods) {
+    const { error: containerError } = await supabase
+      .from("purchase_order_container")
+      .update({ planned_pod: row.plannedPod })
+      .eq("purchase_order_item_id", row.itemId);
+    if (containerError) throw new Error(containerError.message);
+  }
+}
+
+function buildItemPlannedPodRows(
+  inputItems: PurchaseOrderDraftInput["items"],
+  resolvedItemIdsByInputKey: Map<string, string>
+) {
+  return inputItems.flatMap((item) => {
+    const itemId = resolvedItemIdsByInputKey.get(item.itemKey);
+    if (!itemId) return [];
+    return [{ itemId, plannedPod: trimOrNull(item.plannedPod) }];
+  });
 }
 
 async function replaceOrderItemsAndMaterials(
@@ -2219,6 +2253,9 @@ function buildContainerPayloadForSubmit(args: {
           ? container.estimatedOfflineDate || null
           : null,
       offline_date: container.offlineDate || null,
+      planned_pod: trimOrNull(
+        args.input.items.find((item) => item.itemKey === container.itemKey)?.plannedPod
+      ),
       tare_weight: container.tareWeight,
       maximum_weight: container.maximumWeight,
       csc_number: trimOrNull(container.cscNumber),
@@ -2452,6 +2489,143 @@ function ensureFactoryProgressEditPayloadAllowed(
   }
 }
 
+function ensurePlannedPodOnlyPayloadAllowed(
+  currentOrder: PurchaseOrderDetail,
+  input: PurchaseOrderDraftInput
+) {
+  if (input.purchaseType !== currentOrder.purchaseType) {
+    throw new Error("Purchase Type cannot be changed in the current order status.");
+  }
+  if (input.supplierId !== currentOrder.supplierId) {
+    throw new Error("Supplier cannot be changed in the current order status.");
+  }
+  if (input.ownerId !== currentOrder.ownerId) {
+    throw new Error("Owner cannot be changed in the current order status.");
+  }
+  if (input.buyerId !== currentOrder.buyerId) {
+    throw new Error("Buyer cannot be changed in the current order status.");
+  }
+  if (input.purchaseDate !== currentOrder.purchaseDate) {
+    throw new Error("Purchase Date cannot be changed in the current order status.");
+  }
+  if (input.estimatedOfflineTime !== currentOrder.estimatedOfflineTime) {
+    throw new Error("Estimated Offline Date cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.contractNumber) !== trimOrNull(currentOrder.contractNumber)) {
+    throw new Error("Contract Number cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.invoiceNumber) !== trimOrNull(currentOrder.invoiceNumber)) {
+    throw new Error("Invoice Number cannot be changed in the current order status.");
+  }
+  if (input.freeday !== currentOrder.freeday) {
+    throw new Error("Freeday cannot be changed in the current order status.");
+  }
+  if (input.vendorReleaseDate !== currentOrder.vendorReleaseDate) {
+    throw new Error("Vendor Release Date cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.remark) !== trimOrNull(currentOrder.remark)) {
+    throw new Error("Remark cannot be changed in the current order status.");
+  }
+  if (input.paymentMode !== currentOrder.paymentMode) {
+    throw new Error("Payment Mode cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.paymentAccount) !== trimOrNull(currentOrder.paymentAccount)) {
+    throw new Error("Payment Account cannot be changed in the current order status.");
+  }
+  if (input.dueDate !== currentOrder.dueDate) {
+    throw new Error("Due Date cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.settlementPaymentTerm) !== trimOrNull(currentOrder.settlementPaymentTerm)) {
+    throw new Error("Settlement Payment Term cannot be changed in the current order status.");
+  }
+  if (input.settlementCreditDays !== currentOrder.settlementCreditDays) {
+    throw new Error("Settlement Credit Days cannot be changed in the current order status.");
+  }
+  if (input.settlementCreditLimit !== currentOrder.settlementCreditLimit) {
+    throw new Error("Settlement Credit Limit cannot be changed in the current order status.");
+  }
+  if (
+    input.settlementAdvancePaymentPercentage !== currentOrder.settlementAdvancePaymentPercentage
+  ) {
+    throw new Error("Advance Payment Percentage cannot be changed in the current order status.");
+  }
+  if (
+    trimOrNull(input.settlementBalanceTriggerEvent) !==
+    trimOrNull(currentOrder.settlementBalanceTriggerEvent)
+  ) {
+    throw new Error("Balance Trigger Event cannot be changed in the current order status.");
+  }
+  if (trimOrNull(input.settlementCurrency) !== trimOrNull(currentOrder.settlementCurrency)) {
+    throw new Error("Settlement Currency cannot be changed in the current order status.");
+  }
+  if (input.settlementPrepaymentPool !== currentOrder.settlementPrepaymentPool) {
+    throw new Error("Prepayment Pool cannot be changed in the current order status.");
+  }
+  if (input.settlementPrepaymentThreshold !== currentOrder.settlementPrepaymentThreshold) {
+    throw new Error("Prepayment Threshold cannot be changed in the current order status.");
+  }
+  if (
+    input.settlementCurrentPrepaidBalance !== currentOrder.settlementCurrentPrepaidBalance
+  ) {
+    throw new Error("Current Prepaid Balance cannot be changed in the current order status.");
+  }
+  if (
+    JSON.stringify(input.vendorBankInformation ?? null) !==
+    JSON.stringify(currentOrder.vendorBankInformation ?? null)
+  ) {
+    throw new Error("Vendor bank information cannot be changed in the current order status.");
+  }
+  if (
+    JSON.stringify(input.materialTypes) !==
+    JSON.stringify(
+      currentOrder.materialTypes.map((row) => ({
+        materialType: row.materialType,
+        materialVendorId: row.materialVendorId,
+      }))
+    )
+  ) {
+    throw new Error("Material Vendors cannot be changed in the current order status.");
+  }
+  if (input.items.length !== currentOrder.items.length) {
+    throw new Error("Purchase items cannot be changed in the current order status.");
+  }
+
+  for (let index = 0; index < currentOrder.items.length; index += 1) {
+    const currentItem = currentOrder.items[index];
+    const nextItem = input.items[index];
+    if (!currentItem || !nextItem || nextItem.itemKey !== currentItem.id) {
+      throw new Error("Purchase items cannot be changed in the current order status.");
+    }
+
+    if (
+      currentItem.locationCityId !== nextItem.locationCityId ||
+      currentItem.depotId !== nextItem.depotId ||
+      currentItem.containerSizeCodeId !== nextItem.containerSizeCodeId ||
+      currentItem.containerTypeCodeId !== nextItem.containerTypeCodeId ||
+      currentItem.containerConditionCodeId !== nextItem.containerConditionCodeId ||
+      trimOrNull(currentItem.color) !== trimOrNull(nextItem.color) ||
+      currentItem.flp !== nextItem.flp ||
+      currentItem.lbx !== nextItem.lbx ||
+      currentItem.lockingBarsCount !== nextItem.lockingBarsCount ||
+      currentItem.ventsCount !== nextItem.ventsCount ||
+      trimOrNull(currentItem.machineType) !== trimOrNull(nextItem.machineType) ||
+      currentItem.yom !== nextItem.yom ||
+      currentItem.estimatedOfflineDate !== nextItem.estimatedOfflineDate ||
+      currentItem.offlineDate !== nextItem.offlineDate ||
+      trimOrNull(currentItem.vendorReleaseNumber) !== trimOrNull(nextItem.vendorReleaseNumber) ||
+      currentItem.tareWeight !== nextItem.tareWeight ||
+      currentItem.maximumWeight !== nextItem.maximumWeight ||
+      trimOrNull(currentItem.cscNumber) !== trimOrNull(nextItem.cscNumber) ||
+      currentItem.plannedQty !== nextItem.plannedQty ||
+      currentItem.unitPrice !== nextItem.unitPrice ||
+      trimOrNull(currentItem.remark) !== trimOrNull(nextItem.remark) ||
+      (nextItem.cancelQty ?? 0) !== 0
+    ) {
+      throw new Error("Only Planned POD can be changed in the current order status.");
+    }
+  }
+}
+
 function ensurePendingEditPayloadMatchesCurrent(
   currentOrder: PurchaseOrderDetail,
   input: PurchaseOrderDraftInput
@@ -2663,6 +2837,7 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
     machine_type: item.machineType?.trim() || null,
     yom: item.yom,
     offline_date: item.offlineDate || null,
+    planned_pod: trimOrNull(item.plannedPod),
     tare_weight: item.tareWeight,
     maximum_weight: item.maximumWeight,
     csc_number: trimOrNull(item.cscNumber),
@@ -2940,6 +3115,7 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
       offline_date: item.offlineDate || null,
       vendor_release_number:
         shouldShowVendorReleaseFields(input.purchaseType) ? trimOrNull(item.vendorReleaseNumber) : null,
+      planned_pod: trimOrNull(item.plannedPod),
       tare_weight: item.tareWeight,
       maximum_weight: item.maximumWeight,
       csc_number: trimOrNull(item.cscNumber),
@@ -2999,8 +3175,11 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
         vents_count: container.ventsCount,
         machine_type: trimOrNull(container.machineType),
         yom: container.yom,
-        offline_date:
+      offline_date:
           container.offlineDate || null,
+        planned_pod: trimOrNull(
+          input.items.find((item) => item.itemKey === container.itemKey)?.plannedPod
+        ),
         tare_weight: container.tareWeight,
         maximum_weight: container.maximumWeight,
         csc_number: trimOrNull(container.cscNumber),
@@ -3203,13 +3382,47 @@ export async function updatePurchaseOrderPending(
   let currentOrder = await getPurchaseOrderDetail(orderId);
   if (!currentOrder) throw new Error("Purchase order not found.");
   const editPermissions = getOrderEditPermissions(currentOrder);
-  if (!editPermissions.canEnterEdit || currentOrder.orderStatus === "DRAFT") {
+  if (
+    (!editPermissions.canEnterEdit && !editPermissions.canEditPlannedPod) ||
+    currentOrder.orderStatus === "DRAFT"
+  ) {
     throw new Error(
       `This purchase order cannot be updated in status ${currentOrder.orderStatus}.`
     );
   }
-  if (!editPermissions.canSubmitChanges) {
+  if (
+    !editPermissions.canSubmitChanges &&
+    !(editPermissions.canEditPlannedPod && !editPermissions.canEnterEdit)
+  ) {
     throw new Error(`Submit is not allowed for purchase order status ${currentOrder.orderStatus}.`);
+  }
+
+  const plannedPodOnlyUpdate = editPermissions.canEditPlannedPod && !editPermissions.canEnterEdit;
+
+  if (plannedPodOnlyUpdate) {
+    ensurePlannedPodOnlyPayloadAllowed(currentOrder, input);
+    const plannedPodRows = input.items.map((item) => ({
+      id: item.itemKey,
+      planned_pod: trimOrNull(item.plannedPod),
+    }));
+    for (const row of plannedPodRows) {
+      const { error: updateItemError } = await supabase
+        .from("purchase_order_item")
+        .update({ planned_pod: row.planned_pod })
+        .eq("id", row.id)
+        .eq("purchase_order_id", orderId);
+      if (updateItemError) throw new Error(updateItemError.message);
+    }
+    await syncPlannedPodForContainersByItem(
+      supabase,
+      plannedPodRows.map((row) => ({ itemId: row.id, plannedPod: row.planned_pod }))
+    );
+    revalidatePurchasePaths(orderId);
+    return {
+      orderId,
+      orderNo: currentOrder.orderNo,
+      orderStatus: currentOrder.orderStatus,
+    };
   }
 
   if (editPermissions.requiresAtLeastOneItemOnSubmit && input.items.length === 0) {
@@ -3259,8 +3472,7 @@ export async function updatePurchaseOrderPending(
   }
   if (
     partialCancels.length > 0 &&
-    (currentOrder.orderStatus === "DRAFT" ||
-      currentOrder.orderStatus === "COMPLETED" ||
+    (currentOrder.orderStatus === "COMPLETED" ||
       currentOrder.orderStatus === "CANCELLED")
   ) {
     throw new Error(`Cancel Qty is not allowed for purchase order status ${currentOrder.orderStatus}.`);
@@ -3339,7 +3551,9 @@ export async function updatePurchaseOrderPending(
     vents_count: number | null;
     machine_type: string | null;
     yom: number | null;
+    estimated_offline_date: string | null;
     offline_date: string | null;
+    planned_pod: string | null;
     tare_weight: number | null;
     maximum_weight: number | null;
     csc_number: string | null;
@@ -3393,6 +3607,7 @@ export async function updatePurchaseOrderPending(
       offline_date: nextItem.offlineDate || null,
       vendor_release_number:
         shouldShowVendorReleaseFields(input.purchaseType) ? trimOrNull(nextItem.vendorReleaseNumber) : null,
+      planned_pod: trimOrNull(nextItem.plannedPod),
       tare_weight: nextItem.tareWeight,
       maximum_weight: nextItem.maximumWeight,
       csc_number: trimOrNull(nextItem.cscNumber),
@@ -3513,6 +3728,7 @@ export async function updatePurchaseOrderPending(
             ? nextContainer.estimatedOfflineDate || null
             : null,
         offline_date: offlineDate,
+        planned_pod: trimOrNull(nextItem.plannedPod),
         tare_weight: nextContainer.tareWeight,
         maximum_weight: nextContainer.maximumWeight,
         csc_number: trimOrNull(nextContainer.cscNumber),
@@ -3551,6 +3767,7 @@ export async function updatePurchaseOrderPending(
             ? nextContainer.estimatedOfflineDate || null
             : null,
         offline_date: offlineDate,
+        planned_pod: trimOrNull(nextItem.plannedPod),
         tare_weight: nextContainer.tareWeight,
         maximum_weight: nextContainer.maximumWeight,
         csc_number: trimOrNull(nextContainer.cscNumber),
@@ -3573,6 +3790,11 @@ export async function updatePurchaseOrderPending(
     );
     if (submitInsertError) throw new Error(submitInsertError.message);
   }
+
+  await syncPlannedPodForContainersByItem(
+    supabase,
+    buildItemPlannedPodRows(input.items, resolvedItemIdsByInputKey)
+  );
 
   const nextStatus = await recalculatePurchaseOrderStatus(supabase, orderId);
 

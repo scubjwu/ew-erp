@@ -6,6 +6,7 @@ describe("getPurchaseOrderEditPermissions", () => {
   it("allows full draft editing for factory orders", () => {
     expect(getPurchaseOrderEditPermissions("FACTORY_ORDER", "DRAFT")).toEqual({
       canEnterEdit: true,
+      canEditPlannedPod: true,
       canSaveDraftLikeChanges: true,
       canSubmitChanges: true,
       editableFieldSet: "all",
@@ -17,6 +18,7 @@ describe("getPurchaseOrderEditPermissions", () => {
   it("limits factory in-production editing to progress fields and submit only", () => {
     expect(getPurchaseOrderEditPermissions("FACTORY_ORDER", "IN_PRODUCTION")).toEqual({
       canEnterEdit: true,
+      canEditPlannedPod: true,
       canSaveDraftLikeChanges: false,
       canSubmitChanges: true,
       editableFieldSet: "factory_progress_limited",
@@ -29,11 +31,15 @@ describe("getPurchaseOrderEditPermissions", () => {
     expect(getPurchaseOrderEditPermissions("FACTORY_ORDER", "RELEASED").canEnterEdit).toBe(
       false
     );
+    expect(
+      getPurchaseOrderEditPermissions("FACTORY_ORDER", "RELEASED").canEditPlannedPod
+    ).toBe(true);
   });
 
   it("allows released used-container orders to submit edits", () => {
     expect(getPurchaseOrderEditPermissions("USED_CONTAINER", "RELEASED")).toEqual({
       canEnterEdit: true,
+      canEditPlannedPod: true,
       canSaveDraftLikeChanges: false,
       canSubmitChanges: true,
       editableFieldSet: "all",
@@ -46,8 +52,14 @@ describe("getPurchaseOrderEditPermissions", () => {
     expect(getPurchaseOrderEditPermissions("NEW_CONTAINER", "COMPLETED").canEnterEdit).toBe(
       false
     );
+    expect(
+      getPurchaseOrderEditPermissions("NEW_CONTAINER", "COMPLETED").canEditPlannedPod
+    ).toBe(false);
     expect(getPurchaseOrderEditPermissions("USED_CONTAINER", "CANCELLED").canEnterEdit).toBe(
       false
     );
+    expect(
+      getPurchaseOrderEditPermissions("USED_CONTAINER", "CANCELLED").canEditPlannedPod
+    ).toBe(false);
   });
 });

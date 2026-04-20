@@ -154,10 +154,8 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
   const isNonFactoryOrder =
     order.purchaseType === "NEW_CONTAINER" || order.purchaseType === "USED_CONTAINER";
 
-  const canEdit = getPurchaseOrderEditPermissions(
-    order.purchaseType,
-    order.orderStatus
-  ).canEnterEdit;
+  const editPermissions = getPurchaseOrderEditPermissions(order.purchaseType, order.orderStatus);
+  const canEdit = editPermissions.canEnterEdit || editPermissions.canEditPlannedPod;
   const canCancelWholeOrder =
     order.orderStatus !== "COMPLETED" && order.orderStatus !== "CANCELLED";
 
@@ -303,6 +301,7 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                     <TableHead>Estimated Offline Date</TableHead>
                   ) : null}
                   <TableHead>Offline Date / Release Date</TableHead>
+                  <TableHead>Planned POD</TableHead>
                   <TableHead>Tare Weight</TableHead>
                   <TableHead>Maximum Weight</TableHead>
                   <TableHead>Payload Weight</TableHead>
@@ -359,6 +358,7 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                         <TableCell>{formatDate(item.estimatedOfflineDate)}</TableCell>
                       ) : null}
                       <TableCell>{formatDate(item.offlineDate)}</TableCell>
+                      <TableCell>{item.plannedPod ?? "-"}</TableCell>
                       <TableCell>{formatNumber(item.tareWeight)}</TableCell>
                       <TableCell>{formatNumber(item.maximumWeight)}</TableCell>
                       <TableCell>{formatNumber(item.payloadWeight)}</TableCell>
