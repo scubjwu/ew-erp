@@ -11,8 +11,10 @@ import type {
   PurchaseMaterialType,
   PurchaseOrderDraftContainerInput,
   PurchaseOrderDraftInput,
+  PurchaseOrderContainerEditPatchInput,
   PurchaseOrderContainer,
   PurchaseOrderDetail,
+  PurchaseOrderEditContainerPage,
   PurchaseOrderItem,
   PurchaseOrderItemContainersDetail,
   PurchaseOrderMaterialTypeRow,
@@ -22,6 +24,7 @@ import type {
   PurchaseType,
 } from "@/types/purchase";
 import {
+  buildDefaultDraftContainersForItem,
   computeLineAmount,
   generatePurchaseOrderNumber,
   generateIso6346ContainerNumber,
@@ -1755,6 +1758,119 @@ export async function getPurchaseOrderItemContainers(
   };
 }
 
+const PURCHASE_ORDER_CONTAINER_SELECT = `
+  id,
+  purchase_order_id,
+  purchase_order_item_id,
+  container_number,
+  location_city_id,
+  depot_id,
+  container_size_code_id,
+  container_type_code_id,
+  container_condition_code_id,
+  color,
+  flp,
+  lbx,
+  locking_bars_count,
+  vents_count,
+  machine_type,
+  yom,
+  estimated_offline_date,
+  offline_date,
+  planned_pod,
+  tare_weight,
+  maximum_weight,
+  payload_weight,
+  csc_number,
+  purchase_price,
+  financial_cost,
+  container_status,
+  remark,
+  created_at,
+  updated_at,
+  location:cities(id, city_code, city_name),
+  depot:depots(id, depot_code, depot_name),
+  size:container_size_codes(id, size_code, size_name),
+  type:container_type_codes(id, type_code, type_description),
+  condition:container_condition_codes(id, condition_code, condition_name)
+`;
+
+export async function getPurchaseOrderEditContainerPage(
+  orderId: string,
+  itemId: string,
+  page: number,
+  pageSize: number
+): Promise<PurchaseOrderEditContainerPage> {
+  noStore();
+  const supabase = createServerSupabaseClient();
+  const safePage = Math.max(1, Math.floor(page || 1));
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize || 20)));
+  const from = (safePage - 1) * safePageSize;
+  const to = from + safePageSize - 1;
+
+  const [countResult, rowsResult] = await Promise.all([
+    supabase
+      .from("purchase_order_container")
+      .select("id", { count: "exact", head: true })
+      .eq("purchase_order_id", orderId)
+      .eq("purchase_order_item_id", itemId)
+      .or("container_status.is.null,container_status.neq.CANCELLED"),
+    supabase
+      .from("purchase_order_container")
+      .select(PURCHASE_ORDER_CONTAINER_SELECT)
+      .eq("purchase_order_id", orderId)
+      .eq("purchase_order_item_id", itemId)
+      .or("container_status.is.null,container_status.neq.CANCELLED")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  ]);
+
+  if (countResult.error) throw new Error(countResult.error.message);
+  if (rowsResult.error) throw new Error(rowsResult.error.message);
+
+  return {
+    itemId,
+    page: safePage,
+    pageSize: safePageSize,
+    totalCount: countResult.count ?? 0,
+    rows: ((((rowsResult.data ?? []) as unknown) as PurchaseOrderContainerRowRaw[]).map(
+      mapPurchaseOrderContainer
+    )),
+  };
+}
+
+export async function getPurchaseOrderEditContainersByNumbers(
+  orderId: string,
+  itemId: string,
+  containerNumbers: string[]
+): Promise<PurchaseOrderContainer[]> {
+  noStore();
+  const supabase = createServerSupabaseClient();
+  const normalized = Array.from(
+    new Set(
+      containerNumbers
+        .map((value) => trimOrNull(value)?.toUpperCase() ?? null)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+  if (normalized.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("purchase_order_container")
+    .select(PURCHASE_ORDER_CONTAINER_SELECT)
+    .eq("purchase_order_id", orderId)
+    .eq("purchase_order_item_id", itemId)
+    .in("container_number", normalized)
+    .or("container_status.is.null,container_status.neq.CANCELLED")
+    .order("container_number", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return ((((data ?? []) as unknown) as PurchaseOrderContainerRowRaw[]).map(
+    mapPurchaseOrderContainer
+  ));
+}
+
 export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOptions> {
   noStore();
   const supabase = createServerSupabaseClient();
@@ -1982,7 +2098,14 @@ export async function getPurchaseOrderEditForm(id: string): Promise<{
   }
   const editPermissions = getOrderEditPermissions(order);
   if (editPermissions.canEnterEdit || editPermissions.canEditPlannedPod) {
-    return { options, order, editPermissions };
+    return {
+      options,
+      order: {
+        ...order,
+        containers: [],
+      },
+      editPermissions,
+    };
   }
   throw new Error(`Purchase order ${order.orderNo} cannot be edited in status ${order.orderStatus}.`);
 }
@@ -2028,6 +2151,39 @@ function validateManualContainerNumbers(
       throw new Error("Container Number is required for factory orders when the owner uses manual numbering.");
     }
   }
+}
+
+function buildDefaultContainerDraftForItem(
+  item: PurchaseOrderDraftInput["items"][number],
+  purchaseType: PurchaseType,
+  vendorReleaseDate: string | null
+): PurchaseOrderDraftContainerInput {
+  return (
+    buildDefaultDraftContainersForItem({
+      itemKey: item.itemKey,
+      item: {
+        ...item,
+        plannedQty: 1,
+      },
+      purchaseType,
+      vendorReleaseDate,
+    })[0] ?? {
+      itemKey: item.itemKey,
+      containerNumber: null,
+      color: item.color ?? null,
+      flp: item.flp,
+      lbx: item.lbx,
+      lockingBarsCount: item.lockingBarsCount,
+      ventsCount: item.ventsCount,
+      machineType: item.machineType ?? null,
+      yom: item.yom ?? null,
+      estimatedOfflineDate: purchaseType === "FACTORY_ORDER" ? item.estimatedOfflineDate ?? null : null,
+      offlineDate: item.offlineDate ?? null,
+      tareWeight: item.tareWeight ?? null,
+      maximumWeight: item.maximumWeight ?? null,
+      cscNumber: item.cscNumber ?? null,
+    }
+  );
 }
 
 async function resolveOwnerUsesInternalContainerNumbering(
@@ -3443,7 +3599,6 @@ export async function updatePurchaseOrderPending(
   }
   await validateRalColors(supabase, [
     ...input.items.map((item) => item.color),
-    ...input.containers.map((container) => container.color),
   ]);
 
   const partialCancels = input.items
@@ -3531,11 +3686,14 @@ export async function updatePurchaseOrderPending(
     bucket.push(container);
     containersByItem.set(container.purchaseOrderItemId, bucket);
   }
-  const inputContainersByItem = new Map<string, PurchaseOrderDraftContainerInput[]>();
-  for (const container of input.containers) {
-    const bucket = inputContainersByItem.get(container.itemKey) ?? [];
+  const inputContainerEditsById = new Map(
+    (input.containerEdits ?? []).map((container) => [container.id, container] as const)
+  );
+  const inputNewContainersByItem = new Map<string, PurchaseOrderDraftContainerInput[]>();
+  for (const container of input.newContainers ?? []) {
+    const bucket = inputNewContainersByItem.get(container.itemKey) ?? [];
     bucket.push(container);
-    inputContainersByItem.set(container.itemKey, bucket);
+    inputNewContainersByItem.set(container.itemKey, bucket);
   }
   const containersToInsertViaSubmitRpc: Array<{
     purchase_order_item_id: string;
@@ -3670,37 +3828,25 @@ export async function updatePurchaseOrderPending(
       (container) => !isCancelledContainerStatus(container.containerStatus)
     );
     const cancelledExistingCount = existingForItem.length - activeExistingForItem.length;
-    const rawNextForItem = inputContainersByItem.get(nextItem.itemKey) ?? [];
-    const nextForItem =
-      cancelledExistingCount > 0
-        ? rawNextForItem.slice(0, Math.max(rawNextForItem.length - cancelledExistingCount, 0))
-        : rawNextForItem;
 
-    if (nextForItem.length < activeExistingForItem.length) {
-      const removableIds = activeExistingForItem
-        .slice(nextForItem.length)
-        .map((container) => container.id);
-      if (removableIds.length > 0) {
-        const { error: deleteContainerError } = await supabase
-          .from("purchase_order_container")
-          .delete()
-          .in("id", removableIds);
-        if (deleteContainerError) throw new Error(deleteContainerError.message);
-      }
-    }
+    const desiredActiveCount = Math.max(
+      0,
+      Math.floor(nextItem.plannedQty ?? 0) - cancelledExistingCount
+    );
 
-    for (let index = 0; index < nextForItem.length; index += 1) {
-      const nextContainer = nextForItem[index];
-      if (!nextContainer) continue;
+    const retainedExistingCount = Math.min(desiredActiveCount, activeExistingForItem.length);
+    for (let index = 0; index < retainedExistingCount; index += 1) {
       const existingContainer = activeExistingForItem[index];
+      if (!existingContainer) continue;
+      const nextContainer = inputContainerEditsById.get(existingContainer.id);
       const offlineDate =
         input.purchaseType === "FACTORY_ORDER"
-          ? nextContainer.offlineDate || null
+          ? nextContainer?.offlineDate ?? existingContainer.offlineDate ?? null
           : nextItem.offlineDate || null;
       const containerNumber =
         input.purchaseType === "FACTORY_ORDER" && usesInternalContainerNumbering
-          ? existingContainer?.containerNumber ?? null
-          : trimOrNull(nextContainer.containerNumber);
+          ? existingContainer.containerNumber ?? null
+          : trimOrNull(nextContainer?.containerNumber ?? existingContainer.containerNumber);
       const { containerStatus, itemStatus } = resolvePurchaseContainerStatuses({
         purchaseType: input.purchaseType,
         usesInternalContainerNumbering,
@@ -3716,37 +3862,63 @@ export async function updatePurchaseOrderPending(
         container_size_code_id: nextItem.containerSizeCodeId,
         container_type_code_id: nextItem.containerTypeCodeId,
         container_condition_code_id: nextItem.containerConditionCodeId,
-        color: trimOrNull(nextContainer.color),
-        flp: nextContainer.flp,
-        lbx: nextContainer.lbx,
-        locking_bars_count: nextContainer.lockingBarsCount,
-        vents_count: nextContainer.ventsCount,
-        machine_type: trimOrNull(nextContainer.machineType),
-        yom: nextContainer.yom,
+        color: trimOrNull(nextItem.color),
+        flp: nextItem.flp,
+        lbx: nextItem.lbx,
+        locking_bars_count: nextItem.lockingBarsCount,
+        vents_count: nextItem.ventsCount,
+        machine_type: trimOrNull(nextContainer?.machineType ?? existingContainer.machineType),
+        yom: nextContainer?.yom ?? existingContainer.yom,
         estimated_offline_date:
           input.purchaseType === "FACTORY_ORDER"
-            ? nextContainer.estimatedOfflineDate || null
+            ? nextContainer?.estimatedOfflineDate ?? existingContainer.estimatedOfflineDate ?? null
             : null,
         offline_date: offlineDate,
         planned_pod: trimOrNull(nextItem.plannedPod),
-        tare_weight: nextContainer.tareWeight,
-        maximum_weight: nextContainer.maximumWeight,
-        csc_number: trimOrNull(nextContainer.cscNumber),
+        tare_weight: nextContainer?.tareWeight ?? existingContainer.tareWeight,
+        maximum_weight: nextContainer?.maximumWeight ?? existingContainer.maximumWeight,
+        csc_number: trimOrNull(nextContainer?.cscNumber ?? existingContainer.cscNumber),
         container_number: containerNumber,
         item_status: itemStatus,
-        purchase_price: nextItem.unitPrice ?? existingContainer?.purchasePrice ?? 0,
-        financial_cost: existingContainer?.financialCost ?? 0,
+        purchase_price: nextItem.unitPrice ?? existingContainer.purchasePrice ?? 0,
+        financial_cost: existingContainer.financialCost ?? 0,
         container_status: containerStatus,
       };
 
-      if (existingContainer) {
-        const { error: updateContainerError } = await supabase
+      const { error: updateContainerError } = await supabase
+        .from("purchase_order_container")
+        .update(containerPayload)
+        .eq("id", existingContainer.id);
+      if (updateContainerError) throw new Error(updateContainerError.message);
+    }
+
+    if (desiredActiveCount < activeExistingForItem.length) {
+      const removableIds = activeExistingForItem
+        .slice(desiredActiveCount)
+        .map((container) => container.id);
+      if (removableIds.length > 0) {
+        const { error: deleteContainerError } = await supabase
           .from("purchase_order_container")
-          .update(containerPayload)
-          .eq("id", existingContainer.id);
-        if (updateContainerError) throw new Error(updateContainerError.message);
-        continue;
+          .delete()
+          .in("id", removableIds);
+        if (deleteContainerError) throw new Error(deleteContainerError.message);
       }
+    }
+
+    const appendedDrafts = inputNewContainersByItem.get(nextItem.itemKey) ?? [];
+    const newContainerCount = Math.max(0, desiredActiveCount - activeExistingForItem.length);
+    for (let index = 0; index < newContainerCount; index += 1) {
+      const nextContainer =
+        appendedDrafts[index] ??
+        buildDefaultContainerDraftForItem(
+          nextItem,
+          input.purchaseType,
+          shouldShowVendorReleaseFields(input.purchaseType) ? input.vendorReleaseDate ?? null : null
+        );
+      const offlineDate =
+        input.purchaseType === "FACTORY_ORDER"
+          ? nextContainer.offlineDate || null
+          : nextItem.offlineDate || null;
 
       containersToInsertViaSubmitRpc.push({
         purchase_order_item_id: resolvedItemId,
@@ -3755,11 +3927,11 @@ export async function updatePurchaseOrderPending(
         container_size_code_id: nextItem.containerSizeCodeId,
         container_type_code_id: nextItem.containerTypeCodeId,
         container_condition_code_id: nextItem.containerConditionCodeId,
-        color: trimOrNull(nextContainer.color),
-        flp: nextContainer.flp,
-        lbx: nextContainer.lbx,
-        locking_bars_count: nextContainer.lockingBarsCount,
-        vents_count: nextContainer.ventsCount,
+        color: trimOrNull(nextItem.color),
+        flp: nextItem.flp,
+        lbx: nextItem.lbx,
+        locking_bars_count: nextItem.lockingBarsCount,
+        vents_count: nextItem.ventsCount,
         machine_type: trimOrNull(nextContainer.machineType),
         yom: nextContainer.yom,
         estimated_offline_date:

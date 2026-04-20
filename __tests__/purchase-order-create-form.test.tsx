@@ -43,8 +43,10 @@ vi.mock("lucide-react", () => {
     <span data-testid="lucide-mock-icon" className={props.className} />
   );
   return {
+    Copy: Icon,
     Plus: Icon,
     Trash2: Icon,
+    X: Icon,
   };
 });
 
@@ -548,7 +550,7 @@ describe("PurchaseOrderCreateForm", () => {
     await user.click(within(cells[15]).getByRole("button", { name: "0" }));
     await user.type(within(cells[15]).getByRole("spinbutton"), "1{Enter}");
 
-    await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
+    await user.click(within(cells.at(-1)!).getByRole("button", { name: /^Edit$/i }));
     const containerNumberInput = screen.getByPlaceholderText("ABCD1234567");
     await user.type(containerNumberInput, "bad123");
     await user.click(screen.getByRole("button", { name: /Save Draft/i }));
@@ -581,7 +583,7 @@ describe("PurchaseOrderCreateForm", () => {
     expect(within(cells[15]).getByText("-")).toBeInTheDocument();
     await user.click(within(cells[17]).getByRole("button", { name: "0" }));
     await user.type(within(cells[17]).getByRole("spinbutton"), "1{Enter}");
-    await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
+    await user.click(within(cells.at(-1)!).getByRole("button", { name: /^Edit$/i }));
 
     expect(screen.getByText("Auto-generated")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("ABCD1234567")).not.toBeInTheDocument();
@@ -606,7 +608,7 @@ describe("PurchaseOrderCreateForm", () => {
     expect(within(cells[15]).getByText("-")).toBeInTheDocument();
     await user.click(within(cells[17]).getByRole("button", { name: "0" }));
     await user.type(within(cells[17]).getByRole("spinbutton"), "1{Enter}");
-    await user.click(within(cells.at(-1)!).getByRole("button", { name: /Edit Containers/i }));
+    await user.click(within(cells.at(-1)!).getByRole("button", { name: /^Edit$/i }));
 
     expect(screen.getByPlaceholderText("ABCD1234567")).toBeInTheDocument();
 
@@ -788,7 +790,8 @@ describe("PurchaseOrderCreateForm", () => {
     expect(payload.items[0].cancelQty).toBe(1);
     expect(payload.items[0].vendorReleaseNumber).toBe("VRN-ITEM-UPDATED");
     expect(payload.items[0].offlineDate).toBe("2026-05-01");
-    expect(payload.containers[0].offlineDate).toBe("2026-05-01");
+    expect(payload.containers).toEqual([]);
+    expect(payload.containerEdits).toEqual([]);
   });
 
   it("shows uncancelled totals in edit mode footer", () => {

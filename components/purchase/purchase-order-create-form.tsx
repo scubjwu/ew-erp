@@ -1,12 +1,14 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
   createPurchaseOrderDraft,
+  getPurchaseOrderEditContainerPage,
+  getPurchaseOrderEditContainersByNumbers,
   createPurchaseOrderSubmit,
   submitPurchaseOrderPending,
   submitPurchaseOrderDraftUpdate,
@@ -31,6 +33,8 @@ import {
   shouldShowVendorReleaseFields,
 } from "@/app/purchase/po-management/create-helpers";
 import { AutocompleteFilterInput } from "@/components/shared/page-standard/autocomplete-filter-input";
+import { PurchaseContainerBulkUpdateModal } from "@/components/purchase/purchase-container-bulk-update-modal";
+import { StandardTablePagination } from "@/components/shared/page-standard/standard-table-pagination";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -60,6 +64,9 @@ import type {
   PurchaseOrderEditPermissions,
   PurchaseOrderDetail,
   PurchaseOrderDraftContainerInput,
+  PurchaseOrderContainer,
+  PurchaseOrderContainerEditPatchInput,
+  PurchaseOrderEditContainerPage,
   PurchaseOrderDraftInput,
   PurchaseOrderDraftItemInput,
   PurchasePaymentMode,
@@ -87,6 +94,10 @@ type DraftItemRow = PurchaseOrderDraftItemInput & {
 
 type DraftContainerRow = PurchaseOrderDraftContainerInput & {
   key: string;
+};
+
+type EditContainerPageState = PurchaseOrderEditContainerPage & {
+  loading: boolean;
 };
 
 type DraftMaterialTypeRow = PurchaseDraftMaterialTypeInput & {
@@ -260,6 +271,29 @@ function createDraftContainerRow(input: PurchaseOrderDraftContainerInput): Draft
   return {
     ...input,
     key: makeKey(),
+  };
+}
+
+function patchToDraftContainerRow(
+  row: PurchaseOrderContainer,
+  patch?: PurchaseOrderContainerEditPatchInput
+): DraftContainerRow {
+  return {
+    key: row.id,
+    itemKey: row.purchaseOrderItemId ?? "",
+    containerNumber: patch?.containerNumber ?? row.containerNumber,
+    color: row.color,
+    flp: row.flp,
+    lbx: row.lbx,
+    lockingBarsCount: row.lockingBarsCount,
+    ventsCount: row.ventsCount,
+    machineType: patch?.machineType ?? row.machineType,
+    yom: patch?.yom ?? row.yom,
+    estimatedOfflineDate: patch?.estimatedOfflineDate ?? row.estimatedOfflineDate,
+    offlineDate: patch?.offlineDate ?? row.offlineDate,
+    tareWeight: patch?.tareWeight ?? row.tareWeight,
+    maximumWeight: patch?.maximumWeight ?? row.maximumWeight,
+    cscNumber: patch?.cscNumber ?? row.cscNumber,
   };
 }
 
@@ -881,7 +915,7 @@ export function PurchaseOrderCreateForm({
     initialOrder ? buildDraftItemsFromOrder(initialOrder) : [initialItem]
   );
   const [containers, setContainers] = useState<DraftContainerRow[]>(() =>
-    initialOrder
+    initialOrder && (!isEditMode || initialOrder.orderStatus === "DRAFT")
       ? initialOrder.containers.length > 0
         ? buildDraftContainersFromOrder(initialOrder)
         : syncContainersWithItems({
@@ -897,6 +931,14 @@ export function PurchaseOrderCreateForm({
           vendorReleaseDate: null,
         }).map((row) => ({ ...row, key: makeKey() }))
   );
+  const [editContainerPages, setEditContainerPages] = useState<Record<string, EditContainerPageState>>({});
+  const [containerEditPatches, setContainerEditPatches] = useState<
+    Record<string, PurchaseOrderContainerEditPatchInput>
+  >({});
+  const [newContainerDraftsByItem, setNewContainerDraftsByItem] = useState<
+    Record<string, DraftContainerRow[]>
+  >({});
+  const [bulkUpdateItemKey, setBulkUpdateItemKey] = useState<string | null>(null);
   const [materialTypes, setMaterialTypes] = useState<DraftMaterialTypeRow[]>(() =>
     initialOrder
       ? buildDraftMaterialTypesFromOrder(initialOrder)
@@ -915,11 +957,15 @@ export function PurchaseOrderCreateForm({
     () => options.owners.find((option) => option.id === form.ownerId),
     [form.ownerId, options.owners]
   );
+  const useServerPagedContainerEditing = Boolean(
+    isEditMode && initialOrder && initialOrder.orderStatus !== "DRAFT"
+  );
   const factoryUsesInternalContainerNumbering =
     form.purchaseType === "FACTORY_ORDER" &&
     selectedOwner?.usesInternalContainerNumbering === true;
 
   useEffect(() => {
+    if (useServerPagedContainerEditing) return;
     setContainers((current) =>
       syncContainersWithItems({
         current,
@@ -928,7 +974,62 @@ export function PurchaseOrderCreateForm({
         vendorReleaseDate: form.vendorReleaseDate,
       })
     );
-  }, [form.purchaseType, form.vendorReleaseDate, items]);
+  }, [form.purchaseType, form.vendorReleaseDate, items, useServerPagedContainerEditing]);
+
+  async function loadEditContainerPage(itemKey: string, page = 1, pageSize = 20) {
+    if (!useServerPagedContainerEditing || !initialOrder) {
+      setEditContainerPages((current) => ({
+        ...current,
+        [itemKey]: {
+          itemId: itemKey,
+          page,
+          pageSize,
+          totalCount: current[itemKey]?.totalCount ?? 0,
+          rows: current[itemKey]?.rows ?? [],
+          loading: false,
+        },
+      }));
+      return;
+    }
+    setEditContainerPages((current) => ({
+      ...current,
+      [itemKey]: {
+        itemId: itemKey,
+        page,
+        pageSize,
+        totalCount: current[itemKey]?.totalCount ?? 0,
+        rows: current[itemKey]?.rows ?? [],
+        loading: true,
+      },
+    }));
+    try {
+      const result = await getPurchaseOrderEditContainerPage(initialOrder.id, itemKey, page, pageSize);
+      setEditContainerPages((current) => ({
+        ...current,
+        [itemKey]: {
+          ...result,
+          loading: false,
+        },
+      }));
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not load containers",
+        description: getErrorMessage(error),
+      });
+      setEditContainerPages((current) => ({
+        ...current,
+        [itemKey]: {
+          itemId: itemKey,
+          page,
+          pageSize,
+          totalCount: current[itemKey]?.totalCount ?? 0,
+          rows: current[itemKey]?.rows ?? [],
+          loading: false,
+        },
+      }));
+    }
+  }
 
   const totals = useMemo(
     () =>
@@ -1031,6 +1132,108 @@ export function PurchaseOrderCreateForm({
     () => visibleItemColumns.reduce((total, column) => total + column.width, 0),
     [visibleItemColumns]
   );
+
+  function getDesiredActiveContainerCount(item: DraftItemRow) {
+    if (!isEditMode) return Math.max(0, Math.floor(item.plannedQty ?? 0));
+    return Math.max(0, Math.floor(item.plannedQty ?? 0) - Number(item.cancelledQty ?? 0));
+  }
+
+  function buildDefaultContainerDraft(item: DraftItemRow): DraftContainerRow {
+    return createDraftContainerRow(
+      buildDefaultDraftContainersForItem({
+        itemKey: item.itemKey,
+        item: {
+          ...item,
+          plannedQty: 1,
+        },
+        purchaseType: form.purchaseType,
+        vendorReleaseDate: form.vendorReleaseDate,
+      })[0] ?? {
+        itemKey: item.itemKey,
+        containerNumber: null,
+        color: item.color ?? null,
+        flp: item.flp,
+        lbx: item.lbx,
+        lockingBarsCount: item.lockingBarsCount,
+        ventsCount: item.ventsCount,
+        machineType: item.machineType ?? null,
+        yom: item.yom ?? null,
+        estimatedOfflineDate:
+          form.purchaseType === "FACTORY_ORDER" ? item.estimatedOfflineDate ?? null : null,
+        offlineDate: item.offlineDate ?? null,
+        tareWeight: item.tareWeight ?? null,
+        maximumWeight: item.maximumWeight ?? null,
+        cscNumber: item.cscNumber ?? null,
+      }
+    );
+  }
+
+  function getDisplayContainersForItem(item: DraftItemRow) {
+    if (!useServerPagedContainerEditing || !initialOrder) {
+      const pageState = editContainerPages[item.itemKey] ?? {
+        itemId: item.itemKey,
+        page: 1,
+        pageSize: 20,
+        totalCount: 0,
+        rows: [],
+        loading: false,
+      };
+      const localRows = containers.filter((row) => row.itemKey === item.itemKey);
+      const start = (pageState.page - 1) * pageState.pageSize;
+      return localRows.slice(start, start + pageState.pageSize);
+    }
+
+    const pageState = editContainerPages[item.itemKey] ?? {
+      itemId: item.itemKey,
+      page: 1,
+      pageSize: 20,
+      totalCount: 0,
+      rows: [],
+      loading: false,
+    };
+    const desiredActiveCount = getDesiredActiveContainerCount(item);
+    const pageStart = (pageState.page - 1) * pageState.pageSize;
+    const pageEnd = pageStart + pageState.pageSize;
+    const existingRows = pageState.rows.map((row) => {
+      const patch = containerEditPatches[row.id];
+      const draft = patchToDraftContainerRow(row, patch);
+      return {
+        ...draft,
+        color: item.color ?? null,
+        flp: item.flp,
+        lbx: item.lbx,
+        lockingBarsCount: item.lockingBarsCount,
+        ventsCount: item.ventsCount,
+      };
+    });
+
+    if (pageEnd <= pageState.totalCount) {
+      return existingRows;
+    }
+
+    const newDrafts = newContainerDraftsByItem[item.itemKey] ?? [];
+    const newRowsBeforePage = Math.max(0, pageStart - pageState.totalCount);
+    const newRowsOnPageCount = Math.max(
+      0,
+      Math.min(desiredActiveCount, pageEnd) - Math.max(pageState.totalCount, pageStart)
+    );
+
+    const syntheticRows = Array.from({ length: newRowsOnPageCount }, (_, index) => {
+      return (
+        newDrafts[newRowsBeforePage + index] ??
+        buildDefaultContainerDraft(item)
+      );
+    }).map((row) => ({
+      ...row,
+      color: item.color ?? null,
+      flp: item.flp,
+      lbx: item.lbx,
+      lockingBarsCount: item.lockingBarsCount,
+      ventsCount: item.ventsCount,
+    }));
+
+    return [...existingRows, ...syntheticRows];
+  }
 
   function canEditItemColumn(column: EditableCellKey["column"]) {
     if (column === "plannedPod") {
@@ -1142,9 +1345,21 @@ export function PurchaseOrderCreateForm({
 
   function removeItem(key: string) {
     if (itemStructureLocked) return;
-    setItems((current) => (current.length === 1 ? current : current.filter((item) => item.key !== key)));
-    setContainers((current) => current.filter((row) => row.itemKey !== key));
-    setExpandedItemKey((current) => (current === key ? null : current));
+    setItems((current) => current.filter((item) => item.key !== key));
+    setContainers((current) => current.filter((container) => container.itemKey !== key));
+    setEditContainerPages((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    setNewContainerDraftsByItem((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    if (expandedItemKey === key) {
+      setExpandedItemKey(null);
+    }
   }
 
   function activateCell(rowKey: string, column: EditableCellKey["column"]) {
@@ -1160,6 +1375,46 @@ export function PurchaseOrderCreateForm({
     key: string,
     updater: (current: DraftContainerRow) => DraftContainerRow
   ) {
+    if (useServerPagedContainerEditing && initialOrder) {
+      const existingPageRow = Object.values(editContainerPages)
+        .flatMap((page) => page.rows)
+        .find((row) => row.id === key);
+      if (existingPageRow) {
+        const currentDraft = patchToDraftContainerRow(existingPageRow, containerEditPatches[key]);
+        const nextDraft = updater(currentDraft);
+        setContainerEditPatches((current) => ({
+          ...current,
+          [key]: {
+            id: key,
+            itemKey: nextDraft.itemKey,
+            containerNumber: nextDraft.containerNumber,
+            machineType: nextDraft.machineType,
+            yom: nextDraft.yom,
+            estimatedOfflineDate: nextDraft.estimatedOfflineDate,
+            offlineDate: nextDraft.offlineDate,
+            tareWeight: nextDraft.tareWeight,
+            maximumWeight: nextDraft.maximumWeight,
+            cscNumber: nextDraft.cscNumber,
+          },
+        }));
+        return;
+      }
+
+      setNewContainerDraftsByItem((current) => {
+        const next = { ...current };
+        for (const [itemKey, rows] of Object.entries(current)) {
+          const rowIndex = rows.findIndex((row) => row.key === key);
+          if (rowIndex === -1) continue;
+          const updatedRows = [...rows];
+          updatedRows[rowIndex] = updater(updatedRows[rowIndex]!);
+          next[itemKey] = updatedRows;
+          break;
+        }
+        return next;
+      });
+      return;
+    }
+
     setContainers((current) =>
       current.map((row) => (row.key === key ? updater(row) : row))
     );
@@ -1167,7 +1422,13 @@ export function PurchaseOrderCreateForm({
 
   function validateManualContainerNumbers(requireFactoryContainerNumbers = false) {
     if (form.purchaseType === "FACTORY_ORDER" && factoryUsesInternalContainerNumbering) return;
-    const invalidContainer = containers.find(
+    const containerRows = useServerPagedContainerEditing && initialOrder
+      ? [
+          ...Object.values(containerEditPatches),
+          ...Object.values(newContainerDraftsByItem).flat(),
+        ]
+      : containers;
+    const invalidContainer = containerRows.find(
       (container) => !isValidManualContainerNumber(container.containerNumber)
     );
     if (invalidContainer) {
@@ -1178,7 +1439,7 @@ export function PurchaseOrderCreateForm({
       form.purchaseType === "FACTORY_ORDER" &&
       !factoryUsesInternalContainerNumbering
     ) {
-      const missingContainer = containers.find((container) => !container.containerNumber?.trim());
+      const missingContainer = containerRows.find((container) => !container.containerNumber?.trim());
       if (missingContainer) {
         throw new Error(
           "Container Number is required for factory orders when the owner uses manual numbering."
@@ -1199,7 +1460,18 @@ export function PurchaseOrderCreateForm({
           ...item,
           lineAmount: computeLineAmount(item.plannedQty, item.unitPrice),
         })),
-        containers: [],
+        containers:
+          useServerPagedContainerEditing && initialOrder
+            ? []
+            : containers.map(({ key, ...container }) => container),
+        containerEdits:
+          useServerPagedContainerEditing && initialOrder
+            ? Object.values(containerEditPatches)
+            : undefined,
+        newContainers:
+          useServerPagedContainerEditing && initialOrder
+            ? Object.values(newContainerDraftsByItem).flat().map(({ key, ...container }) => container)
+            : undefined,
         materialTypes,
       };
       const result =
@@ -1238,7 +1510,18 @@ export function PurchaseOrderCreateForm({
           ...item,
           lineAmount: computeLineAmount(item.plannedQty, item.unitPrice),
         })),
-        containers: containers.map(({ key, ...container }) => container),
+        containers:
+          useServerPagedContainerEditing && initialOrder
+            ? []
+            : containers.map(({ key, ...container }) => container),
+        containerEdits:
+          useServerPagedContainerEditing && initialOrder
+            ? Object.values(containerEditPatches)
+            : undefined,
+        newContainers:
+          useServerPagedContainerEditing && initialOrder
+            ? Object.values(newContainerDraftsByItem).flat().map(({ key, ...container }) => container)
+            : undefined,
         materialTypes,
       };
       const result =
@@ -1498,7 +1781,7 @@ export function PurchaseOrderCreateForm({
                     column.key === "actions" ? (
                       <div
                         key={column.key}
-                        className="sticky right-0 z-[80] flex h-12 items-center justify-center border-l bg-card px-2 text-center text-sm font-medium text-muted-foreground shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]"
+                        className="sticky right-0 z-10 flex h-12 items-center justify-center border-l bg-card px-2 text-center text-sm font-medium text-muted-foreground shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]"
                       >
                         <span className="sticky right-0 text-muted-foreground">
                           {column.label}
@@ -1539,8 +1822,21 @@ export function PurchaseOrderCreateForm({
                     item.containerSizeCodeId && item.containerTypeCodeId
                       ? `${item.containerSizeCodeId}:${item.containerTypeCodeId}`
                       : null;
-                  const itemContainers = containers.filter((row) => row.itemKey === item.itemKey);
+                  const itemContainers = getDisplayContainersForItem(item);
                   const containersExpanded = expandedItemKey === item.itemKey;
+                  const editContainerPage = editContainerPages[item.itemKey] ?? {
+                    itemId: item.itemKey,
+                    page: 1,
+                    pageSize: 20,
+                    totalCount: 0,
+                    rows: [],
+                    loading: false,
+                  };
+                  const desiredActiveContainerCount = getDesiredActiveContainerCount(item);
+                  const totalContainerPages = Math.max(
+                    1,
+                    Math.ceil(desiredActiveContainerCount / editContainerPage.pageSize)
+                  );
                   const filteredDepots = options.depots.filter(
                     (depot) => !item.locationCityId || depot.cityId === item.locationCityId
                   );
@@ -2016,30 +2312,50 @@ export function PurchaseOrderCreateForm({
                     />
                   </TableCell>
 
-                  <TableCell className="sticky right-0 z-[70] h-11 border-b border-l bg-card px-1 py-0 text-center align-middle shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]">
+                  <TableCell className="sticky right-0 z-10 h-11 border-b border-l bg-card px-1 py-0 text-center align-middle shadow-[-12px_0_16px_-12px_hsl(var(--foreground)/0.18)]">
                     <div className="flex h-9 items-center justify-center gap-1 px-1">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="h-8 px-2 text-xs"
-                        onClick={() =>
-                          setExpandedItemKey((current) =>
-                            current === item.itemKey ? null : item.itemKey
-                          )
-                        }
+                        onClick={async () => {
+                          const nextOpen = expandedItemKey !== item.itemKey;
+                          setExpandedItemKey(nextOpen ? item.itemKey : null);
+                          if (nextOpen) {
+                            await loadEditContainerPage(
+                              item.itemKey,
+                              editContainerPage.page,
+                              editContainerPage.pageSize
+                            );
+                          }
+                        }}
                       >
-                        {containersExpanded ? "Close Containers" : "Edit Containers"}
+                        Edit
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItem(item.key)}
-                        disabled={itemStructureLocked}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      {!useServerPagedContainerEditing ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() => removeItem(item.key)}
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      ) : null}
+                      {useServerPagedContainerEditing ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => setBulkUpdateItemKey(item.itemKey)}
+                        >
+                          Bulk Update
+                        </Button>
+                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -2047,8 +2363,32 @@ export function PurchaseOrderCreateForm({
                 <TableRow>
                   <TableCell colSpan={visibleItemColumns.length} className="border-b bg-muted/10 px-3 py-3">
                     <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground">
-                        Containers for line {index + 1}: {itemContainers.length}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">Page Size</span>
+                            <Select
+                              value={String(editContainerPage.pageSize)}
+                              onValueChange={(value) =>
+                                void loadEditContainerPage(item.itemKey, 1, Number(value))
+                              }
+                            >
+                              <SelectTrigger className="h-8 w-[90px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[10, 20, 50, 100].map((value) => (
+                                  <SelectItem key={value} value={String(value)}>
+                                    {value}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="text-xs font-medium text-muted-foreground">
+                            Containers for line {index + 1}: {desiredActiveContainerCount}
+                          </div>
+                        </div>
                       </div>
                       <div className="overflow-x-auto">
                         <div
@@ -2082,29 +2422,62 @@ export function PurchaseOrderCreateForm({
                               key={label}
                               className="flex h-10 items-center justify-center border-b border-r bg-muted/20 px-2 text-center text-xs font-medium text-muted-foreground last:border-r-0"
                             >
-                              {label}
+                              {label === "Container Number" ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <span>{label}</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-6"
+                                    aria-label="Copy all container numbers"
+                                    onClick={() => {
+                                      const numbers = itemContainers
+                                        .map((container) => container.containerNumber?.trim() ?? "")
+                                        .filter(Boolean)
+                                        .join("\n");
+                                      if (!numbers) {
+                                        toast({
+                                          title: "No container numbers to copy on this page.",
+                                        });
+                                        return;
+                                      }
+                                      void navigator.clipboard.writeText(numbers);
+                                      toast({ title: "All container numbers on this page copied." });
+                                    }}
+                                  >
+                                    <Copy className="size-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                label
+                              )}
                             </div>
                           ))}
                           {itemContainers.map((container) => (
                             <Fragment key={container.key}>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2 text-center text-sm last:border-r-0">
                                 {form.purchaseType === "FACTORY_ORDER" && factoryUsesInternalContainerNumbering ? (
-                                  <span className="text-muted-foreground">
-                                    {container.containerNumber || "Auto-generated"}
-                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-muted-foreground">
+                                      {container.containerNumber || "Auto-generated"}
+                                    </span>
+                                  </div>
                                 ) : (
-                                  <Input
-                                    value={container.containerNumber ?? ""}
-                                    disabled={!fullEditAllowed}
-                                    onChange={(event) =>
-                                      updateContainer(container.key, (current) => ({
-                                        ...current,
-                                        containerNumber: event.target.value.toUpperCase() || null,
-                                      }))
-                                    }
-                                    className="h-8 border-0 px-2 text-center shadow-none"
-                                    placeholder="ABCD1234567"
-                                  />
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      value={container.containerNumber ?? ""}
+                                      disabled={!fullEditAllowed}
+                                      onChange={(event) =>
+                                        updateContainer(container.key, (current) => ({
+                                          ...current,
+                                          containerNumber: event.target.value.toUpperCase() || null,
+                                        }))
+                                      }
+                                      className="h-8 border-0 px-2 text-center shadow-none"
+                                      placeholder="ABCD1234567"
+                                    />
+                                  </div>
                                 )}
                               </div>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
@@ -2154,103 +2527,29 @@ export function PurchaseOrderCreateForm({
                                 />
                               </div>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
-                                <Select
-                                  value={container.color ?? "__empty__"}
-                                  disabled={!fullEditAllowed}
-                                  onValueChange={(value) =>
-                                    updateContainer(container.key, (current) => ({
-                                      ...current,
-                                      color: value === "__empty__" ? null : value,
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
-                                    <SelectValue placeholder="-" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__empty__">-</SelectItem>
-                                    {options.colors.map((color) => (
-                                      <SelectItem key={color} value={color}>
-                                        {color}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <div className="flex h-8 items-center justify-center text-sm">
+                                  {displayValue(container.color)}
+                                </div>
                               </div>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
-                                <Select
-                                  value={container.flp ? "FLP" : "-"}
-                                  disabled={!fullEditAllowed}
-                                  onValueChange={(value) =>
-                                    updateContainer(container.key, (current) => ({
-                                      ...current,
-                                      flp: value === "FLP",
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="FLP">FLP</SelectItem>
-                                    <SelectItem value="-">-</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <div className="flex h-8 items-center justify-center text-sm">
+                                  {container.flp ? "FLP" : "-"}
+                                </div>
                               </div>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
-                                <Select
-                                  value={container.lbx ? "LBX" : "-"}
-                                  disabled={!fullEditAllowed}
-                                  onValueChange={(value) =>
-                                    updateContainer(container.key, (current) => ({
-                                      ...current,
-                                      lbx: value === "LBX",
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="LBX">LBX</SelectItem>
-                                    <SelectItem value="-">-</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <div className="flex h-8 items-center justify-center text-sm">
+                                  {container.lbx ? "LBX" : "-"}
+                                </div>
                               </div>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
-                                <Select
-                                  value={container.lockingBarsCount != null ? String(container.lockingBarsCount) : "__empty__"}
-                                  disabled={!fullEditAllowed}
-                                  onValueChange={(value) =>
-                                    updateContainer(container.key, (current) => ({
-                                      ...current,
-                                      lockingBarsCount: value === "__empty__" ? null : Number(value),
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 border-0 px-2 text-center shadow-none">
-                                    <SelectValue placeholder="-" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__empty__">-</SelectItem>
-                                    <SelectItem value="3">3 Locking Bars</SelectItem>
-                                    <SelectItem value="4">4 Locking Bars</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <div className="flex h-8 items-center justify-center text-sm">
+                                  {container.lockingBarsCount != null ? `${container.lockingBarsCount} Locking Bars` : "-"}
+                                </div>
                               </div>
                               <div className="flex min-h-10 items-center justify-center border-b border-r px-2">
-                                <Input
-                                  type="number"
-                                  value={container.ventsCount ?? ""}
-                                  disabled={!fullEditAllowed}
-                                  onChange={(event) =>
-                                    updateContainer(container.key, (current) => ({
-                                      ...current,
-                                      ventsCount: parseNumberInput(event.target.value),
-                                    }))
-                                  }
-                                  className="[appearance:textfield] h-8 border-0 px-2 text-center shadow-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                />
+                                <div className="flex h-8 items-center justify-center text-sm">
+                                  {displayValue(container.ventsCount)}
+                                </div>
                               </div>
                               <div className="flex min-h-10 items-center justify-center border-b px-2">
                                 <Input
@@ -2318,6 +2617,40 @@ export function PurchaseOrderCreateForm({
                           ))}
                         </div>
                       </div>
+                      <StandardTablePagination
+                        summary={
+                          editContainerPage.loading
+                            ? "Loading containers..."
+                            : `Showing ${
+                                desiredActiveContainerCount === 0
+                                  ? 0
+                                  : (editContainerPage.page - 1) * editContainerPage.pageSize + 1
+                              }-${Math.min(
+                                editContainerPage.page * editContainerPage.pageSize,
+                                desiredActiveContainerCount
+                              )} of ${desiredActiveContainerCount} containers`
+                        }
+                        page={editContainerPage.page}
+                        totalPages={totalContainerPages}
+                        previousDisabled={editContainerPage.page <= 1 || editContainerPage.loading}
+                        nextDisabled={
+                          editContainerPage.page >= totalContainerPages || editContainerPage.loading
+                        }
+                        onPrevious={() =>
+                          void loadEditContainerPage(
+                            item.itemKey,
+                            Math.max(1, editContainerPage.page - 1),
+                            editContainerPage.pageSize
+                          )
+                        }
+                        onNext={() =>
+                          void loadEditContainerPage(
+                            item.itemKey,
+                            Math.min(totalContainerPages, editContainerPage.page + 1),
+                            editContainerPage.pageSize
+                          )
+                        }
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -2583,6 +2916,117 @@ export function PurchaseOrderCreateForm({
             ) : null}
           </CardContent>
         </Card>
+
+        <PurchaseContainerBulkUpdateModal
+          open={Boolean(bulkUpdateItemKey)}
+          onOpenChange={(open) => {
+            if (!open) setBulkUpdateItemKey(null);
+          }}
+          itemKey={bulkUpdateItemKey ?? ""}
+          allowEstimatedOfflineDate={form.purchaseType === "FACTORY_ORDER"}
+          allowedFields={
+            fullEditAllowed
+              ? [
+                  "yom",
+                  "estimatedOfflineDate",
+                  "offlineDate",
+                  "machineType",
+                  "tareWeight",
+                  "maximumWeight",
+                  "cscNumber",
+                ]
+              : [
+                  "estimatedOfflineDate",
+                  "offlineDate",
+                  "tareWeight",
+                  "maximumWeight",
+                  "cscNumber",
+                ]
+          }
+          onResolveRows={async (containerNumbers) => {
+            if (!bulkUpdateItemKey) return [];
+            if (useServerPagedContainerEditing && initialOrder) {
+              return getPurchaseOrderEditContainersByNumbers(
+                initialOrder.id,
+                bulkUpdateItemKey,
+                containerNumbers
+              );
+            }
+            const normalizedNumbers = new Set(
+              containerNumbers.map((value) => value.trim().toUpperCase()).filter(Boolean)
+            );
+            return containers
+              .filter(
+                (row) =>
+                  row.itemKey === bulkUpdateItemKey &&
+                  normalizedNumbers.has((row.containerNumber ?? "").trim().toUpperCase())
+              )
+              .map((row) => ({
+                id: row.key,
+                purchaseOrderId: initialOrder?.id ?? "",
+                purchaseOrderItemId: row.itemKey,
+                containerNumber: row.containerNumber,
+                locationCityId: null,
+                depotId: null,
+                containerSizeCodeId: null,
+                containerTypeCodeId: null,
+                containerConditionCodeId: null,
+                color: row.color,
+                flp: row.flp,
+                lbx: row.lbx,
+                lockingBarsCount: row.lockingBarsCount,
+                ventsCount: row.ventsCount,
+                machineType: row.machineType,
+                yom: row.yom,
+                estimatedOfflineDate: row.estimatedOfflineDate,
+                offlineDate: row.offlineDate,
+                plannedPod: null,
+                tareWeight: row.tareWeight,
+                maximumWeight: row.maximumWeight,
+                payloadWeight: null,
+                cscNumber: row.cscNumber,
+                purchasePrice: null,
+                financialCost: null,
+                containerStatus: null,
+                itemStatus: null,
+                remark: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }));
+          }}
+          onApply={(patches) => {
+            if (useServerPagedContainerEditing) {
+              setContainerEditPatches((current) => {
+                const next = { ...current };
+                for (const patch of patches) {
+                  next[patch.id] = {
+                    ...(current[patch.id] ?? {}),
+                    ...patch,
+                  };
+                }
+                return next;
+              });
+              return;
+            }
+            setContainers((current) =>
+              current.map((row) => {
+                const patch = patches.find((candidate) => candidate.id === row.key);
+                if (!patch) return row;
+                return {
+                  ...row,
+                  containerNumber: patch.containerNumber ?? row.containerNumber,
+                  machineType: patch.machineType ?? row.machineType,
+                  yom: patch.yom ?? row.yom,
+                  estimatedOfflineDate: patch.estimatedOfflineDate ?? row.estimatedOfflineDate,
+                  offlineDate: patch.offlineDate ?? row.offlineDate,
+                  tareWeight: patch.tareWeight ?? row.tareWeight,
+                  maximumWeight: patch.maximumWeight ?? row.maximumWeight,
+                  cscNumber: patch.cscNumber ?? row.cscNumber,
+                };
+              })
+            );
+          }}
+        />
 
         <div className="flex flex-wrap items-center justify-end gap-2 rounded-xl border bg-card p-4 shadow-sm">
           <Button asChild variant="outline">

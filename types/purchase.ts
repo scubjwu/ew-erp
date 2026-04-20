@@ -335,6 +335,27 @@ export interface PurchaseOrderContainer {
   condition?: PurchaseConditionRef | null;
 }
 
+export interface PurchaseOrderEditContainerPage {
+  itemId: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  rows: PurchaseOrderContainer[];
+}
+
+export interface PurchaseOrderContainerEditPatchInput {
+  id: string;
+  itemKey: string;
+  containerNumber?: string | null;
+  machineType?: string | null;
+  yom?: number | null;
+  estimatedOfflineDate?: string | null;
+  offlineDate?: string | null;
+  tareWeight?: number | null;
+  maximumWeight?: number | null;
+  cscNumber?: string | null;
+}
+
 export interface PurchaseOrderMaterialTypeRow {
   id: string;
   purchaseOrderId: string;
@@ -472,5 +493,7 @@ export interface PurchaseOrderDraftInput {
   remark: string | null;
   items: PurchaseOrderDraftItemInput[];
   containers: PurchaseOrderDraftContainerInput[];
+  containerEdits?: PurchaseOrderContainerEditPatchInput[];
+  newContainers?: PurchaseOrderDraftContainerInput[];
   materialTypes: PurchaseDraftMaterialTypeInput[];
 }
