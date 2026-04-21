@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { PurchaseOrderItemContainersDetail } from "@/types/purchase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -62,7 +70,20 @@ export function PurchaseItemContainersView({
 }: {
   data: PurchaseOrderItemContainersDetail;
 }) {
-  const { orderId, orderNo, purchaseType, item, containers } = data;
+  const { orderId, orderNo, purchaseType, item, containers, page, pageSize, totalCount } = data;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const start = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = totalCount === 0 ? 0 : Math.min(totalCount, page * pageSize);
+
+  function pushPagination(nextPage: number, nextPageSize = pageSize) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(nextPage));
+    params.set("pageSize", String(nextPageSize));
+    router.push(`${pathname}?${params.toString()}`);
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -165,7 +186,27 @@ export function PurchaseItemContainersView({
 
         <Card>
           <CardHeader>
-            <CardTitle>Containers</CardTitle>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <CardTitle>Containers</CardTitle>
+              <div className="flex items-center gap-2 self-start">
+                <span className="text-sm text-muted-foreground">Page Size</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(value) => pushPagination(1, Number(value))}
+                >
+                  <SelectTrigger className="h-9 w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[10, 20, 50, 100].map((option) => (
+                      <SelectItem key={option} value={String(option)}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>
@@ -245,6 +286,30 @@ export function PurchaseItemContainersView({
                 )}
               </TableBody>
             </Table>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-3">
+                <span>Page {page} of {totalPages}</span>
+                <span>(Showing {start}-{end} of {totalCount} containers)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => pushPagination(page - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => pushPagination(page + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

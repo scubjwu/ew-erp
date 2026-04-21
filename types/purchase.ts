@@ -412,6 +412,9 @@ export interface PurchaseOrderItemContainersDetail {
   purchaseType: PurchaseType;
   item: PurchaseOrderItem;
   containers: PurchaseOrderContainer[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
 }
 
 export interface PurchaseOrderDraftItemInput {

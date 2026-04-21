@@ -1633,10 +1633,16 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
 
 export async function getPurchaseOrderItemContainers(
   orderId: string,
-  itemId: string
+  itemId: string,
+  page = 1,
+  pageSize = 20
 ): Promise<PurchaseOrderItemContainersDetail | null> {
   noStore();
   const supabase = createServerSupabaseClient();
+  const safePageSize = Math.min(100, Math.max(10, Math.floor(pageSize) || 20));
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  const rangeFrom = (safePage - 1) * safePageSize;
+  const rangeTo = rangeFrom + safePageSize - 1;
 
   const [orderResult, itemResult, containersResult] = await Promise.all([
     supabase
@@ -1727,11 +1733,13 @@ export async function getPurchaseOrderItemContainers(
           size:container_size_codes(id, size_code, size_name),
           type:container_type_codes(id, type_code, type_description),
           condition:container_condition_codes(id, condition_code, condition_name)
-        `
+        `,
+        { count: "exact" }
       )
       .eq("purchase_order_id", orderId)
       .eq("purchase_order_item_id", itemId)
-      .order("container_number", { ascending: true }),
+      .order("container_number", { ascending: true })
+      .range(rangeFrom, rangeTo),
   ]);
 
   if (orderResult.error) throw new Error(orderResult.error.message);
@@ -1755,6 +1763,9 @@ export async function getPurchaseOrderItemContainers(
     purchaseType: orderResult.data.purchase_type as PurchaseType,
     item,
     containers,
+    page: safePage,
+    pageSize: safePageSize,
+    totalCount: containersResult.count ?? containers.length,
   };
 }
 
