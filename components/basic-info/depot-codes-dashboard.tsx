@@ -82,6 +82,7 @@ const DEPOT_TYPE_LABELS: Record<string, string> = {
   SHIPPING_LINES: "Shipping Lines",
   TRADER: "Trader",
   CONSIGNMENT: "Consignment",
+  VENDOR: "Vendor",
   OTHER: "Other",
 };
 
@@ -644,6 +645,7 @@ export function DepotCodesDashboard({
                   <SelectItem value="SHIPPING_LINES">Shipping Lines</SelectItem>
                   <SelectItem value="TRADER">Trader</SelectItem>
                   <SelectItem value="CONSIGNMENT">Consignment</SelectItem>
+                  <SelectItem value="VENDOR">Vendor</SelectItem>
                   <SelectItem value="OTHER">Other</SelectItem>
                 </SelectContent>
               </Select>

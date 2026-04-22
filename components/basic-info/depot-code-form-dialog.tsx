@@ -87,6 +87,7 @@ const depotSchema = z.object({
     "SHIPPING_LINES",
     "TRADER",
     "CONSIGNMENT",
+    "VENDOR",
     "OTHER",
   ]),
   status: z.enum(["NORMAL", "SUSPEND"]),
@@ -228,6 +229,7 @@ function toFormValues(depot: DepotCodeRow | null): DepotFormValues {
       depot.depot_type === "SHIPPING_LINES" ||
       depot.depot_type === "TRADER" ||
       depot.depot_type === "CONSIGNMENT" ||
+      depot.depot_type === "VENDOR" ||
       depot.depot_type === "OTHER"
         ? depot.depot_type
         : "CONTRACT",
@@ -283,6 +285,7 @@ const DEPOT_TYPE_LABELS: Record<DepotFormValues["depot_type"], string> = {
   SHIPPING_LINES: "Shipping Lines",
   TRADER: "Trader",
   CONSIGNMENT: "Consignment",
+  VENDOR: "Vendor",
   OTHER: "Other",
 };
 

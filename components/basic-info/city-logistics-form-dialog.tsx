@@ -39,7 +39,11 @@ import { createBrowserClient } from "@/lib/supabase/client";
 import type { CityLogisticsRow, RegionOption } from "@/types/city-logistics";
 
 const cityLogisticsSchema = z.object({
-  city_code: z.string().trim().min(1, "City code is required"),
+  city_code: z
+    .string()
+    .trim()
+    .min(1, "City code is required")
+    .regex(/^[A-Za-z]{5}$/, "City code must be exactly 5 letters"),
   city_name: z.string().trim().min(1, "City / port name is required"),
   region_id: z.string().trim().nullable(),
   country: z.string().trim().min(1, "Country is required"),
@@ -100,7 +104,7 @@ export function CityLogisticsFormDialog({
       const selectedRegion =
         regionOptions.find((option) => option.id === values.region_id) ?? null;
       const payload = {
-        city_code: values.city_code,
+        city_code: values.city_code.trim().toUpperCase(),
         city_name: values.city_name,
         region_id: values.region_id,
         region: selectedRegion?.region_name ?? null,
@@ -158,7 +162,7 @@ export function CityLogisticsFormDialog({
                 <FormItem>
                   <FormLabel>City Code</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Enter city code" />
+                    <Input {...field} placeholder="Enter city code" maxLength={5} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

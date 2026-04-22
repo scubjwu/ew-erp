@@ -220,6 +220,7 @@ from (
   from public.depots d
   {city_join}
   {region_join}
+  where coalesce(d.depot_type, '') <> 'VENDOR'
   order by d.depot_code
 ) as t;
 """

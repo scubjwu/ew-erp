@@ -11,7 +11,10 @@ from export_basic_info_seeds import SEEDS_DIR, TABLE_SPECS, load_columns, run_ps
 def load_table_row_count(table_name: str) -> int | None:
     if not load_columns(table_name):
         return None
-    output = run_psql(f"select count(*) from public.{table_name};")
+    if table_name == "depots":
+        output = run_psql("select count(*) from public.depots where coalesce(depot_type, '') <> 'VENDOR';")
+    else:
+        output = run_psql(f"select count(*) from public.{table_name};")
     return int(output.strip() or "0")
 
 

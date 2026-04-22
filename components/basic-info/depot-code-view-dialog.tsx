@@ -25,6 +25,7 @@ const DEPOT_TYPE_LABELS: Record<string, string> = {
   SHIPPING_LINES: "Shipping Lines",
   TRADER: "Trader",
   CONSIGNMENT: "Consignment",
+  VENDOR: "Vendor",
   OTHER: "Other",
 };
 

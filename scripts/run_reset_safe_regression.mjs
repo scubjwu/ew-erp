@@ -653,8 +653,9 @@ async function assertBasicInfoRestored(supabase) {
   await assertTableCount(supabase, "cities", 412);
   await must(supabase.from("cities").select("id").eq("city_code", "USLAX").single(), "verify city seed");
 
-  await assertTableCount(supabase, "depots", 2);
+  await assertTableCount(supabase, "depots", 414);
   await must(supabase.from("depots").select("id").eq("depot_code", "USLAX001").single(), "verify depot seed");
+  await must(supabase.from("depots").select("id").eq("depot_code", "USLAXVDP").single(), "verify vendor depot seed");
 
   await assertTableCount(supabase, "depot_attachment_links", 0);
   await assertTableCount(supabase, "depot_additional_costs", 0);
