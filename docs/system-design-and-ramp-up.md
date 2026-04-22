@@ -176,14 +176,24 @@ Current system interaction is mostly built on this pattern:
 - the required daily regression loop is now explicitly `run gate -> log failures -> fix -> log fix summary -> rerun -> commit after green`
 - `scripts/run_local_regression.mjs` and `scripts/run_reset_safe_regression.mjs` now surface actionable diagnostics when localhost or local Supabase HTTP access is blocked by a sandboxed environment, instead of failing with low-signal transport errors alone
 - `Purchase` database tables `purchase_order`, `purchase_order_item`, `purchase_order_container`, `purchase_order_material_type`, and `purchase_finance_record` are now part of the reset-safe seed workflow
-- current Purchase regression coverage is database-layer only: seed export, seed verify, reset-safe restore, derived finance-record sync, and material-vendor resolution are covered; route/UI CRUD regression is not yet part of the daily gate because the Purchase page family is not delivered yet
-- `Purchase` now has a delivered top-level navigation entry plus route family scaffolding under `/purchase`
+- current Purchase regression coverage now includes:
+  - seed export and seed verify
+  - reset-safe restore
+  - local regression fixture assertions
+  - targeted Purchase vitests for create helpers, edit permissions, management/detail rendering, and SQL contract rules
+  - route/page smoke coverage for the delivered Purchase route family
+- `Purchase` now has a delivered top-level navigation entry and a delivered route family under `/purchase`
 - Purchase Milestone 0 is complete:
-  - `purchase_order` now includes `freeday`, `vendor_release_number`, and `vendor_release_date`
-  - those fields are now part of local seed/reset-safe verification and the shared Purchase TypeScript shape
+  - the foundational Purchase schema is delivered for:
+    - `purchase_order`
+    - `purchase_order_item`
+    - `purchase_order_container`
+    - `purchase_order_material_type`
+    - `purchase_finance_record`
+  - Purchase tables are now part of local seed/reset-safe verification and the shared Purchase TypeScript shape
 - Purchase Milestone 1 is complete:
   - `/purchase` resolves into `/purchase/po-management`
-  - `/purchase/po-management` is now a delivered read-only management page with server-side filtering, server-side sorting, pagination, CSV export, and `View` navigation
+  - `/purchase/po-management` is now a delivered management page with server-side filtering, server-side sorting, pagination, CSV export, and `View` / `Edit` navigation
   - supported management filters are now:
     - vendor
     - location
@@ -195,7 +205,7 @@ Current system interaction is mostly built on this pattern:
     - quick date filters
   - management cards and list now surface `Prepaid Balance`, which maps to `settlement_current_prepaid_balance`
 - Purchase Milestone 2 is complete:
-  - `/purchase/po-management/[id]` is now a delivered read-only PO detail page
+  - `/purchase/po-management/[id]` is now a delivered PO detail page
   - the main PO detail page intentionally stops at `purchase_order_item` level
   - container-level records are viewed through `/purchase/po-management/[id]/items/[itemId]/containers`
   - `PO Detail` now shows:
@@ -204,6 +214,59 @@ Current system interaction is mostly built on this pattern:
     - item-level container information
     - PO finance fields
     - synced `purchase_finance_record` fields
+- Purchase Milestone 3 is complete:
+  - `Create Purchase Order` and `Edit Purchase Order` are now delivered
+  - Purchase now supports:
+    - draft save
+    - submit
+    - item-line creation and deletion
+    - item-level and container-level field editing
+    - per-item paginated container editing for large PO item container sets
+  - the item/container model now supports delivered business fields including:
+    - estimated offline date
+    - vendor release number at item level
+    - planned POD at item level with propagation to container records
+    - factory-only container number range display
+  - Factory container-number generation is now owner-eligibility driven and occurs only on submit
+- Purchase Milestone 4 is complete:
+  - Purchase order editing is now governed by delivered `purchaseType + orderStatus` permission rules
+  - Factory and New/Used orders now have separate delivered status workflows, including:
+    - `IN_PRODUCTION`
+    - `PARTIAL_RELEASED`
+    - `RELEASED`
+    - `COMPLETED`
+    - `CANCELLED`
+  - partial cancel is now executed from edit submit rather than detail view
+  - partial cancel selection now follows business ordering by `container_number`
+  - item-level value propagation to containers is now delivered for fields that are item-owned rather than container-owned
+- Purchase Milestone 5 is complete:
+  - finance-facing support is now delivered inside Purchase management, detail, and edit flows, including:
+    - synced `purchase_finance_record`
+    - settlement/payment support fields
+    - prepaid balance display
+    - finance-status display
+    - consistent CSV export from management
+  - the delivered Purchase workflow now includes performance and data-entry support features needed for finance-adjacent operational use:
+    - paginated container edit
+    - paginated container detail view
+    - Excel-style bulk update by container number
+    - stricter bulk-update type validation and sparse patch application
+    - reset-safe coverage for new Purchase finance and execution fields
+- Purchase Milestone 6 now contains the remaining Purchase follow-up scope:
+  - broader finance dashboards and reporting views beyond the current management export/detail outputs
+  - additional browser-path automation and UX hardening for edge-case Purchase flows
+  - current Milestone 6 Purchase browser-regression TODOs are:
+    - restore full browser coverage for create-draft persistence from the `Create Purchase Order` page
+    - restore full browser coverage for create-and-submit from the `Create Purchase Order` page
+    - restore full browser coverage for advanced `Edit Containers` interactions, including paginated container editing and Excel bulk update persistence
+    - restore full browser coverage for cancel-from-detail and cancelled-state reflection in management
+  - until those flows are stabilized, the required `test:e2e:purchase` gate covers only the basic smoke paths:
+    - PO management page load
+    - PO detail load
+    - container detail drill-down load
+    - create page load with primary actions visible
+    - edit page load with basic item actions visible
+  - any future Purchase workflow extensions that go beyond the delivered PO lifecycle, container editing, and finance-support baseline
 - Purchase display rules now explicitly favor compact business codes over descriptive names in management/detail views:
   - `Location` shows `city_code`
   - `Condition` shows `condition_code`

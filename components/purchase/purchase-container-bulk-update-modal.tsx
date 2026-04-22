@@ -96,13 +96,10 @@ function normalizeHeaderKey(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function normalizeFieldValue(field: BulkFieldKey, value: string) {
-  if (!value.trim()) return null;
-  if (field === "yom" || field === "tareWeight" || field === "maximumWeight") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return value.trim();
+function resolveHeaderAlias(rawValue: string) {
+  const normalized = normalizeHeaderKey(rawValue);
+  if (!normalized) return null;
+  return HEADER_ALIASES[normalized] ?? null;
 }
 
 function isDateLikeValue(value: string) {
@@ -137,7 +134,7 @@ function normalizeDateValue(value: string) {
 function validateFieldValue(field: BulkFieldKey, value: string) {
   const trimmed = value.trim();
   if (!trimmed) {
-    return { valid: true as const, normalized: null as string | number | null };
+    return { valid: true as const, touched: false as const, normalized: null as string | number | null };
   }
 
   switch (field) {
@@ -146,7 +143,7 @@ function validateFieldValue(field: BulkFieldKey, value: string) {
       if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 2100) {
         return { valid: false as const, reason: "YOM must be a valid year between 1900 and 2100." };
       }
-      return { valid: true as const, normalized: parsed };
+      return { valid: true as const, touched: true as const, normalized: parsed };
     }
     case "tareWeight":
     case "maximumWeight": {
@@ -154,7 +151,7 @@ function validateFieldValue(field: BulkFieldKey, value: string) {
       if (!Number.isFinite(parsed)) {
         return { valid: false as const, reason: "Weight fields must be numeric." };
       }
-      return { valid: true as const, normalized: parsed };
+      return { valid: true as const, touched: true as const, normalized: parsed };
     }
     case "estimatedOfflineDate":
     case "offlineDate": {
@@ -162,11 +159,11 @@ function validateFieldValue(field: BulkFieldKey, value: string) {
       if (!normalized) {
         return { valid: false as const, reason: "Date fields must be a valid date." };
       }
-      return { valid: true as const, normalized };
+      return { valid: true as const, touched: true as const, normalized };
     }
     case "machineType":
     case "cscNumber":
-      return { valid: true as const, normalized: trimmed };
+      return { valid: true as const, touched: true as const, normalized: trimmed };
   }
 }
 
@@ -242,7 +239,7 @@ function inferHeaderMappings(
   );
 
   const mappings = headerRow.map((cell, index) => {
-    const alias = HEADER_ALIASES[normalizeHeaderKey(cell)];
+    const alias = resolveHeaderAlias(cell);
     if (index === 0) {
       return alias === "containerNumber" ? null : null;
     }
@@ -251,7 +248,7 @@ function inferHeaderMappings(
   });
 
   const firstIsContainer =
-    HEADER_ALIASES[normalizeHeaderKey(String(headerRow[0] ?? ""))] === "containerNumber";
+    resolveHeaderAlias(String(headerRow[0] ?? "")) === "containerNumber";
   const hasAnyMappedField = mappings.slice(1).some(Boolean);
 
   return {
@@ -379,6 +376,9 @@ export function PurchaseContainerBulkUpdateModal({
           );
           continue;
         }
+        if (!validation.touched) {
+          continue;
+        }
         const nextValue = validation.normalized;
         switch (field) {
           case "yom":
@@ -420,7 +420,7 @@ export function PurchaseContainerBulkUpdateModal({
     if (validationErrors.length > 0) {
       toast({
         title: "Some bulk update values are invalid.",
-        description: validationErrors.slice(0, 3).join(" "),
+        description: validationErrors.slice(0, 5).join(" "),
         variant: "destructive",
       });
       return;

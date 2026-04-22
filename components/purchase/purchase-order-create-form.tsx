@@ -422,16 +422,19 @@ function CellDisplayButton({
   placeholder = "-",
   onActivate,
   disabled = false,
+  testId,
 }: {
   value?: string | number | null;
   placeholder?: string;
   onActivate: () => void;
   disabled?: boolean;
+  testId?: string;
 }) {
   const content = displayValue(value, placeholder);
   return (
     <button
       type="button"
+      data-testid={testId}
       onClick={disabled ? undefined : onActivate}
       disabled={disabled}
       className={cn(
@@ -457,6 +460,7 @@ function EditableSelectCell({
   onActivate,
   onDeactivate,
   disabled = false,
+  testId,
 }: {
   active: boolean;
   value: string;
@@ -466,10 +470,18 @@ function EditableSelectCell({
   onActivate: () => void;
   onDeactivate: () => void;
   disabled?: boolean;
+  testId?: string;
 }) {
   const EMPTY_SENTINEL = "__empty__";
   if (!active || disabled) {
-    return <CellDisplayButton value={display} onActivate={onActivate} disabled={disabled} />;
+    return (
+      <CellDisplayButton
+        value={display}
+        onActivate={onActivate}
+        disabled={disabled}
+        testId={testId}
+      />
+    );
   }
 
   return (
@@ -488,6 +500,7 @@ function EditableSelectCell({
     >
       <SelectTrigger
         autoFocus
+        data-testid={testId}
         className="h-10 rounded-none border-0 px-2 text-center shadow-none ring-1 ring-ring focus:ring-1 focus:ring-ring focus:ring-offset-0 [&>span]:w-full [&>span]:text-center"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -523,6 +536,7 @@ function EditableInputCell({
   onActivate,
   onDeactivate,
   disabled = false,
+  testId,
 }: {
   active: boolean;
   value: string;
@@ -534,14 +548,23 @@ function EditableInputCell({
   onActivate: () => void;
   onDeactivate: () => void;
   disabled?: boolean;
+  testId?: string;
 }) {
   if (!active || disabled) {
-    return <CellDisplayButton value={display} onActivate={onActivate} disabled={disabled} />;
+    return (
+      <CellDisplayButton
+        value={display}
+        onActivate={onActivate}
+        disabled={disabled}
+        testId={testId}
+      />
+    );
   }
 
   return (
     <Input
       autoFocus
+      data-testid={testId}
       type={type}
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -580,6 +603,7 @@ function EditableAutocompleteCell({
   onDeactivate,
   placeholder = "-",
   disabled = false,
+  testId,
 }: {
   active: boolean;
   value: string | null;
@@ -590,6 +614,7 @@ function EditableAutocompleteCell({
   onDeactivate: () => void;
   placeholder?: string;
   disabled?: boolean;
+  testId?: string;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState(display);
@@ -627,6 +652,7 @@ function EditableAutocompleteCell({
         placeholder={placeholder}
         onActivate={onActivate}
         disabled={disabled}
+        testId={testId}
       />
     );
   }
@@ -643,6 +669,7 @@ function EditableAutocompleteCell({
       <PopoverAnchor asChild>
         <Input
           ref={inputRef}
+          data-testid={testId}
           value={query}
           role="combobox"
           aria-expanded={open}
@@ -1574,7 +1601,7 @@ export function PurchaseOrderCreateForm({
                 onValueChange={(value) => handlePurchaseTypeChange(value as PurchaseType)}
                 disabled={headerFieldsLocked}
               >
-                <SelectTrigger>
+                <SelectTrigger data-testid="purchase-type-trigger">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1611,7 +1638,10 @@ export function PurchaseOrderCreateForm({
                 onValueChange={(value) => updateForm("ownerId", value === "__empty__" ? null : value)}
                 disabled={headerFieldsLocked}
               >
-                <SelectTrigger className="[&>span]:flex-1 [&>span]:text-left">
+                <SelectTrigger
+                  data-testid="purchase-owner-trigger"
+                  className="[&>span]:flex-1 [&>span]:text-left"
+                >
                   <SelectValue placeholder="Select owner" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1639,7 +1669,10 @@ export function PurchaseOrderCreateForm({
                 onValueChange={(value) => updateForm("buyerId", value === "__empty__" ? null : value)}
                 disabled={headerFieldsLocked}
               >
-                <SelectTrigger className="[&>span]:flex-1 [&>span]:text-left">
+                <SelectTrigger
+                  data-testid="purchase-buyer-trigger"
+                  className="[&>span]:flex-1 [&>span]:text-left"
+                >
                   <SelectValue placeholder="Select buyer" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1851,6 +1884,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("location")}
                       value={item.locationCityId}
                       display={displayValue(locationMap.get(item.locationCityId ?? ""))}
+                      testId={`purchase-item-${index}-location`}
                       options={options.locations.map((location) => ({
                         value: location.id,
                         label: [location.code, location.name].filter(Boolean).join(" · "),
@@ -1876,6 +1910,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("depot")}
                       value={item.depotId}
                       display={displayValue(depotMap.get(item.depotId ?? ""))}
+                      testId={`purchase-item-${index}-depot`}
                       options={filteredDepots.map((depot) => ({
                         value: depot.id,
                         label: [depot.code, depot.name].filter(Boolean).join(" · "),
@@ -1897,6 +1932,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("sizeType")}
                       value={selectedSizeType}
                       display={displayValue(selectedSizeType ? sizeTypeMap.get(selectedSizeType) : null)}
+                      testId={`purchase-item-${index}-size-type`}
                       options={sizeTypeOptions.map((option) => ({
                         value: option.value,
                         label: option.label,
@@ -1929,6 +1965,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("condition")}
                       value={item.containerConditionCodeId}
                       display={displayValue(conditionMap.get(item.containerConditionCodeId ?? ""))}
+                      testId={`purchase-item-${index}-condition`}
                       options={options.conditions.map((condition) => ({
                         value: condition.id,
                         label: condition.code,
@@ -1951,6 +1988,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("color")}
                       value={item.color}
                       display={displayValue(item.color)}
+                      testId={`purchase-item-${index}-color`}
                       options={options.colors.map((color) => ({
                         value: color,
                         label: color,
@@ -2038,6 +2076,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("vents")}
                       value={item.ventsCount != null ? String(item.ventsCount) : ""}
                       display={displayValue(item.ventsCount)}
+                      testId={`purchase-item-${index}-vents`}
                       type="number"
                       disableSpinner
                       onActivate={() => activateCell(item.key, "vents")}
@@ -2056,6 +2095,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("machineType")}
                       value={item.machineType ?? ""}
                       display={displayValue(item.machineType)}
+                      testId={`purchase-item-${index}-machine-type`}
                       onActivate={() => activateCell(item.key, "machineType")}
                       onDeactivate={deactivateCell}
                       onChange={(value) =>
@@ -2072,6 +2112,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("yom")}
                       value={item.yom != null ? String(item.yom) : ""}
                       display={displayValue(item.yom)}
+                      testId={`purchase-item-${index}-yom`}
                       type="number"
                       disableSpinner
                       onActivate={() => activateCell(item.key, "yom")}
@@ -2092,6 +2133,7 @@ export function PurchaseOrderCreateForm({
                         active={isEditing("estimatedOfflineDate")}
                         value={item.estimatedOfflineDate ?? ""}
                         display={displayValue(item.estimatedOfflineDate)}
+                        testId={`purchase-item-${index}-estimated-offline-date`}
                         type="date"
                         onActivate={() => activateCell(item.key, "estimatedOfflineDate")}
                         onDeactivate={deactivateCell}
@@ -2110,6 +2152,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("tareWeight")}
                       value={item.tareWeight != null ? String(item.tareWeight) : ""}
                       display={displayWeight(item.tareWeight)}
+                      testId={`purchase-item-${index}-tare-weight`}
                       type="number"
                       disableSpinner
                       preventWheelChange
@@ -2129,6 +2172,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("maximumWeight")}
                       value={item.maximumWeight != null ? String(item.maximumWeight) : ""}
                       display={displayWeight(item.maximumWeight)}
+                      testId={`purchase-item-${index}-maximum-weight`}
                       type="number"
                       disableSpinner
                       preventWheelChange
@@ -2158,6 +2202,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("cscNumber")}
                       value={item.cscNumber ?? ""}
                       display={displayValue(item.cscNumber)}
+                      testId={`purchase-item-${index}-csc-number`}
                       onActivate={() => activateCell(item.key, "cscNumber")}
                       onDeactivate={deactivateCell}
                       onChange={(value) =>
@@ -2182,6 +2227,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("plannedQty")}
                       value={String(item.plannedQty)}
                       display={displayValue(item.plannedQty)}
+                      testId={`purchase-item-${index}-planned-qty`}
                       type="number"
                       disableSpinner
                       onActivate={() => activateCell(item.key, "plannedQty")}
@@ -2204,6 +2250,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("unitPrice")}
                       value={item.unitPrice != null ? String(item.unitPrice) : ""}
                       display={displayValue(item.unitPrice)}
+                      testId={`purchase-item-${index}-unit-price`}
                       type="number"
                       disableSpinner
                       preventWheelChange
@@ -2267,6 +2314,7 @@ export function PurchaseOrderCreateForm({
                         active={isEditing("vendorReleaseNumber")}
                         value={item.vendorReleaseNumber ?? ""}
                         display={displayValue(item.vendorReleaseNumber)}
+                        testId={`purchase-item-${index}-vendor-release-number`}
                         onActivate={() => activateCell(item.key, "vendorReleaseNumber")}
                         onDeactivate={deactivateCell}
                         onChange={(value) =>
@@ -2284,6 +2332,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("offlineDate")}
                       value={item.offlineDate ?? ""}
                       display={displayValue(item.offlineDate)}
+                      testId={`purchase-item-${index}-offline-date`}
                       type="date"
                       onActivate={() => activateCell(item.key, "offlineDate")}
                       onDeactivate={deactivateCell}
@@ -2301,6 +2350,7 @@ export function PurchaseOrderCreateForm({
                       active={isEditing("plannedPod")}
                       value={item.plannedPod ?? ""}
                       display={displayValue(item.plannedPod)}
+                      testId={`purchase-item-${index}-planned-pod`}
                       onActivate={() => activateCell(item.key, "plannedPod")}
                       onDeactivate={deactivateCell}
                       onChange={(value) =>
@@ -2319,6 +2369,7 @@ export function PurchaseOrderCreateForm({
                         variant="ghost"
                         size="sm"
                         className="h-8 px-2 text-xs"
+                        data-testid={`purchase-item-${index}-edit`}
                         onClick={async () => {
                           const nextOpen = expandedItemKey !== item.itemKey;
                           setExpandedItemKey(nextOpen ? item.itemKey : null);
@@ -2339,6 +2390,7 @@ export function PurchaseOrderCreateForm({
                           variant="ghost"
                           size="icon"
                           className="size-8"
+                          data-testid={`purchase-item-${index}-delete`}
                           onClick={() => removeItem(item.key)}
                           aria-label="Delete"
                         >
@@ -2351,6 +2403,7 @@ export function PurchaseOrderCreateForm({
                           variant="ghost"
                           size="sm"
                           className="h-8 px-2 text-xs"
+                          data-testid={`purchase-item-${index}-bulk-update`}
                           onClick={() => setBulkUpdateItemKey(item.itemKey)}
                         >
                           Bulk Update
@@ -2373,7 +2426,10 @@ export function PurchaseOrderCreateForm({
                                 void loadEditContainerPage(item.itemKey, 1, Number(value))
                               }
                             >
-                              <SelectTrigger className="h-8 w-[90px]">
+                              <SelectTrigger
+                                className="h-8 w-[90px]"
+                                data-testid={`purchase-item-${index}-container-page-size`}
+                              >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -2734,7 +2790,7 @@ export function PurchaseOrderCreateForm({
                 onValueChange={(value) => handlePaymentModeChange(value as PurchasePaymentMode)}
                 disabled={financeFieldsLocked}
               >
-                <SelectTrigger>
+                <SelectTrigger data-testid="purchase-payment-mode-trigger">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

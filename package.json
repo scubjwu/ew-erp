@@ -26,8 +26,9 @@
     "test:smoke:routes": "node ./scripts/run_route_smoke.mjs",
     "test:regression:ui": "npm run test:guard:use-server && ./node_modules/.bin/vitest run __tests__/dashboards-regression.test.tsx __tests__/basic-info-dashboards-regression.test.tsx __tests__/basic-info-page-contracts.test.tsx __tests__/basic-info-actions-contracts.test.ts __tests__/partner-page-contracts.test.tsx __tests__/partner-actions-contracts.test.ts",
     "test:regression:reset-safe": "node ./scripts/run_reset_safe_regression.mjs",
-    "test:regression": "npm run test:regression:ui && npm run test:smoke:routes && node ./scripts/run_local_regression.mjs && npm run test:regression:reset-safe",
+    "test:regression": "npm run test:regression:ui && npm run test:smoke:routes && npm run test:e2e:purchase && node ./scripts/run_local_regression.mjs && npm run test:regression:reset-safe",
     "test:e2e": "playwright test",
+    "test:e2e:purchase": "playwright test e2e/purchase-regression.spec.ts",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
