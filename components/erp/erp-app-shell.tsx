@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ShoppingCart,
   Package,
+  PackageSearch,
   Settings,
   Users,
   X,
@@ -64,6 +65,12 @@ const NAV = [
     icon: Package,
   },
   {
+    id: "depot-inventory",
+    label: "Depot Inventory",
+    href: "/depot-inventory",
+    icon: PackageSearch,
+  },
+  {
     id: "purchase",
     label: "Purchase",
     href: "/purchase",
@@ -95,6 +102,13 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
       id: "inventory",
       title: "Inventory Command Center",
       href: "/inventory/center",
+    };
+  }
+  if (pathname.startsWith("/depot-inventory")) {
+    return {
+      id: "depot-inventory",
+      title: "Depot Inventory",
+      href: "/depot-inventory",
     };
   }
   if (pathname.startsWith("/purchase")) {
