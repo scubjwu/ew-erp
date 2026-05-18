@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChevronDown, ChevronUp, Download, RotateCcw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -51,17 +52,24 @@ const EMPTY_FILTERS: DepotInventoryQuery = {
   location: "",
   depot: "",
   status: "",
+  flpValue: "",
+  lbxValue: "",
+  eodValue: "",
+  machineType: "",
   purchaseType: "",
   supplier: "",
   purchaseOrderNo: "",
+  releaseNumber: "",
   sizeType: "",
   condition: "",
   color: "",
   containerNumber: "",
   containerNumberStart: "",
   containerNumberEnd: "",
-  estimatedOfflineDate: "",
-  offlineDate: "",
+  estimatedOfflineDateStart: "",
+  estimatedOfflineDateEnd: "",
+  offlineDateStart: "",
+  offlineDateEnd: "",
   daysInDepot: "",
   viewMode: "detail",
   rangeGrouping: "po_item",
@@ -140,14 +148,19 @@ function appliedFilterSummary(filters: DepotInventoryQuery) {
   if (filters.location) parts.push(`Location: ${filters.location}`);
   if (filters.depot) parts.push(`Depot: ${filters.depot}`);
   if (filters.status) parts.push(`Status: ${filters.status}`);
+  if (filters.machineType) parts.push(`Machine Type: ${filters.machineType}`);
   if (filters.purchaseType) parts.push(`Purchase Type: ${filters.purchaseType}`);
-  if (filters.supplier) parts.push(`Supplier: ${filters.supplier}`);
+  if (filters.supplier) parts.push(`Vendor: ${filters.supplier}`);
   if (filters.purchaseOrderNo) parts.push(`PO: ${filters.purchaseOrderNo}`);
+  if (filters.releaseNumber) parts.push(`Release: ${filters.releaseNumber}`);
   if (filters.sizeType) parts.push(`Size/Type: ${filters.sizeType}`);
+  if (filters.condition) parts.push(`Condition: ${filters.condition}`);
   if (filters.color) parts.push(`Color: ${filters.color}`);
   if (filters.containerNumber) parts.push(`Container: ${filters.containerNumber}`);
-  if (filters.estimatedOfflineDate) parts.push(`Est. Offline: ${filters.estimatedOfflineDate}`);
-  if (filters.offlineDate) parts.push(`Offline: ${filters.offlineDate}`);
+  if (filters.estimatedOfflineDateStart) parts.push(`Est. Offline Start: ${filters.estimatedOfflineDateStart}`);
+  if (filters.estimatedOfflineDateEnd) parts.push(`Est. Offline End: ${filters.estimatedOfflineDateEnd}`);
+  if (filters.offlineDateStart) parts.push(`Offline Start: ${filters.offlineDateStart}`);
+  if (filters.offlineDateEnd) parts.push(`Offline End: ${filters.offlineDateEnd}`);
   if (filters.daysInDepot) {
     const label = DAYS_BUCKET_OPTIONS.find((option) => option.value === filters.daysInDepot)?.label;
     parts.push(`Days in Depot: ${label ?? filters.daysInDepot}`);
@@ -321,12 +334,15 @@ export function DepotInventoryDashboard({ initial, filterOptions }: Props) {
           <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex flex-col gap-1">
               <h1 className="text-xl font-semibold tracking-tight">Depot Inventory</h1>
-              <p className="text-sm text-muted-foreground">
-                On-yard inventory for `PURCHASED` and `IN_YARD` containers.
-              </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
+              <Button asChild variant="outline">
+                <Link href="/depot-inventory/summary-for-dispatch">Summary for Dispatch</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/depot-inventory/sales-availability">Sales Availability</Link>
+              </Button>
               <Button variant="outline" onClick={handleExport} disabled={loading}>
                 <Download className="size-4" />
                 Export
@@ -427,7 +443,7 @@ export function DepotInventoryDashboard({ initial, filterOptions }: Props) {
                 }
               />
               <SearchableAutocompleteInput
-                label="Location / City"
+                label="City"
                 placeholder="Fuzzy match city"
                 options={filterOptions.locations}
                 value={draftFilters.location}
@@ -448,6 +464,69 @@ export function DepotInventoryDashboard({ initial, filterOptions }: Props) {
                   setDraftFilters((current) => ({ ...current, depot: option?.value ?? "" }))
                 }
               />
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Days in Depot</label>
+                <Select
+                  value={draftFilters.daysInDepot || "__all__"}
+                  onValueChange={(value) =>
+                    setDraftFilters((current) => ({
+                      ...current,
+                      daysInDepot: value === "__all__" ? "" : (value as DepotInventoryDaysBucket),
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select days bucket" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DAYS_BUCKET_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <SearchableAutocompleteInput
+                label="Container Number"
+                placeholder="Fuzzy match container number"
+                options={filterOptions.containerNumbers}
+                value={draftFilters.containerNumber}
+                inputValue={draftFilters.containerNumber}
+                onInputChange={(value) =>
+                  setDraftFilters((current) => ({ ...current, containerNumber: value }))
+                }
+                onSelect={(option) =>
+                  setDraftFilters((current) => ({ ...current, containerNumber: option?.value ?? "" }))
+                }
+              />
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Container Number Range Start</label>
+                <Input
+                  value={draftFilters.containerNumberStart}
+                  onChange={(event) =>
+                    setDraftFilters((current) => ({
+                      ...current,
+                      containerNumberStart: event.target.value,
+                    }))
+                  }
+                  placeholder="Start container number"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Container Number Range End</label>
+                <Input
+                  value={draftFilters.containerNumberEnd}
+                  onChange={(event) =>
+                    setDraftFilters((current) => ({
+                      ...current,
+                      containerNumberEnd: event.target.value,
+                    }))
+                  }
+                  placeholder="End container number"
+                />
+              </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Status</label>
                 <Select
@@ -471,57 +550,6 @@ export function DepotInventoryDashboard({ initial, filterOptions }: Props) {
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Purchase Type</label>
-                <Select
-                  value={(draftFilters.viewMode === "range" ? "FACTORY_ORDER" : draftFilters.purchaseType) || "__all__"}
-                  disabled={draftFilters.viewMode === "range"}
-                  onValueChange={(value) => {
-                    const purchaseType = value === "__all__" ? "" : value;
-                    setDetailPurchaseType(purchaseType);
-                    setDraftFilters((current) => ({
-                      ...current,
-                      purchaseType,
-                    }));
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select purchase type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PURCHASE_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <SearchableAutocompleteInput
-                label="Supplier"
-                placeholder="Fuzzy match supplier"
-                options={filterOptions.suppliers}
-                value={draftFilters.supplier}
-                inputValue={draftFilters.supplier}
-                onInputChange={(value) => setDraftFilters((current) => ({ ...current, supplier: value }))}
-                onSelect={(option) =>
-                  setDraftFilters((current) => ({ ...current, supplier: option?.value ?? "" }))
-                }
-              />
-              <SearchableAutocompleteInput
-                label="Purchase Order No"
-                placeholder="Fuzzy match PO number"
-                options={filterOptions.purchaseOrders}
-                value={draftFilters.purchaseOrderNo}
-                inputValue={draftFilters.purchaseOrderNo}
-                onInputChange={(value) =>
-                  setDraftFilters((current) => ({ ...current, purchaseOrderNo: value }))
-                }
-                onSelect={(option) =>
-                  setDraftFilters((current) => ({ ...current, purchaseOrderNo: option?.value ?? "" }))
-                }
-              />
 
               <SearchableAutocompleteInput
                 label="Size/Type"
@@ -570,92 +598,130 @@ export function DepotInventoryDashboard({ initial, filterOptions }: Props) {
                 }
               />
               <SearchableAutocompleteInput
-                label="Container Number"
-                placeholder="Fuzzy match container number"
-                options={filterOptions.containerNumbers}
-                value={draftFilters.containerNumber}
-                inputValue={draftFilters.containerNumber}
-                onInputChange={(value) =>
-                  setDraftFilters((current) => ({ ...current, containerNumber: value }))
-                }
+                label="Machine Type"
+                placeholder="Fuzzy match machine type"
+                options={filterOptions.machineTypes}
+                value={draftFilters.machineType}
+                inputValue={draftFilters.machineType}
+                onInputChange={(value) => setDraftFilters((current) => ({ ...current, machineType: value }))}
                 onSelect={(option) =>
-                  setDraftFilters((current) => ({ ...current, containerNumber: option?.value ?? "" }))
+                  setDraftFilters((current) => ({ ...current, machineType: option?.value ?? "" }))
+                }
+              />
+
+              <SearchableAutocompleteInput
+                label="Vendor"
+                placeholder="Fuzzy match vendor"
+                options={filterOptions.suppliers}
+                value={draftFilters.supplier}
+                inputValue={draftFilters.supplier}
+                onInputChange={(value) => setDraftFilters((current) => ({ ...current, supplier: value }))}
+                onSelect={(option) =>
+                  setDraftFilters((current) => ({ ...current, supplier: option?.value ?? "" }))
                 }
               />
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Container Number Range Start</label>
-                <Input
-                  value={draftFilters.containerNumberStart}
-                  onChange={(event) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      containerNumberStart: event.target.value,
-                    }))
-                  }
-                  placeholder="Start container number"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Container Number Range End</label>
-                <Input
-                  value={draftFilters.containerNumberEnd}
-                  onChange={(event) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      containerNumberEnd: event.target.value,
-                    }))
-                  }
-                  placeholder="End container number"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Estimated Offline Date</label>
-                <Input
-                  type="date"
-                  value={draftFilters.estimatedOfflineDate}
-                  onChange={(event) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      estimatedOfflineDate: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Offline Date / Release Date</label>
-                <Input
-                  type="date"
-                  value={draftFilters.offlineDate}
-                  onChange={(event) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      offlineDate: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Days in Depot</label>
+                <label className="text-sm font-medium">Purchase Type</label>
                 <Select
-                  value={draftFilters.daysInDepot || "__all__"}
-                  onValueChange={(value) =>
+                  value={(draftFilters.viewMode === "range" ? "FACTORY_ORDER" : draftFilters.purchaseType) || "__all__"}
+                  disabled={draftFilters.viewMode === "range"}
+                  onValueChange={(value) => {
+                    const purchaseType = value === "__all__" ? "" : value;
+                    setDetailPurchaseType(purchaseType);
                     setDraftFilters((current) => ({
                       ...current,
-                      daysInDepot: value === "__all__" ? "" : (value as DepotInventoryDaysBucket),
-                    }))
-                  }
+                      purchaseType,
+                    }));
+                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select days bucket" />
+                    <SelectValue placeholder="Select purchase type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {DAYS_BUCKET_OPTIONS.map((option) => (
+                    {PURCHASE_TYPE_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <SearchableAutocompleteInput
+                label="Purchase Order No"
+                placeholder="Fuzzy match PO number"
+                options={filterOptions.purchaseOrders}
+                value={draftFilters.purchaseOrderNo}
+                inputValue={draftFilters.purchaseOrderNo}
+                onInputChange={(value) =>
+                  setDraftFilters((current) => ({ ...current, purchaseOrderNo: value }))
+                }
+                onSelect={(option) =>
+                  setDraftFilters((current) => ({ ...current, purchaseOrderNo: option?.value ?? "" }))
+                }
+              />
+              <SearchableAutocompleteInput
+                label="Release(from PO item)"
+                placeholder="Fuzzy match release"
+                options={filterOptions.releases}
+                value={draftFilters.releaseNumber}
+                inputValue={draftFilters.releaseNumber}
+                onInputChange={(value) => setDraftFilters((current) => ({ ...current, releaseNumber: value }))}
+                onSelect={(option) =>
+                  setDraftFilters((current) => ({ ...current, releaseNumber: option?.value ?? "" }))
+                }
+              />
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Estimated Offline Date Start</label>
+                <Input
+                  type="date"
+                  value={draftFilters.estimatedOfflineDateStart}
+                  onChange={(event) =>
+                    setDraftFilters((current) => ({
+                      ...current,
+                      estimatedOfflineDateStart: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Estimated Offline Date End</label>
+                <Input
+                  type="date"
+                  value={draftFilters.estimatedOfflineDateEnd}
+                  onChange={(event) =>
+                    setDraftFilters((current) => ({
+                      ...current,
+                      estimatedOfflineDateEnd: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Offline Date / Release Date Start</label>
+                <Input
+                  type="date"
+                  value={draftFilters.offlineDateStart}
+                  onChange={(event) =>
+                    setDraftFilters((current) => ({
+                      ...current,
+                      offlineDateStart: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Offline Date / Release Date End</label>
+                <Input
+                  type="date"
+                  value={draftFilters.offlineDateEnd}
+                  onChange={(event) =>
+                    setDraftFilters((current) => ({
+                      ...current,
+                      offlineDateEnd: event.target.value,
+                    }))
+                  }
+                />
               </div>
               </div>
             ) : null}

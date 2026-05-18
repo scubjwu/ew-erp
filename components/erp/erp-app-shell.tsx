@@ -4,13 +4,17 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Building2,
+  ArrowRightLeft,
+  Boxes,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ShoppingCart,
-  Package,
-  PackageSearch,
+  Database,
+  ReceiptText,
   Settings,
+  Ship,
+  ShoppingCart,
+  PackageSearch,
   Users,
   X,
 } from "lucide-react";
@@ -24,6 +28,18 @@ export type ErpTab = {
   href: string;
 };
 
+type NavItem = {
+  id: string;
+  label: string;
+  href: string;
+  icon: typeof ShoppingCart;
+  children?: Array<{
+    id: string;
+    label: string;
+    href: string;
+  }>;
+};
+
 const BASIC_INFO_TITLES: Record<string, string> = {
   companies: "Company Information Management",
   regions: "Region Codes",
@@ -35,6 +51,7 @@ const BASIC_INFO_TITLES: Record<string, string> = {
   "size-codes": "Size Codes",
   "type-codes": "Type Codes",
   "operation-prices": "Operation Price Configs",
+  "financial-exchange-rates": "Financial Exchange Rates",
   "container-number-rules": "Container Number Rules",
 };
 
@@ -51,32 +68,96 @@ const PURCHASE_TITLES: Record<string, string> = {
   "po-management": "PO Management",
 };
 
-const NAV = [
-  {
-    id: "basic-info",
-    label: "System Codes",
-    href: "/basic-info",
-    icon: Building2,
-  },
-  {
-    id: "inventory",
-    label: "Inventory",
-    href: "/inventory/center",
-    icon: Package,
-  },
-  {
-    id: "depot-inventory",
-    label: "Depot Inventory",
-    href: "/depot-inventory",
-    icon: PackageSearch,
-  },
+const SALES_TITLES: Record<string, string> = {
+  "sales-orders": "Sales Orders",
+  "sales-release": "Sales Release",
+};
+
+const DISPATCH_TITLES: Record<string, string> = {
+  "dispatch-orders": "Dispatch Orders",
+  "dispatch-release": "Dispatch Release Management",
+  "one-way-planning": "One Way Planning",
+};
+
+const NAV: readonly NavItem[] = [
   {
     id: "purchase",
     label: "Purchase",
     href: "/purchase",
     icon: ShoppingCart,
   },
+  {
+    id: "sales",
+    label: "Sales",
+    href: "/sales",
+    icon: ReceiptText,
+    children: [
+      {
+        id: "sales-orders",
+        label: "Sales Orders",
+        href: "/sales/sales-orders",
+      },
+      {
+        id: "sales-release",
+        label: "Sales Release",
+        href: "/sales/sales-release",
+      },
+    ],
+  },
+  {
+    id: "dispatch",
+    label: "Dispatch",
+    href: "/dispatch",
+    icon: ArrowRightLeft,
+    children: [
+      {
+        id: "one-way-planning",
+        label: "One Way Planning",
+        href: "/dispatch/one-way-planning",
+      },
+      {
+        id: "dispatch-release",
+        label: "Dispatch Release Management",
+        href: "/dispatch/dispatch-release",
+      },
+    ],
+  },
+  {
+    id: "depot-inventory",
+    label: "Depot Inventory",
+    href: "/depot-inventory",
+    icon: Boxes,
+    children: [
+      {
+        id: "depot-inventory-container-list",
+        label: "Container List",
+        href: "/depot-inventory",
+      },
+      {
+        id: "depot-inventory-dispatch-availability",
+        label: "Dispatch Availability",
+        href: "/depot-inventory/summary-for-dispatch",
+      },
+      {
+        id: "depot-inventory-sales-availability",
+        label: "Sales Availability",
+        href: "/depot-inventory/sales-availability",
+      },
+    ],
+  },
+  {
+    id: "inventory",
+    label: "In-Transit Inventory",
+    href: "/inventory/center",
+    icon: Ship,
+  },
   { id: "partners", label: "Partners", href: "/partners", icon: Users },
+  {
+    id: "basic-info",
+    label: "System Codes",
+    href: "/basic-info",
+    icon: Database,
+  },
   {
     id: "settings",
     label: "System Settings",
@@ -105,6 +186,20 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
     };
   }
   if (pathname.startsWith("/depot-inventory")) {
+    if (pathname === "/depot-inventory/summary-for-dispatch") {
+      return {
+        id: "depot-inventory-summary-for-dispatch",
+        title: "Dispatch Availability",
+        href: pathname,
+      };
+    }
+    if (pathname === "/depot-inventory/sales-availability") {
+      return {
+        id: "depot-inventory-sales-availability",
+        title: "Sales Availability",
+        href: pathname,
+      };
+    }
     return {
       id: "depot-inventory",
       title: "Depot Inventory",
@@ -137,6 +232,70 @@ function titleForPath(pathname: string): { id: string; title: string; href: stri
       };
     }
     return { id: "purchase", title: "Purchase", href: "/purchase" };
+  }
+  if (pathname.startsWith("/sales")) {
+    if (pathname.match(/^\/sales\/[^/]+$/)) {
+      const slug = pathname.split("/")[2] ?? "";
+      return {
+        id: "sales-section",
+        title: SALES_TITLES[slug] ?? "Sales Detail",
+        href: pathname,
+      };
+    }
+    return { id: "sales", title: "Sales", href: "/sales" };
+  }
+  if (pathname.startsWith("/dispatch")) {
+    if (pathname.startsWith("/dispatch/one-way-planning/") && pathname.endsWith("/edit")) {
+      return {
+        id: "one-way-planning-edit",
+        title: "Edit One Way Plan",
+        href: pathname,
+      };
+    }
+    if (pathname === "/dispatch/one-way-planning/new") {
+      return {
+        id: "one-way-planning-new",
+        title: "New One Way Plan",
+        href: pathname,
+      };
+    }
+    if (pathname === "/dispatch/one-way-planning/import") {
+      return {
+        id: "one-way-planning-import",
+        title: "Import CMA Report",
+        href: pathname,
+      };
+    }
+    if (pathname.match(/^\/dispatch\/one-way-planning\/[^/]+$/)) {
+      return {
+        id: "one-way-planning-detail",
+        title: "One Way Plan Detail",
+        href: pathname,
+      };
+    }
+    if (pathname === "/dispatch/dispatch-release/create") {
+      return {
+        id: "dispatch-release-create",
+        title: "Create Dispatch Release",
+        href: pathname,
+      };
+    }
+    if (pathname.match(/^\/dispatch\/dispatch-release\/[^/]+$/)) {
+      return {
+        id: "dispatch-release-detail",
+        title: "Dispatch Release Detail",
+        href: pathname,
+      };
+    }
+    if (pathname.match(/^\/dispatch\/[^/]+$/)) {
+      const slug = pathname.split("/")[2] ?? "";
+      return {
+        id: "dispatch-section",
+        title: DISPATCH_TITLES[slug] ?? "Dispatch Detail",
+        href: pathname,
+      };
+    }
+    return { id: "dispatch", title: "Dispatch", href: "/dispatch" };
   }
   if (pathname.startsWith("/partners")) {
     if (pathname.startsWith("/partners/container-owners/") && pathname.endsWith("/edit")) {
@@ -240,6 +399,11 @@ export function ErpAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
+    "depot-inventory": false,
+    sales: false,
+    dispatch: false,
+  });
   const [tabs, setTabs] = useState<ErpTab[]>([
     {
       id: "basic-info",
@@ -256,6 +420,18 @@ export function ErpAppShell({ children }: { children: ReactNode }) {
       if (exists) return prev;
       return [...prev, { id: meta.id, title: meta.title, href: meta.href }];
     });
+  }, [pathname]);
+
+  useEffect(() => {
+    if (pathname.startsWith("/depot-inventory")) {
+      setExpandedNavGroups((current) => ({ ...current, "depot-inventory": true }));
+    }
+    if (pathname.startsWith("/sales")) {
+      setExpandedNavGroups((current) => ({ ...current, sales: true }));
+    }
+    if (pathname.startsWith("/dispatch")) {
+      setExpandedNavGroups((current) => ({ ...current, dispatch: true }));
+    }
   }, [pathname]);
 
   const setActiveTab = useCallback(
@@ -288,7 +464,7 @@ export function ErpAppShell({ children }: { children: ReactNode }) {
     return false;
   }
 
-  const sidebarW = collapsed ? "w-16" : "w-[200px]";
+  const sidebarW = collapsed ? "w-16" : "w-[248px]";
 
   return (
     <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-background">
@@ -331,23 +507,71 @@ export function ErpAppShell({ children }: { children: ReactNode }) {
             {NAV.map((item) => {
               const active =
                 pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const childActive = item.children?.some(
+                (child) => pathname === child.href || pathname.startsWith(`${child.href}/`)
+              );
+              const isExpandable = Boolean(item.children?.length);
+              const isExpanded = expandedNavGroups[item.id] ?? false;
+              const showChildren = !collapsed && isExpandable && isExpanded;
               const Icon = item.icon;
               return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition",
-                    active
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-300 hover:bg-slate-800/80 hover:text-white",
-                    collapsed && "justify-center px-2"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className="size-5 shrink-0 opacity-90" aria-hidden />
-                  {!collapsed && <span>{item.label}</span>}
-                </Link>
+                <div key={item.id} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isExpandable && !collapsed) {
+                        setExpandedNavGroups((current) => ({
+                          ...current,
+                          [item.id]: !isExpanded,
+                        }));
+                        return;
+                      }
+                      router.push(item.href);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition",
+                      active || childActive
+                        ? "bg-slate-800 text-white"
+                        : "text-slate-300 hover:bg-slate-800/80 hover:text-white",
+                      collapsed && "justify-center px-2"
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <Icon className="size-5 shrink-0 opacity-90" aria-hidden />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && isExpandable ? (
+                      <ChevronDown
+                        className={cn(
+                          "ml-auto size-4 shrink-0 transition-transform",
+                          isExpanded && "rotate-180"
+                        )}
+                        aria-hidden
+                      />
+                    ) : null}
+                  </button>
+                  {showChildren ? (
+                    <div className="ml-4 space-y-1 border-l border-slate-800 pl-3">
+                      {item.children!.map((child) => {
+                        const isChildActive =
+                          pathname === child.href || pathname.startsWith(`${child.href}/`);
+                        return (
+                          <Link
+                            key={child.id}
+                            href={child.href}
+                            className={cn(
+                              "flex min-w-0 items-center rounded-md px-3 py-2 text-xs transition",
+                              isChildActive
+                                ? "bg-slate-800/70 font-medium text-sky-400"
+                                : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                            )}
+                          >
+                            <span className="truncate">{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </nav>

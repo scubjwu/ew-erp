@@ -6,6 +6,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getPurchaseOrderEditPermissions } from "@/types/purchase";
 import type {
   PurchaseBankInformationSnapshot,
+  PurchaseOrderItemAttachmentInput,
+  PurchaseOrderItemAttachmentRow,
   PurchaseOrderEditPermissions,
   PurchaseFinanceRecord,
   PurchaseMaterialType,
@@ -468,6 +470,16 @@ type PurchaseFinanceRecordRaw = {
   updated_at: string;
 };
 
+type PurchaseOrderItemAttachmentRowRaw = {
+  id: string;
+  purchase_order_item_id: string;
+  attachment_type: PurchaseOrderItemAttachmentRow["attachmentType"];
+  url: string;
+  remark: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function normalizeText(value?: string | null) {
   return value?.trim() ?? "";
 }
@@ -701,6 +713,20 @@ function mapPurchaseFinanceRecord(row: PurchaseFinanceRecordRaw): PurchaseFinanc
     totalAmountPaid: toNumber(row.total_amount_paid),
     totalAmountUnpaid: toNumber(row.total_amount_unpaid),
     financeStatus: row.finance_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapPurchaseOrderItemAttachmentRow(
+  row: PurchaseOrderItemAttachmentRowRaw
+): PurchaseOrderItemAttachmentRow {
+  return {
+    id: row.id,
+    purchaseOrderItemId: row.purchase_order_item_id,
+    attachmentType: row.attachment_type,
+    url: row.url,
+    remark: row.remark,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1576,6 +1602,20 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     ),
     containers
   );
+  let itemAttachments: PurchaseOrderItemAttachmentRow[] = [];
+  const itemIds = items.map((item) => item.id);
+  if (itemIds.length > 0) {
+    const { data: itemAttachmentRows, error: itemAttachmentsError } = await supabase
+      .from("purchase_order_item_attachment_links")
+      .select("id, purchase_order_item_id, attachment_type, url, remark, created_at, updated_at")
+      .in("purchase_order_item_id", itemIds)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+    if (itemAttachmentsError) throw new Error(itemAttachmentsError.message);
+    itemAttachments = (
+      ((itemAttachmentRows ?? []) as unknown) as PurchaseOrderItemAttachmentRowRaw[]
+    ).map(mapPurchaseOrderItemAttachmentRow);
+  }
 
   return {
     id: order.id,
@@ -1620,6 +1660,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     buyer: order.buyer ?? null,
     items,
     containers,
+    itemAttachments,
     materialTypes: (((materialTypesResult.data ?? []) as unknown) as PurchaseMaterialTypeRowRaw[]).map(
       mapPurchaseMaterialTypeRow
     ),
@@ -2272,7 +2313,11 @@ function buildFinanceFields(input: PurchaseOrderDraftInput) {
   };
 }
 
-function buildItemRowsForInsert(orderId: string, input: PurchaseOrderDraftInput) {
+function buildItemRowsForInsert(
+  orderId: string,
+  input: PurchaseOrderDraftInput,
+  existingItemsByKey?: Map<string, Pick<PurchaseOrderItem, "financialCost">>
+) {
   return input.items.map((item, index) => ({
     purchase_order_id: orderId,
     line_no: index + 1,
@@ -2300,10 +2345,107 @@ function buildItemRowsForInsert(orderId: string, input: PurchaseOrderDraftInput)
     planned_qty: item.plannedQty,
     unit_price: item.unitPrice,
     settlement_price: item.unitPrice,
-    financial_cost: null,
+    financial_cost: existingItemsByKey?.get(item.itemKey)?.financialCost ?? null,
     line_amount: computeLineAmount(item.plannedQty, item.unitPrice),
     remark: trimOrNull(item.remark),
   }));
+}
+
+type SharedContainerFieldsPayload = {
+  location_city_id: string | null;
+  depot_id: string | null;
+  container_size_code_id: string | null;
+  container_type_code_id: string | null;
+  container_condition_code_id: string | null;
+  color: string | null;
+  flp: boolean;
+  lbx: boolean;
+  locking_bars_count: number | null;
+  vents_count: number | null;
+  machine_type: string | null;
+  yom: number | null;
+  estimated_offline_date: string | null;
+  offline_date: string | null;
+  planned_pod: string | null;
+  tare_weight: number | null;
+  maximum_weight: number | null;
+  csc_number: string | null;
+  purchase_price: number | null;
+  financial_cost: number | null;
+};
+
+function buildSharedContainerFieldsFromItem(args: {
+  item: PurchaseOrderDraftInput["items"][number];
+  purchaseType: PurchaseType;
+  financialCost?: number | null;
+}): SharedContainerFieldsPayload {
+  return {
+    location_city_id: args.item.locationCityId,
+    depot_id: args.item.depotId,
+    container_size_code_id: args.item.containerSizeCodeId,
+    container_type_code_id: args.item.containerTypeCodeId,
+    container_condition_code_id: args.item.containerConditionCodeId,
+    color: trimOrNull(args.item.color),
+    flp: args.item.flp,
+    lbx: args.item.lbx,
+    locking_bars_count: args.item.lockingBarsCount,
+    vents_count: args.item.ventsCount,
+    machine_type: trimOrNull(args.item.machineType),
+    yom: args.item.yom,
+    estimated_offline_date:
+      args.purchaseType === "FACTORY_ORDER" ? args.item.estimatedOfflineDate || null : null,
+    offline_date: args.item.offlineDate || null,
+    planned_pod: trimOrNull(args.item.plannedPod),
+    tare_weight: args.item.tareWeight,
+    maximum_weight: args.item.maximumWeight,
+    csc_number: trimOrNull(args.item.cscNumber),
+    purchase_price: args.item.unitPrice,
+    financial_cost: args.financialCost ?? null,
+  };
+}
+
+function getChangedSharedContainerFieldKeys(args: {
+  currentItem: PurchaseOrderItem;
+  nextItem: PurchaseOrderDraftInput["items"][number];
+  purchaseType: PurchaseType;
+}) {
+  const changed = new Set<keyof SharedContainerFieldsPayload>();
+  const nextShared = buildSharedContainerFieldsFromItem({
+    item: args.nextItem,
+    purchaseType: args.purchaseType,
+    financialCost: args.currentItem.financialCost,
+  });
+  const currentShared: SharedContainerFieldsPayload = {
+    location_city_id: args.currentItem.locationCityId,
+    depot_id: args.currentItem.depotId,
+    container_size_code_id: args.currentItem.containerSizeCodeId,
+    container_type_code_id: args.currentItem.containerTypeCodeId,
+    container_condition_code_id: args.currentItem.containerConditionCodeId,
+    color: trimOrNull(args.currentItem.color),
+    flp: args.currentItem.flp,
+    lbx: args.currentItem.lbx,
+    locking_bars_count: args.currentItem.lockingBarsCount,
+    vents_count: args.currentItem.ventsCount,
+    machine_type: trimOrNull(args.currentItem.machineType),
+    yom: args.currentItem.yom,
+    estimated_offline_date:
+      args.purchaseType === "FACTORY_ORDER" ? args.currentItem.estimatedOfflineDate : null,
+    offline_date: args.currentItem.offlineDate,
+    planned_pod: trimOrNull(args.currentItem.plannedPod),
+    tare_weight: args.currentItem.tareWeight,
+    maximum_weight: args.currentItem.maximumWeight,
+    csc_number: trimOrNull(args.currentItem.cscNumber),
+    purchase_price: args.currentItem.unitPrice,
+    financial_cost: args.currentItem.financialCost,
+  };
+
+  (Object.keys(nextShared) as Array<keyof SharedContainerFieldsPayload>).forEach((key) => {
+    if (currentShared[key] !== nextShared[key]) {
+      changed.add(key);
+    }
+  });
+
+  return changed;
 }
 
 async function syncPlannedPodForContainersByItem(
@@ -2330,12 +2472,172 @@ function buildItemPlannedPodRows(
   });
 }
 
+function normalizeMaterialTypesForComparison(
+  materialTypes: Array<{
+    materialType: PurchaseMaterialType | "" | null | undefined;
+    materialVendorId: string | null | undefined;
+  }>
+) {
+  return materialTypes
+    .filter((row) => row.materialType)
+    .map((row) => ({
+      materialType: row.materialType as PurchaseMaterialType,
+      materialVendorId: row.materialVendorId ?? null,
+    }))
+    .sort((left, right) => left.materialType.localeCompare(right.materialType));
+}
+
+function materialTypesChanged(
+  purchaseType: PurchaseType,
+  nextMaterialTypes: PurchaseOrderDraftInput["materialTypes"],
+  currentMaterialTypes: PurchaseOrderDetail["materialTypes"]
+) {
+  const normalizedNext = normalizeMaterialTypesForComparison(
+    sanitizeMaterialTypesForSubmit(purchaseType, nextMaterialTypes)
+  );
+  const normalizedCurrent = normalizeMaterialTypesForComparison(
+    currentMaterialTypes.map((row) => ({
+      materialType: row.materialType,
+      materialVendorId: row.materialVendorId,
+    }))
+  );
+
+  return JSON.stringify(normalizedNext) !== JSON.stringify(normalizedCurrent);
+}
+
+function getContainerEditsById(input: Pick<PurchaseOrderDraftInput, "containerEdits">) {
+  return new Map((input.containerEdits ?? []).map((container) => [container.id, container] as const));
+}
+
+function sanitizePurchaseOrderItemAttachments(
+  attachments: PurchaseOrderItemAttachmentInput[]
+): PurchaseOrderItemAttachmentInput[] {
+  return attachments.map((attachment, index) => {
+    const purchaseOrderItemId = trimOrNull(attachment.purchaseOrderItemId);
+    const attachmentType = attachment.attachmentType;
+    const url = attachment.url.trim();
+    const remark = trimOrNull(attachment.remark);
+
+    if (!purchaseOrderItemId) {
+      throw new Error(`Attachment ${index + 1}: PO Item is required.`);
+    }
+    if (!attachmentType) {
+      throw new Error(`Attachment ${index + 1}: Document Type is required.`);
+    }
+    if (!url) {
+      throw new Error(`Attachment ${index + 1}: Attachment URL is required.`);
+    }
+
+    return {
+      purchaseOrderItemId,
+      attachmentType,
+      url,
+      remark,
+    };
+  });
+}
+
+function normalizeAttachmentsForComparison(
+  attachments: Array<{
+    purchaseOrderItemId: string | null;
+    attachmentType: string | null | undefined;
+    url: string | null | undefined;
+    remark: string | null | undefined;
+  }>
+) {
+  return attachments
+    .map((attachment) => ({
+      purchaseOrderItemId: trimOrNull(attachment.purchaseOrderItemId),
+      attachmentType: attachment.attachmentType ?? null,
+      url: trimOrNull(attachment.url),
+      remark: trimOrNull(attachment.remark),
+    }))
+    .sort((left, right) =>
+      `${left.purchaseOrderItemId ?? ""}|${left.attachmentType ?? ""}|${left.url ?? ""}|${left.remark ?? ""}`.localeCompare(
+        `${right.purchaseOrderItemId ?? ""}|${right.attachmentType ?? ""}|${right.url ?? ""}|${right.remark ?? ""}`
+      )
+    );
+}
+
+function itemAttachmentsChanged(
+  nextAttachments: PurchaseOrderDraftInput["itemAttachments"],
+  currentAttachments: PurchaseOrderDetail["itemAttachments"]
+) {
+  const normalizedNext = normalizeAttachmentsForComparison(nextAttachments);
+  const normalizedCurrent = normalizeAttachmentsForComparison(
+    currentAttachments.map((attachment) => ({
+      purchaseOrderItemId: attachment.purchaseOrderItemId,
+      attachmentType: attachment.attachmentType,
+      url: attachment.url,
+      remark: attachment.remark,
+    }))
+  );
+
+  return JSON.stringify(normalizedNext) !== JSON.stringify(normalizedCurrent);
+}
+
+async function syncPurchaseOrderItemAttachments(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  orderId: string,
+  attachments: PurchaseOrderDraftInput["itemAttachments"],
+  resolvedItemIdsByInputKey: Map<string, string>
+) {
+  const sanitizedAttachments = sanitizePurchaseOrderItemAttachments(attachments);
+  const { data: existingItems, error: existingItemsError } = await supabase
+    .from("purchase_order_item")
+    .select("id")
+    .eq("purchase_order_id", orderId);
+  if (existingItemsError) throw new Error(existingItemsError.message);
+
+  const existingItemIds = (existingItems ?? []).map((row) => row.id as string);
+  if (existingItemIds.length > 0) {
+    const { error: deleteAttachmentsError } = await supabase
+      .from("purchase_order_item_attachment_links")
+      .delete()
+      .in("purchase_order_item_id", existingItemIds);
+    if (deleteAttachmentsError) throw new Error(deleteAttachmentsError.message);
+  }
+
+  if (sanitizedAttachments.length === 0) return;
+
+  const attachmentRows = sanitizedAttachments.map((attachment, index) => {
+    const resolvedItemId = resolvedItemIdsByInputKey.get(attachment.purchaseOrderItemId ?? "");
+    if (!resolvedItemId) {
+      throw new Error(`Attachment ${index + 1}: selected PO Item could not be resolved.`);
+    }
+    return {
+      purchase_order_item_id: resolvedItemId,
+      attachment_type: attachment.attachmentType,
+      url: attachment.url,
+      remark: attachment.remark,
+    };
+  });
+
+  const { error: insertAttachmentsError } = await supabase
+    .from("purchase_order_item_attachment_links")
+    .insert(attachmentRows);
+  if (insertAttachmentsError) throw new Error(insertAttachmentsError.message);
+}
+
 async function replaceOrderItemsAndMaterials(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   orderId: string,
   input: PurchaseOrderDraftInput
 ) {
   const cleanedMaterialTypes = sanitizeMaterialTypesForSubmit(input.purchaseType, input.materialTypes);
+  const { data: existingItems, error: existingItemsError } = await supabase
+    .from("purchase_order_item")
+    .select("id, financial_cost")
+    .eq("purchase_order_id", orderId);
+  if (existingItemsError) throw new Error(existingItemsError.message);
+  const existingItemsByKey = new Map(
+    (existingItems ?? []).map((item) => [
+      item.id,
+      {
+        financialCost: item.financial_cost,
+      },
+    ])
+  );
 
   const { error: deleteMaterialsError } = await supabase
     .from("purchase_order_material_type")
@@ -2349,12 +2651,12 @@ async function replaceOrderItemsAndMaterials(
     .eq("purchase_order_id", orderId);
   if (deleteItemsError) throw new Error(deleteItemsError.message);
 
-  const itemRows = buildItemRowsForInsert(orderId, input);
+  const itemRows = buildItemRowsForInsert(orderId, input, existingItemsByKey);
   const { data: insertedItems, error: itemsError } = await supabase
     .from("purchase_order_item")
     .insert(itemRows)
     .select(
-      "id, line_no, location_city_id, depot_id, container_size_code_id, container_type_code_id, container_condition_code_id, unit_price"
+      "id, line_no, location_city_id, depot_id, container_size_code_id, container_type_code_id, container_condition_code_id, unit_price, financial_cost"
     );
   if (itemsError) throw new Error(itemsError.message);
 
@@ -2392,41 +2694,29 @@ function buildContainerPayloadForSubmit(args: {
     container_type_code_id: string | null;
     container_condition_code_id: string | null;
     unit_price: number | null;
+    financial_cost: number | null;
     line_no?: number;
   } | undefined>;
 }) {
   return args.input.containers.map((container) => {
     const itemRow = args.itemByKey.get(container.itemKey);
+    const itemInput = args.input.items.find((item) => item.itemKey === container.itemKey);
     if (!itemRow?.id) {
       throw new Error(`Container row could not resolve purchase item for key ${container.itemKey}.`);
     }
+    if (!itemInput) {
+      throw new Error(`Container row could not resolve item input for key ${container.itemKey}.`);
+    }
+
+    const sharedFields = buildSharedContainerFieldsFromItem({
+      item: itemInput,
+      purchaseType: args.input.purchaseType,
+      financialCost: itemRow.financial_cost,
+    });
 
     return {
       purchase_order_item_id: itemRow.id,
-      location_city_id: itemRow.location_city_id,
-      depot_id: itemRow.depot_id,
-      container_size_code_id: itemRow.container_size_code_id,
-      container_type_code_id: itemRow.container_type_code_id,
-      container_condition_code_id: itemRow.container_condition_code_id,
-      color: trimOrNull(container.color),
-      flp: container.flp,
-      lbx: container.lbx,
-      locking_bars_count: container.lockingBarsCount,
-      vents_count: container.ventsCount,
-      machine_type: trimOrNull(container.machineType),
-      yom: container.yom,
-      estimated_offline_date:
-        args.input.purchaseType === "FACTORY_ORDER"
-          ? container.estimatedOfflineDate || null
-          : null,
-      offline_date: container.offlineDate || null,
-      planned_pod: trimOrNull(
-        args.input.items.find((item) => item.itemKey === container.itemKey)?.plannedPod
-      ),
-      tare_weight: container.tareWeight,
-      maximum_weight: container.maximumWeight,
-      csc_number: trimOrNull(container.cscNumber),
-      purchase_price: itemRow.unit_price,
+      ...sharedFields,
       container_number:
         args.input.purchaseType === "FACTORY_ORDER" && args.usesInternalContainerNumbering
           ? null
@@ -2542,11 +2832,11 @@ function ensureFactoryProgressEditPayloadAllowed(
   ) {
     throw new Error("Vendor bank information cannot be changed in the current order status.");
   }
-  if (JSON.stringify(input.materialTypes) !== JSON.stringify(currentOrder.materialTypes.map((row) => ({
-    materialType: row.materialType,
-    materialVendorId: row.materialVendorId,
-  })))) {
+  if (materialTypesChanged(input.purchaseType, input.materialTypes, currentOrder.materialTypes)) {
     throw new Error("Material Vendors cannot be changed in the current order status.");
+  }
+  if (itemAttachmentsChanged(input.itemAttachments, currentOrder.itemAttachments)) {
+    throw new Error("Attachments cannot be changed in the current order status.");
   }
   if (input.items.length !== currentOrder.items.length) {
     throw new Error("Purchase items cannot be restructured in the current order status.");
@@ -2605,6 +2895,10 @@ function ensureFactoryProgressEditPayloadAllowed(
     }
   }
 
+  if ((input.newContainers?.length ?? 0) > 0) {
+    throw new Error("Container rows cannot be restructured in the current order status.");
+  }
+
   const currentContainersByItem = new Map<string, PurchaseOrderContainer[]>();
   for (const container of currentOrder.containers) {
     const key = container.purchaseOrderItemId ?? "";
@@ -2612,44 +2906,35 @@ function ensureFactoryProgressEditPayloadAllowed(
     bucket.push(container);
     currentContainersByItem.set(key, bucket);
   }
+  const containerEditsById = getContainerEditsById(input);
 
   for (let index = 0; index < currentOrder.items.length; index += 1) {
     const currentItem = currentOrder.items[index];
     const nextItem = input.items[index];
     if (!currentItem || !nextItem) continue;
     const currentContainers = currentContainersByItem.get(currentItem.id) ?? [];
-    const nextContainers = input.containers.filter((container) => container.itemKey === nextItem.itemKey);
-    if (nextContainers.length !== currentContainers.length) {
-      throw new Error("Container rows cannot be restructured in the current order status.");
-    }
     for (let containerIndex = 0; containerIndex < currentContainers.length; containerIndex += 1) {
       const currentContainer = currentContainers[containerIndex];
-      const nextContainer = nextContainers[containerIndex];
-      if (!currentContainer || !nextContainer) {
+      if (!currentContainer) {
         throw new Error("Container rows cannot be restructured in the current order status.");
       }
-      if (trimOrNull(nextContainer.containerNumber) !== trimOrNull(currentContainer.containerNumber)) {
+      const nextContainer = containerEditsById.get(currentContainer.id);
+      if (!nextContainer) {
+        continue;
+      }
+      if (
+        "containerNumber" in nextContainer &&
+        trimOrNull(nextContainer.containerNumber) !== trimOrNull(currentContainer.containerNumber)
+      ) {
         throw new Error("Container Number cannot be changed in the current order status.");
       }
-      if (trimOrNull(nextContainer.color) !== trimOrNull(currentContainer.color)) {
-        throw new Error("Container Color cannot be changed in the current order status.");
-      }
-      if (nextContainer.flp !== currentContainer.flp) {
-        throw new Error("Container FLP cannot be changed in the current order status.");
-      }
-      if (nextContainer.lbx !== currentContainer.lbx) {
-        throw new Error("Container LBX cannot be changed in the current order status.");
-      }
-      if (nextContainer.lockingBarsCount !== currentContainer.lockingBarsCount) {
-        throw new Error("Container Locking Bars cannot be changed in the current order status.");
-      }
-      if (nextContainer.ventsCount !== currentContainer.ventsCount) {
-        throw new Error("Container Vents cannot be changed in the current order status.");
-      }
-      if (trimOrNull(nextContainer.machineType) !== trimOrNull(currentContainer.machineType)) {
+      if (
+        "machineType" in nextContainer &&
+        trimOrNull(nextContainer.machineType) !== trimOrNull(currentContainer.machineType)
+      ) {
         throw new Error("Container Machine Type cannot be changed in the current order status.");
       }
-      if (nextContainer.yom !== currentContainer.yom) {
+      if ("yom" in nextContainer && nextContainer.yom !== currentContainer.yom) {
         throw new Error("Container YOM cannot be changed in the current order status.");
       }
     }
@@ -2742,19 +3027,18 @@ function ensurePlannedPodOnlyPayloadAllowed(
   ) {
     throw new Error("Vendor bank information cannot be changed in the current order status.");
   }
-  if (
-    JSON.stringify(input.materialTypes) !==
-    JSON.stringify(
-      currentOrder.materialTypes.map((row) => ({
-        materialType: row.materialType,
-        materialVendorId: row.materialVendorId,
-      }))
-    )
-  ) {
+  if (materialTypesChanged(input.purchaseType, input.materialTypes, currentOrder.materialTypes)) {
     throw new Error("Material Vendors cannot be changed in the current order status.");
+  }
+  if (itemAttachmentsChanged(input.itemAttachments, currentOrder.itemAttachments)) {
+    throw new Error("Attachments cannot be changed in the current order status.");
   }
   if (input.items.length !== currentOrder.items.length) {
     throw new Error("Purchase items cannot be changed in the current order status.");
+  }
+
+  if ((input.newContainers?.length ?? 0) > 0) {
+    throw new Error("Container rows cannot be restructured in the current order status.");
   }
 
   for (let index = 0; index < currentOrder.items.length; index += 1) {
@@ -3016,8 +3300,18 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
     remark: item.remark?.trim() || null,
   }));
 
-  const { error: itemsError } = await supabase.from("purchase_order_item").insert(itemRows);
+  const { data: insertedItems, error: itemsError } = await supabase
+    .from("purchase_order_item")
+    .insert(itemRows)
+    .select("id, line_no");
   if (itemsError) throw new Error(itemsError.message);
+
+  const resolvedItemIdsByInputKey = new Map(
+    input.items.flatMap((item, index) => {
+      const resolvedItemId = (insertedItems ?? []).find((row) => row.line_no === index + 1)?.id;
+      return resolvedItemId ? [[item.itemKey, resolvedItemId] as const] : [];
+    })
+  );
 
   if (shouldShowMaterialTypes(input.purchaseType)) {
     const { error: materialTypesError } = await supabase
@@ -3031,6 +3325,13 @@ export async function createPurchaseOrderDraft(input: PurchaseOrderDraftInput): 
       );
     if (materialTypesError) throw new Error(materialTypesError.message);
   }
+
+  await syncPurchaseOrderItemAttachments(
+    supabase,
+    orderRow.id,
+    input.itemAttachments,
+    resolvedItemIdsByInputKey
+  );
 
   revalidatePath("/purchase/po-management");
   revalidatePath(`/purchase/po-management/${orderRow.id}`);
@@ -3298,7 +3599,7 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
       .from("purchase_order_item")
       .insert(itemRows)
       .select(
-        "id, line_no, location_city_id, depot_id, container_size_code_id, container_type_code_id, container_condition_code_id, unit_price"
+        "id, line_no, location_city_id, depot_id, container_size_code_id, container_type_code_id, container_condition_code_id, unit_price, financial_cost"
       );
     if (itemsError) throw new Error(itemsError.message);
 
@@ -3307,6 +3608,18 @@ export async function createPurchaseOrderSubmit(input: PurchaseOrderDraftInput):
     );
     const itemByKey = new Map(
       input.items.map((item, index) => [item.itemKey, itemByLineNo.get(index + 1)])
+    );
+
+    await syncPurchaseOrderItemAttachments(
+      supabase,
+      orderRow.id,
+      input.itemAttachments,
+      new Map(
+        input.items.flatMap((item, index) => {
+          const resolvedItem = itemByLineNo.get(index + 1);
+          return resolvedItem?.id ? [[item.itemKey, resolvedItem.id] as const] : [];
+        })
+      )
     );
 
     if (shouldShowMaterialTypes(input.purchaseType)) {
@@ -3436,7 +3749,17 @@ export async function updatePurchaseOrderDraft(
     .eq("purchase_order_id", orderId);
   if (deleteContainersError) throw new Error(deleteContainersError.message);
 
-  await replaceOrderItemsAndMaterials(supabase, orderId, input);
+  const resolvedDraftItemRows = await replaceOrderItemsAndMaterials(supabase, orderId, input);
+  await syncPurchaseOrderItemAttachments(
+    supabase,
+    orderId,
+    input.itemAttachments,
+    new Map(
+      Array.from(resolvedDraftItemRows.entries()).flatMap(([itemKey, row]) =>
+        row?.id ? [[itemKey, row.id] as const] : []
+      )
+    )
+  );
   revalidatePurchasePaths(orderId);
 
   return { orderId, orderNo: orderRow.order_no };
@@ -3507,6 +3830,16 @@ export async function submitPurchaseOrderDraftUpdate(
   if (deleteContainersError) throw new Error(deleteContainersError.message);
 
   const itemByKey = await replaceOrderItemsAndMaterials(supabase, orderId, input);
+  await syncPurchaseOrderItemAttachments(
+    supabase,
+    orderId,
+    input.itemAttachments,
+    new Map(
+      Array.from(itemByKey.entries()).flatMap(([itemKey, row]) =>
+        row?.id ? [[itemKey, row.id] as const] : []
+      )
+    )
+  );
   const containerPayload = buildContainerPayloadForSubmit({
     input,
     orderId,
@@ -3756,6 +4089,7 @@ export async function updatePurchaseOrderPending(
   for (let index = 0; index < input.items.length; index += 1) {
     const nextItem = input.items[index];
     if (!nextItem) continue;
+    const currentItem = currentItemsById.get(nextItem.itemKey);
 
     const itemPayload = {
       line_no: temporaryLineNoBase + index,
@@ -3783,7 +4117,7 @@ export async function updatePurchaseOrderPending(
       planned_qty: nextItem.plannedQty,
       unit_price: nextItem.unitPrice,
       settlement_price: nextItem.unitPrice,
-      financial_cost: null,
+      financial_cost: currentItem?.financialCost ?? null,
       line_amount: computeLineAmount(nextItem.plannedQty, nextItem.unitPrice),
       remark: trimOrNull(nextItem.remark),
     };
@@ -3830,6 +4164,7 @@ export async function updatePurchaseOrderPending(
 
   for (const nextItem of input.items) {
     const resolvedItemId = resolvedItemIdsByInputKey.get(nextItem.itemKey);
+    const currentItem = currentItemsById.get(nextItem.itemKey);
     if (!resolvedItemId) {
       throw new Error(`Purchase item could not be resolved for key ${nextItem.itemKey}.`);
     }
@@ -3846,14 +4181,85 @@ export async function updatePurchaseOrderPending(
     );
 
     const retainedExistingCount = Math.min(desiredActiveCount, activeExistingForItem.length);
+    const sharedFields = buildSharedContainerFieldsFromItem({
+      item: nextItem,
+      purchaseType: input.purchaseType,
+      financialCost: currentItem?.financialCost ?? null,
+    });
+    const changedSharedFieldKeys = currentItem
+      ? getChangedSharedContainerFieldKeys({
+          currentItem,
+          nextItem,
+          purchaseType: input.purchaseType,
+        })
+      : new Set<keyof SharedContainerFieldsPayload>();
     for (let index = 0; index < retainedExistingCount; index += 1) {
       const existingContainer = activeExistingForItem[index];
       if (!existingContainer) continue;
       const nextContainer = inputContainerEditsById.get(existingContainer.id);
-      const offlineDate =
-        input.purchaseType === "FACTORY_ORDER"
-          ? nextContainer?.offlineDate ?? existingContainer.offlineDate ?? null
-          : nextItem.offlineDate || null;
+      const mergedSharedFields: SharedContainerFieldsPayload = {
+        location_city_id: changedSharedFieldKeys.has("location_city_id")
+          ? sharedFields.location_city_id
+          : existingContainer.locationCityId,
+        depot_id: changedSharedFieldKeys.has("depot_id")
+          ? sharedFields.depot_id
+          : existingContainer.depotId,
+        container_size_code_id: changedSharedFieldKeys.has("container_size_code_id")
+          ? sharedFields.container_size_code_id
+          : existingContainer.containerSizeCodeId,
+        container_type_code_id: changedSharedFieldKeys.has("container_type_code_id")
+          ? sharedFields.container_type_code_id
+          : existingContainer.containerTypeCodeId,
+        container_condition_code_id: changedSharedFieldKeys.has("container_condition_code_id")
+          ? sharedFields.container_condition_code_id
+          : existingContainer.containerConditionCodeId,
+        color: changedSharedFieldKeys.has("color")
+          ? sharedFields.color
+          : trimOrNull(existingContainer.color),
+        flp: changedSharedFieldKeys.has("flp") ? sharedFields.flp : existingContainer.flp,
+        lbx: changedSharedFieldKeys.has("lbx") ? sharedFields.lbx : existingContainer.lbx,
+        locking_bars_count: changedSharedFieldKeys.has("locking_bars_count")
+          ? sharedFields.locking_bars_count
+          : existingContainer.lockingBarsCount,
+        vents_count: changedSharedFieldKeys.has("vents_count")
+          ? sharedFields.vents_count
+          : existingContainer.ventsCount,
+        machine_type: changedSharedFieldKeys.has("machine_type")
+          ? sharedFields.machine_type
+          : trimOrNull(nextContainer?.machineType ?? existingContainer.machineType),
+        yom: changedSharedFieldKeys.has("yom")
+          ? sharedFields.yom
+          : nextContainer?.yom ?? existingContainer.yom,
+        estimated_offline_date: changedSharedFieldKeys.has("estimated_offline_date")
+          ? sharedFields.estimated_offline_date
+          : input.purchaseType === "FACTORY_ORDER"
+            ? (nextContainer?.estimatedOfflineDate ?? existingContainer.estimatedOfflineDate)
+            : null,
+        offline_date: changedSharedFieldKeys.has("offline_date")
+          ? sharedFields.offline_date
+          : nextContainer?.offlineDate ?? existingContainer.offlineDate,
+        planned_pod: changedSharedFieldKeys.has("planned_pod")
+          ? sharedFields.planned_pod
+          : trimOrNull(existingContainer.plannedPod),
+        tare_weight: changedSharedFieldKeys.has("tare_weight")
+          ? sharedFields.tare_weight
+          : nextContainer?.tareWeight ?? existingContainer.tareWeight,
+        maximum_weight: changedSharedFieldKeys.has("maximum_weight")
+          ? sharedFields.maximum_weight
+          : nextContainer?.maximumWeight ?? existingContainer.maximumWeight,
+        csc_number: changedSharedFieldKeys.has("csc_number")
+          ? sharedFields.csc_number
+          : trimOrNull(nextContainer?.cscNumber ?? existingContainer.cscNumber),
+        purchase_price: changedSharedFieldKeys.has("purchase_price")
+          ? sharedFields.purchase_price
+          : existingContainer.purchasePrice,
+        financial_cost: changedSharedFieldKeys.has("financial_cost")
+          ? sharedFields.financial_cost
+          : existingContainer.financialCost,
+      };
+      const offlineDate = changedSharedFieldKeys.has("offline_date")
+        ? sharedFields.offline_date
+        : (nextContainer?.offlineDate ?? existingContainer.offlineDate ?? null);
       const containerNumber =
         input.purchaseType === "FACTORY_ORDER" && usesInternalContainerNumbering
           ? existingContainer.containerNumber ?? null
@@ -3868,31 +4274,10 @@ export async function updatePurchaseOrderPending(
       const containerPayload = {
         purchase_order_id: orderId,
         purchase_order_item_id: resolvedItemId,
-        location_city_id: nextItem.locationCityId,
-        depot_id: nextItem.depotId,
-        container_size_code_id: nextItem.containerSizeCodeId,
-        container_type_code_id: nextItem.containerTypeCodeId,
-        container_condition_code_id: nextItem.containerConditionCodeId,
-        color: trimOrNull(nextItem.color),
-        flp: nextItem.flp,
-        lbx: nextItem.lbx,
-        locking_bars_count: nextItem.lockingBarsCount,
-        vents_count: nextItem.ventsCount,
-        machine_type: trimOrNull(nextContainer?.machineType ?? existingContainer.machineType),
-        yom: nextContainer?.yom ?? existingContainer.yom,
-        estimated_offline_date:
-          input.purchaseType === "FACTORY_ORDER"
-            ? nextContainer?.estimatedOfflineDate ?? existingContainer.estimatedOfflineDate ?? null
-            : null,
+        ...mergedSharedFields,
         offline_date: offlineDate,
-        planned_pod: trimOrNull(nextItem.plannedPod),
-        tare_weight: nextContainer?.tareWeight ?? existingContainer.tareWeight,
-        maximum_weight: nextContainer?.maximumWeight ?? existingContainer.maximumWeight,
-        csc_number: trimOrNull(nextContainer?.cscNumber ?? existingContainer.cscNumber),
         container_number: containerNumber,
         item_status: itemStatus,
-        purchase_price: nextItem.unitPrice ?? existingContainer.purchasePrice ?? 0,
-        financial_cost: existingContainer.financialCost ?? 0,
         container_status: containerStatus,
       };
 
@@ -3926,35 +4311,12 @@ export async function updatePurchaseOrderPending(
           input.purchaseType,
           shouldShowVendorReleaseFields(input.purchaseType) ? input.vendorReleaseDate ?? null : null
         );
-      const offlineDate =
-        input.purchaseType === "FACTORY_ORDER"
-          ? nextContainer.offlineDate || null
-          : nextItem.offlineDate || null;
+      const offlineDate = sharedFields.offline_date;
 
       containersToInsertViaSubmitRpc.push({
         purchase_order_item_id: resolvedItemId,
-        location_city_id: nextItem.locationCityId,
-        depot_id: nextItem.depotId,
-        container_size_code_id: nextItem.containerSizeCodeId,
-        container_type_code_id: nextItem.containerTypeCodeId,
-        container_condition_code_id: nextItem.containerConditionCodeId,
-        color: trimOrNull(nextItem.color),
-        flp: nextItem.flp,
-        lbx: nextItem.lbx,
-        locking_bars_count: nextItem.lockingBarsCount,
-        vents_count: nextItem.ventsCount,
-        machine_type: trimOrNull(nextContainer.machineType),
-        yom: nextContainer.yom,
-        estimated_offline_date:
-          input.purchaseType === "FACTORY_ORDER"
-            ? nextContainer.estimatedOfflineDate || null
-            : null,
+        ...sharedFields,
         offline_date: offlineDate,
-        planned_pod: trimOrNull(nextItem.plannedPod),
-        tare_weight: nextContainer.tareWeight,
-        maximum_weight: nextContainer.maximumWeight,
-        csc_number: trimOrNull(nextContainer.cscNumber),
-        purchase_price: nextItem.unitPrice,
         container_number:
           input.purchaseType === "FACTORY_ORDER" && usesInternalContainerNumbering
             ? null
@@ -3977,6 +4339,13 @@ export async function updatePurchaseOrderPending(
   await syncPlannedPodForContainersByItem(
     supabase,
     buildItemPlannedPodRows(input.items, resolvedItemIdsByInputKey)
+  );
+
+  await syncPurchaseOrderItemAttachments(
+    supabase,
+    orderId,
+    input.itemAttachments,
+    resolvedItemIdsByInputKey
   );
 
   const nextStatus = await recalculatePurchaseOrderStatus(supabase, orderId);

@@ -1,0 +1,2 @@
+-- No local rows exported for public.company_bank_accounts.
+-- Run `npm run db:seed:export-basic-info` again after adding data.

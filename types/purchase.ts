@@ -134,6 +134,12 @@ export type PurchaseMaterialType =
   | "锁杆"
   | "底漆";
 
+export type PurchaseOrderItemAttachmentType =
+  | "VENDOR_RELEASE"
+  | "GENERAL"
+  | "INVOICE"
+  | "CONTRACT";
+
 export interface PurchaseVendorRef {
   id: string;
   vendor_code: string | null;
@@ -190,6 +196,23 @@ export interface PurchaseMaterialVendorRef {
   vendor_code: string | null;
   company_name: string | null;
   legal_company_name: string | null;
+}
+
+export interface PurchaseOrderItemAttachmentInput {
+  purchaseOrderItemId: string | null;
+  attachmentType: PurchaseOrderItemAttachmentType | "";
+  url: string;
+  remark: string | null;
+}
+
+export interface PurchaseOrderItemAttachmentRow {
+  id: string;
+  purchaseOrderItemId: string;
+  attachmentType: PurchaseOrderItemAttachmentType;
+  url: string;
+  remark: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PurchaseBankInformationSnapshot {
@@ -402,6 +425,7 @@ export interface PurchaseOrderDetail extends PurchaseOrderBase {
   buyer?: PurchaseBuyerRef | null;
   items: PurchaseOrderItem[];
   containers: PurchaseOrderContainer[];
+  itemAttachments: PurchaseOrderItemAttachmentRow[];
   materialTypes: PurchaseOrderMaterialTypeRow[];
   financeRecord: PurchaseFinanceRecord | null;
 }
@@ -498,5 +522,6 @@ export interface PurchaseOrderDraftInput {
   containers: PurchaseOrderDraftContainerInput[];
   containerEdits?: PurchaseOrderContainerEditPatchInput[];
   newContainers?: PurchaseOrderDraftContainerInput[];
+  itemAttachments: PurchaseOrderItemAttachmentInput[];
   materialTypes: PurchaseDraftMaterialTypeInput[];
 }

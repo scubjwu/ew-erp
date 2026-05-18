@@ -9,10 +9,12 @@ import { createClient } from "@supabase/supabase-js";
 const ROOT = process.cwd();
 const DB_SUPABASE_DIR = path.join(ROOT, "db", "supabase");
 const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
+const DEFAULT_APP_BASE_URL = "http://127.0.0.1:3000";
 const SEED_EXPORT_SCRIPT = path.join(ROOT, "scripts", "export_basic_info_seeds.py");
 const PURCHASE_SEED_FILES = [
   "20260403_purchase_order.sql",
   "20260403_purchase_order_item.sql",
+  "20260403_purchase_order_item_attachment_links.sql",
   "20260403_purchase_order_container.sql",
   "20260403_purchase_order_material_type.sql",
   "20260403_purchase_finance_record.sql",
@@ -47,6 +49,10 @@ function formatError(error) {
 
 function describeSupabaseReachabilityFailure(error) {
   return `Cannot reach local Supabase API ${LOCAL_SUPABASE_URL} from this environment. If this regression is running inside a sandboxed automation session, rerun it from a shell/session with local network access. Details: ${formatError(error)}`;
+}
+
+function describeLocalReachabilityFailure(target, error, label = "app URL") {
+  return `Cannot reach ${label} ${target} from this environment. If this regression is running inside a sandboxed automation session, rerun it from a shell/session with local network access. Details: ${formatError(error)}`;
 }
 
 function run(command, args, options = {}) {
@@ -145,6 +151,41 @@ async function waitForSupabaseReady(supabase) {
   throw new Error(`Supabase API did not become ready after reset: ${String(lastError)}`);
 }
 
+async function fetchHtml(url) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  if (!response.ok) {
+    fail(`Expected ${url} to return 200, got ${response.status}`);
+  }
+  return response.text();
+}
+
+async function assertHttpPage(url, { includes = [], excludes = [] } = {}) {
+  let lastFailure = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      const body = await fetchHtml(url);
+      if (body.includes("Unhandled Runtime Error")) {
+        lastFailure = `Runtime error detected in ${url}`;
+      } else if (body.includes("Error:")) {
+        lastFailure = `Unexpected error text detected in ${url}`;
+      } else {
+        const missingText = includes.find((text) => !body.includes(text));
+        if (missingText) {
+          lastFailure = `Expected ${url} to include "${missingText}"`;
+        } else {
+          const unexpectedText = excludes.find((text) => body.includes(text));
+          if (!unexpectedText) return;
+          lastFailure = `Expected ${url} to exclude "${unexpectedText}"`;
+        }
+      }
+    } catch (error) {
+      lastFailure = describeLocalReachabilityFailure(url, error, "app URL");
+    }
+    await delay(1000);
+  }
+  fail(lastFailure ?? `Failed to validate ${url}`);
+}
+
 async function generateUniqueResetSafeUserCode(supabase) {
   const rows = await must(
     supabase
@@ -193,6 +234,8 @@ async function createRegressionFixtures(supabase, stamp) {
     lesseeId: null,
     ownerId: null,
     purchaseOrderId: null,
+    purchaseOrderItemId: null,
+    oneWayPlanId: null,
   };
 
   const last4 = stamp.slice(-4);
@@ -420,11 +463,11 @@ async function createRegressionFixtures(supabase, stamp) {
     "load purchase condition code"
   );
   const city = await must(
-    supabase.from("cities").select("id, city_code").order("created_at", { ascending: true }).limit(1).single(),
+    supabase.from("cities").select("id, city_code, city_name, region").order("created_at", { ascending: true }).limit(1).single(),
     "load purchase city"
   );
   const depot = await must(
-    supabase.from("depots").select("id, depot_code").order("created_at", { ascending: true }).limit(1).single(),
+    supabase.from("depots").select("id, depot_code, depot_name").order("created_at", { ascending: true }).limit(1).single(),
     "load purchase depot"
   );
 
@@ -494,6 +537,34 @@ async function createRegressionFixtures(supabase, stamp) {
       .single(),
     "create reset-safe purchase item"
   );
+  ids.purchaseOrderItemId = purchaseItem.id;
+
+  await must(
+    supabase
+      .from("purchase_order_item_attachment_links")
+      .insert([
+        {
+          purchase_order_item_id: purchaseItem.id,
+          attachment_type: "VENDOR_RELEASE",
+          url: `https://example.com/reset-safe-vendor-release-${stamp}-1.pdf`,
+          remark: `reset-safe-vendor-release-1-${stamp}`,
+        },
+        {
+          purchase_order_item_id: purchaseItem.id,
+          attachment_type: "VENDOR_RELEASE",
+          url: `https://example.com/reset-safe-vendor-release-${stamp}-2.pdf`,
+          remark: `reset-safe-vendor-release-2-${stamp}`,
+        },
+        {
+          purchase_order_item_id: purchaseItem.id,
+          attachment_type: "GENERAL",
+          url: `https://example.com/reset-safe-general-${stamp}.pdf`,
+          remark: `reset-safe-general-${stamp}`,
+        },
+      ])
+      .select("id"),
+    "create reset-safe purchase item attachments"
+  );
 
   await must(
     supabase
@@ -531,6 +602,47 @@ async function createRegressionFixtures(supabase, stamp) {
     "create reset-safe purchase container"
   );
 
+  const createdOneWayPlan = await must(
+    supabase
+      .from("one_way_plan")
+      .insert({
+        offer_id: `RS-OFFER-${stamp}`,
+        status: "APPROVED",
+        apply_date: "2026-05-01",
+        availability_date: "2026-05-10",
+        arranged_dispatch_date: "2026-05-12",
+        lessee_id: createdLessee.id,
+        depot_id: null,
+        pol_city_id: city.id,
+        pod_codes_raw: `${city.city_code} / USLAX`,
+        size_code_id: sizeCode.id,
+        type_code_id: typeCode.id,
+        condition_code_id: conditionCode.id,
+        color_code: "RAL1001",
+        planned_qty: 3,
+        authorized_qty: 2,
+        remaining_qty: 1,
+        picked_up_qty: 1,
+        non_picked_up_qty: 0,
+        pickup_charge: 35,
+        free_days: 9,
+        per_diem: 4.25,
+        dpp: 15,
+        shipper_request_id: `RS-SHIPPER-${stamp}`,
+        onhire_no: `RS-ONHIRE-${stamp}`,
+        remarks: `reset-safe-${stamp}`,
+        conversion_status: "OPEN",
+        carrier: "RESET SAFE CARRIER",
+        currency: "USD",
+        rv: 12.5,
+        machine_type: "RS-MACHINE-TYPE",
+      })
+      .select("id, plan_id")
+      .single(),
+    "create reset-safe one way plan"
+  );
+  ids.oneWayPlanId = createdOneWayPlan.id;
+
   return { ids, markers: {
     userCode: createdUser.user_code,
     vendorCode: createdVendor.vendor_code,
@@ -538,6 +650,27 @@ async function createRegressionFixtures(supabase, stamp) {
     lesseeCode: createdLessee.lessee_code,
     ownerCode: createdOwner.container_owner_code,
     purchaseOrderNo: purchaseOrder.order_no,
+    purchaseOrderId: purchaseOrder.id,
+    purchaseOrderItemId: purchaseItem.id,
+    vendorReleaseNumber: `VRN-${stamp}`,
+    vendorReleaseRemark1: `reset-safe-vendor-release-1-${stamp}`,
+    vendorReleaseRemark2: `reset-safe-vendor-release-2-${stamp}`,
+    generalAttachmentRemark: `reset-safe-general-${stamp}`,
+    regionLabel: city.region,
+    cityCode: city.city_code,
+    cityName: city.city_name,
+    depotCode: depot.depot_code,
+    depotName: depot.depot_name,
+    sizeType: `${sizeCode.size_code}${typeCode.type_code}`,
+    conditionCode: conditionCode.condition_code,
+    color: "RAL1001",
+    machineType: "RS-MODEL",
+    oneWayPlanId: createdOneWayPlan.id,
+    oneWayPlanPlanId: createdOneWayPlan.plan_id,
+    oneWayPlanOfferId: `RS-OFFER-${stamp}`,
+    oneWayPlanShipperRequestId: `RS-SHIPPER-${stamp}`,
+    oneWayPlanOnhireNo: `RS-ONHIRE-${stamp}`,
+    oneWayPlanMachineType: "RS-MACHINE-TYPE",
     stamp,
   }};
 }
@@ -600,6 +733,37 @@ async function assertRestored(supabase, markers) {
   if (purchaseItems[0].planned_pod !== `POD-${markers.stamp}`) fail("Restored purchase item planned POD mismatch");
   if (purchaseItems[0].estimated_offline_date !== "2026-04-09") fail("Restored purchase item estimated offline date mismatch");
 
+  const purchaseItemAttachments = await must(
+    supabase
+      .from("purchase_order_item_attachment_links")
+      .select("attachment_type, remark")
+      .eq("purchase_order_item_id", markers.purchaseOrderItemId)
+      .order("created_at", { ascending: true }),
+    "verify restored purchase item attachments"
+  );
+  if ((purchaseItemAttachments ?? []).length !== 3) {
+    fail("Restored purchase item attachments mismatch");
+  }
+  const attachmentTypes = new Set(
+    (purchaseItemAttachments ?? []).map((row) => row.attachment_type)
+  );
+  if (!attachmentTypes.has("VENDOR_RELEASE") || !attachmentTypes.has("GENERAL")) {
+    fail("Restored purchase item attachment types mismatch");
+  }
+  if (
+    !(purchaseItemAttachments ?? []).some(
+      (row) => row.remark === markers.vendorReleaseRemark1
+    ) ||
+    !(purchaseItemAttachments ?? []).some(
+      (row) => row.remark === markers.vendorReleaseRemark2
+    ) ||
+    !(purchaseItemAttachments ?? []).some(
+      (row) => row.remark === markers.generalAttachmentRemark
+    )
+  ) {
+    fail("Restored purchase item attachment remarks mismatch");
+  }
+
   const purchaseContainers = await must(
     supabase
       .from("purchase_order_container")
@@ -620,6 +784,30 @@ async function assertRestored(supabase, markers) {
     "verify restored purchase finance record"
   );
   if ((financeRecords ?? []).length !== 1) fail("Restored purchase finance record missing");
+
+  const oneWayPlan = await must(
+    supabase
+      .from("one_way_plan")
+      .select(
+        "id, plan_id, offer_id, conversion_status, carrier, currency, rv, onhire_no, shipper_request_id, depot_id, machine_type"
+      )
+      .eq("plan_id", markers.oneWayPlanPlanId)
+      .single(),
+    "verify restored one way plan"
+  );
+  if (oneWayPlan.offer_id !== markers.oneWayPlanOfferId) fail("Restored one way plan offer id mismatch");
+  if (oneWayPlan.conversion_status !== "OPEN") fail("Restored one way plan conversion status mismatch");
+  if (oneWayPlan.carrier !== "RESET SAFE CARRIER") fail("Restored one way plan carrier mismatch");
+  if (oneWayPlan.currency !== "USD") fail("Restored one way plan currency mismatch");
+  if (Number(oneWayPlan.rv) !== 12.5) fail("Restored one way plan rv mismatch");
+  if (oneWayPlan.onhire_no !== markers.oneWayPlanOnhireNo) fail("Restored one way plan onhire mismatch");
+  if (oneWayPlan.shipper_request_id !== markers.oneWayPlanShipperRequestId) {
+    fail("Restored one way plan shipper request id mismatch");
+  }
+  if (oneWayPlan.machine_type !== markers.oneWayPlanMachineType) {
+    fail("Restored one way plan machine type mismatch");
+  }
+  if (oneWayPlan.depot_id !== null) fail("Restored one way plan nullable depot mismatch");
 }
 
 async function assertTableCount(supabase, table, expected) {
@@ -650,10 +838,10 @@ async function assertBasicInfoRestored(supabase) {
   await assertTableCount(supabase, "region_codes", 18);
   await must(supabase.from("region_codes").select("id").eq("region_code", "China").single(), "verify region seed");
 
-  await assertTableCount(supabase, "cities", 412);
+  await assertTableCount(supabase, "cities", 413);
   await must(supabase.from("cities").select("id").eq("city_code", "USLAX").single(), "verify city seed");
 
-  await assertTableCount(supabase, "depots", 414);
+  await assertTableCount(supabase, "depots", 415);
   await must(supabase.from("depots").select("id").eq("depot_code", "USLAX001").single(), "verify depot seed");
   await must(supabase.from("depots").select("id").eq("depot_code", "USLAXVDP").single(), "verify vendor depot seed");
 
@@ -691,6 +879,171 @@ async function assertBasicInfoRestored(supabase) {
   );
 }
 
+function normalizeUrlPath(url) {
+  return url.replace(/\/+$/, "");
+}
+
+function buildDispatchReleaseCreateUrl(markers) {
+  const params = new URLSearchParams({
+    region: markers.regionLabel,
+    city: `${markers.cityCode} · ${markers.cityName}`,
+    depot: markers.depotName,
+    sizeType: markers.sizeType,
+    condition: markers.conditionCode,
+    color: markers.color,
+    machineType: markers.machineType,
+    releaseSource: "VENDOR_REF",
+    sourcePurchaseOrderId: markers.purchaseOrderId,
+    sourcePurchaseOrderItemId: markers.purchaseOrderItemId,
+    vendorReleaseNumber: markers.vendorReleaseNumber,
+  });
+  return `/dispatch/dispatch-release/create?${params.toString()}`;
+}
+
+async function createDispatchReleaseFixture(supabase, markers) {
+  const [purchaseItem, lessee, city, depot, sourceAttachments] = await Promise.all([
+    must(
+      supabase
+        .from("purchase_order_item")
+        .select("id, vendor_release_number")
+        .eq("id", markers.purchaseOrderItemId)
+        .single(),
+      "load restored purchase item for dispatch fixture"
+    ),
+    must(
+      supabase.from("lessees").select("id").eq("lessee_code", markers.lesseeCode).single(),
+      "load restored lessee for dispatch fixture"
+    ),
+    must(
+      supabase.from("cities").select("id").eq("city_code", markers.cityCode).single(),
+      "load dispatch fixture city"
+    ),
+    must(
+      supabase.from("depots").select("id").eq("depot_code", markers.depotCode).single(),
+      "load dispatch fixture depot"
+    ),
+    must(
+      supabase
+        .from("purchase_order_item_attachment_links")
+        .select("id, attachment_type, url, remark")
+        .eq("purchase_order_item_id", markers.purchaseOrderItemId)
+        .order("created_at", { ascending: true }),
+      "load dispatch fixture source attachments"
+    ),
+  ]);
+
+  const releaseNumber = `DRS${markers.stamp.slice(-7)}`;
+  const insertedOrder = await must(
+    supabase
+      .from("transfer_order")
+      .insert({
+        order_no: releaseNumber,
+        transfer_type: "ONE_WAY_LEASE",
+        from_depot_id: depot.id,
+        to_depot_id: null,
+        customer_id: null,
+        status: "CREATED",
+        total_cost: 0,
+        total_revenue: 0,
+        release_source: "VENDOR_REF",
+        source_purchase_order_id: markers.purchaseOrderId,
+        source_purchase_order_item_id: markers.purchaseOrderItemId,
+        vendor_release_number: purchaseItem.vendor_release_number,
+        dispatch_vendor_id: lessee.id,
+        onhire_no: `ONH-${markers.stamp.slice(-6)}`,
+        release_date: "2026-05-03",
+        pol_city_id: city.id,
+        pod_city_id: city.id,
+        carrier: "RESET SAFE CARRIER",
+        box_selection_mode: "UNSPECIFIED",
+        release_qty: 1,
+        assigned_qty: 0,
+        unassigned_qty: 1,
+        pickup_charge: 25,
+        dpp: 0,
+        free_days: 10,
+        rv: 0,
+        daily_rent: 3,
+        trucking_cost: 0,
+        handling_fee: 0,
+        repair_cost_total: 0,
+        damage_claim_total: 0,
+      })
+      .select("id, order_no")
+      .single(),
+    "create reset-safe dispatch release"
+  );
+
+  const vendorReleaseAttachments = (sourceAttachments ?? []).filter(
+    (row) => row.attachment_type === "VENDOR_RELEASE"
+  );
+  if (vendorReleaseAttachments.length !== 2) {
+    fail("Expected two VENDOR_RELEASE attachments for dispatch fixture");
+  }
+
+  await must(
+    supabase
+      .from("transfer_order_attachment_links")
+      .insert(
+        vendorReleaseAttachments.map((row) => ({
+          transfer_order_id: insertedOrder.id,
+          source_purchase_order_item_attachment_id: row.id,
+          url: row.url,
+          remark: row.remark,
+          inherited: true,
+        }))
+      )
+      .select("id"),
+    "inherit reset-safe vendor release attachments"
+  );
+
+  return {
+    transferOrderId: insertedOrder.id,
+    releaseNumber: insertedOrder.order_no,
+  };
+}
+
+async function assertDispatchReleaseVendorAttachmentFlow(supabase, appBaseUrl, markers) {
+  const createUrl = `${normalizeUrlPath(appBaseUrl)}${buildDispatchReleaseCreateUrl(markers)}`;
+  await assertHttpPage(createUrl, {
+    includes: [
+      "Create Dispatch Release",
+    ],
+  });
+
+  const { transferOrderId, releaseNumber } = await createDispatchReleaseFixture(
+    supabase,
+    markers
+  );
+
+  const inheritedRows = await must(
+    supabase
+      .from("transfer_order_attachment_links")
+      .select("remark, inherited")
+      .eq("transfer_order_id", transferOrderId)
+      .order("created_at", { ascending: true }),
+    "verify inherited transfer order attachments"
+  );
+  if ((inheritedRows ?? []).length !== 2) {
+    fail("Expected exactly two inherited vendor release attachments on transfer order");
+  }
+  if ((inheritedRows ?? []).some((row) => row.inherited !== true)) {
+    fail("Expected all transfer order attachments to be marked inherited");
+  }
+  if ((inheritedRows ?? []).some((row) => row.remark === markers.generalAttachmentRemark)) {
+    fail("GENERAL attachment should not be inherited onto transfer order");
+  }
+
+  const detailUrl = `${normalizeUrlPath(appBaseUrl)}/dispatch/dispatch-release/${transferOrderId}`;
+  await assertHttpPage(detailUrl, {
+    includes: [
+      "Dispatch Release Detail",
+      "Release Number",
+      releaseNumber,
+    ],
+  });
+}
+
 async function cleanupRestored(_supabase, markers) {
   const userCode = escapeLiteral(markers.userCode);
   const vendorCode = escapeLiteral(markers.vendorCode);
@@ -699,6 +1052,8 @@ async function cleanupRestored(_supabase, markers) {
   const ownerCode = escapeLiteral(markers.ownerCode);
   const purchaseOrderNo = escapeLiteral(markers.purchaseOrderNo);
 
+  runPsql(`delete from public.transfer_order where order_no like 'DRS%';`);
+  runPsql(`delete from public.one_way_plan where plan_id = '${escapeLiteral(markers.oneWayPlanPlanId)}';`);
   runPsql(`delete from public.purchase_order where order_no = '${purchaseOrderNo}';`);
   runPsql(`delete from public.users where user_code = '${userCode}';`);
   runPsql(`delete from public.vendors where vendor_code = '${vendorCode}';`);
@@ -716,8 +1071,10 @@ function assertSeedFilesContain(markers) {
     [path.join(ROOT, "db/supabase/seeds/20260401_partner_master_container_owners.sql"), markers.ownerCode],
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order.sql"), markers.purchaseOrderNo],
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order_item.sql"), markers.purchaseOrderNo],
+    [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order_item_attachment_links.sql"), markers.purchaseOrderNo],
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_order_container.sql"), markers.purchaseOrderNo],
     [path.join(ROOT, "db/supabase/seeds/20260403_purchase_finance_record.sql"), markers.purchaseOrderNo],
+    [path.join(ROOT, "db/supabase/seeds/20260517_one_way_plan.sql"), markers.oneWayPlanPlanId],
   ];
   for (const [filePath, marker] of checks) {
     const body = fs.readFileSync(filePath, "utf8");
@@ -727,6 +1084,7 @@ function assertSeedFilesContain(markers) {
 
 async function main() {
   const env = readEnvFile();
+  const appBaseUrl = process.env.EW_ERP_BASE_URL || DEFAULT_APP_BASE_URL;
   runPsql("notify pgrst, 'reload schema';");
   const initialClient = buildClient(env);
   await waitForSupabaseReady(initialClient);
@@ -749,9 +1107,10 @@ async function main() {
     await waitForSupabaseReady(resetClient);
     await assertRestored(resetClient, markers);
     await assertBasicInfoRestored(resetClient);
+    await assertDispatchReleaseVendorAttachmentFlow(resetClient, appBaseUrl, markers);
 
     console.log("Reset-safe regression passed.");
-    console.log(JSON.stringify({ reset_safe_checks: 32 }, null, 2));
+    console.log(JSON.stringify({ reset_safe_checks: 39 }, null, 2));
   } finally {
     if (markers) {
       await cleanupRestored(null, markers);

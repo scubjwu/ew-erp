@@ -35,6 +35,7 @@ const SECTION_ICONS: Record<BasicInfoSectionSlug, LucideIcon> = {
   "size-codes": Ruler,
   "type-codes": Package2,
   "operation-prices": Scale,
+  "financial-exchange-rates": CircleDollarSign,
   "container-number-rules": ClipboardList,
 };
 
@@ -49,6 +50,7 @@ const SECTION_COUNT_LABELS: Record<BasicInfoSectionSlug, string> = {
   "size-codes": "size codes",
   "type-codes": "container types",
   "operation-prices": "price configs",
+  "financial-exchange-rates": "exchange rates",
   "container-number-rules": "number rules",
 };
 

@@ -1,0 +1,9 @@
+BEGIN;
+
+INSERT INTO public.purchase_order_item_attachment_links (id, purchase_order_item_id, attachment_type, url, remark, created_at, updated_at) VALUES ('b03a43fa-4208-4ec6-b703-e64bbb90456f', (SELECT poi.id FROM public.purchase_order_item poi JOIN public.purchase_order po ON po.id = poi.purchase_order_id WHERE po.order_no = 'PO-RS-1779075414136' AND poi.line_no = 1 LIMIT 1), 'GENERAL', 'https://example.com/reset-safe-general-1779075414136.pdf', 'reset-safe-general-1779075414136', '2026-05-18T03:36:54.206202+00:00', '2026-05-18T03:36:54.206202+00:00');
+INSERT INTO public.purchase_order_item_attachment_links (id, purchase_order_item_id, attachment_type, url, remark, created_at, updated_at) VALUES ('be31fe18-50ce-48d2-8627-c87fe3b72704', (SELECT poi.id FROM public.purchase_order_item poi JOIN public.purchase_order po ON po.id = poi.purchase_order_id WHERE po.order_no = 'PO-RS-1779075414136' AND poi.line_no = 1 LIMIT 1), 'VENDOR_RELEASE', 'https://example.com/reset-safe-vendor-release-1779075414136-2.pdf', 'reset-safe-vendor-release-2-1779075414136', '2026-05-18T03:36:54.206202+00:00', '2026-05-18T03:36:54.206202+00:00');
+INSERT INTO public.purchase_order_item_attachment_links (id, purchase_order_item_id, attachment_type, url, remark, created_at, updated_at) VALUES ('d374e53e-1d23-4cd4-b6eb-cf9ec0f922a4', (SELECT poi.id FROM public.purchase_order_item poi JOIN public.purchase_order po ON po.id = poi.purchase_order_id WHERE po.order_no = 'PO-RS-1779075414136' AND poi.line_no = 1 LIMIT 1), 'VENDOR_RELEASE', 'https://example.com/reset-safe-vendor-release-1779075414136-1.pdf', 'reset-safe-vendor-release-1-1779075414136', '2026-05-18T03:36:54.206202+00:00', '2026-05-18T03:36:54.206202+00:00');
+
+COMMIT;
+
+-- rows exported: 3

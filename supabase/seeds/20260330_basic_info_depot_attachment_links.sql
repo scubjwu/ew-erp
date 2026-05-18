@@ -1,0 +1,2 @@
+-- No local rows exported for public.depot_attachment_links.
+-- Run `npm run db:seed:export-basic-info` again after adding data.

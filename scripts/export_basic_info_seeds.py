@@ -38,9 +38,11 @@ TABLE_SPECS = [
     ("container_owner_attachment_links", "20260401_partner_master_container_owners_attachment_links.sql"),
     ("purchase_order", "20260403_purchase_order.sql"),
     ("purchase_order_item", "20260403_purchase_order_item.sql"),
+    ("purchase_order_item_attachment_links", "20260403_purchase_order_item_attachment_links.sql"),
     ("purchase_order_container", "20260403_purchase_order_container.sql"),
     ("purchase_order_material_type", "20260403_purchase_order_material_type.sql"),
     ("purchase_finance_record", "20260403_purchase_finance_record.sql"),
+    ("one_way_plan", "20260517_one_way_plan.sql"),
 ]
 
 DO_NOT_PRESERVE_WHEN_EMPTY = {
@@ -54,15 +56,17 @@ DO_NOT_PRESERVE_WHEN_EMPTY = {
     "container_owner_attachment_links",
     "purchase_order",
     "purchase_order_item",
+    "purchase_order_item_attachment_links",
     "purchase_order_container",
     "purchase_order_material_type",
     "purchase_finance_record",
+    "one_way_plan",
 }
 
 EXCLUDED_EXPORT_COLUMNS = {
     "purchase_order": {"vendor_release_number", "planned_pod"},
     "purchase_order_item": {"payload_weight"},
-    "purchase_order_container": {"payload_weight"},
+    "purchase_order_container": {"payload_weight", "container_id"},
 }
 
 def run_psql(sql: str) -> str:
@@ -447,6 +451,74 @@ from (
 ) as t;
 """
 
+    if table_name == "one_way_plan":
+        lessee_extra = ""
+        lessee_join = ""
+        if "lessee_id" in column_set:
+            lessee_extra = ", l.lessee_code as __lessee_code_ref"
+            lessee_join = "left join public.lessees l on l.id = p.lessee_id"
+
+        depot_extra = ""
+        depot_join = ""
+        if "depot_id" in column_set:
+            depot_extra = ", d.depot_code as __depot_code_ref"
+            depot_join = "left join public.depots d on d.id = p.depot_id"
+
+        city_extra = ""
+        city_join = ""
+        if "pol_city_id" in column_set:
+            city_extra = ", c.city_code as __city_code_ref"
+            city_join = "left join public.cities c on c.id = p.pol_city_id"
+
+        size_extra = ""
+        size_join = ""
+        if "size_code_id" in column_set:
+            size_extra = ", sz.size_code as __size_code_ref"
+            size_join = "left join public.container_size_codes sz on sz.id = p.size_code_id"
+
+        type_extra = ""
+        type_join = ""
+        if "type_code_id" in column_set:
+            type_extra = ", ty.type_code as __type_code_ref"
+            type_join = "left join public.container_type_codes ty on ty.id = p.type_code_id"
+
+        condition_extra = ""
+        condition_join = ""
+        if "condition_code_id" in column_set:
+            condition_extra = ", cc.condition_code as __condition_code_ref"
+            condition_join = "left join public.container_condition_codes cc on cc.id = p.condition_code_id"
+
+        return f"""
+select row_to_json(t)::text
+from (
+  select
+    p.*{lessee_extra}{depot_extra}{city_extra}{size_extra}{type_extra}{condition_extra}
+  from public.one_way_plan p
+  {lessee_join}
+  {depot_join}
+  {city_join}
+  {size_join}
+  {type_join}
+  {condition_join}
+  order by p.plan_id
+) as t;
+"""
+
+    if table_name == "purchase_order_item_attachment_links":
+        return """
+select row_to_json(t)::text
+from (
+  select
+    l.*,
+    po.order_no as __purchase_order_no_ref,
+    poi.line_no as __purchase_order_item_line_no_ref
+  from public.purchase_order_item_attachment_links l
+  join public.purchase_order_item poi on poi.id = l.purchase_order_item_id
+  join public.purchase_order po on po.id = poi.purchase_order_id
+  order by po.order_no, poi.line_no, l.created_at, l.id
+) as t;
+"""
+
     return f"""
 select row_to_json(t)::text
 from (
@@ -698,6 +770,50 @@ def render_column_value(table_name: str, row: dict, column: str, column_types: d
             if not vendor_code:
                 return "NULL"
             return f"(SELECT id FROM public.vendors WHERE vendor_code = {sql_literal(vendor_code)} LIMIT 1)"
+
+    if table_name == "one_way_plan":
+        if column == "lessee_id":
+            lessee_code = row.get("__lessee_code_ref")
+            if not lessee_code:
+                return "NULL"
+            return f"(SELECT id FROM public.lessees WHERE lessee_code = {sql_literal(lessee_code)} LIMIT 1)"
+        if column == "depot_id":
+            depot_code = row.get("__depot_code_ref")
+            if not depot_code:
+                return "NULL"
+            return f"(SELECT id FROM public.depots WHERE depot_code = {sql_literal(depot_code)} LIMIT 1)"
+        if column == "pol_city_id":
+            city_code = row.get("__city_code_ref")
+            if not city_code:
+                return "NULL"
+            return f"(SELECT id FROM public.cities WHERE city_code = {sql_literal(city_code)} LIMIT 1)"
+        if column == "size_code_id":
+            size_code = row.get("__size_code_ref")
+            if not size_code:
+                return "NULL"
+            return f"(SELECT id FROM public.container_size_codes WHERE size_code = {sql_literal(size_code)} LIMIT 1)"
+        if column == "type_code_id":
+            type_code = row.get("__type_code_ref")
+            if not type_code:
+                return "NULL"
+            return f"(SELECT id FROM public.container_type_codes WHERE type_code = {sql_literal(type_code)} LIMIT 1)"
+        if column == "condition_code_id":
+            condition_code = row.get("__condition_code_ref")
+            if not condition_code:
+                return "NULL"
+            return f"(SELECT id FROM public.container_condition_codes WHERE condition_code = {sql_literal(condition_code)} LIMIT 1)"
+
+    if table_name == "purchase_order_item_attachment_links":
+        if column == "purchase_order_item_id":
+            order_no = row.get("__purchase_order_no_ref")
+            line_no = row.get("__purchase_order_item_line_no_ref")
+            if not order_no or line_no is None:
+                return "NULL"
+            return (
+                "(SELECT poi.id FROM public.purchase_order_item poi "
+                "JOIN public.purchase_order po ON po.id = poi.purchase_order_id "
+                f"WHERE po.order_no = {sql_literal(order_no)} AND poi.line_no = {sql_literal(line_no)} LIMIT 1)"
+            )
 
     value = row.get(column)
     if column_types.get(column, "") == "_text":

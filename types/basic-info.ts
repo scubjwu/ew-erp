@@ -9,6 +9,7 @@ export type BasicInfoSectionSlug =
   | "size-codes"
   | "type-codes"
   | "operation-prices"
+  | "financial-exchange-rates"
   | "container-number-rules";
 
 export type BasicInfoSectionMeta = {
@@ -133,6 +134,21 @@ export const BASIC_INFO_SECTIONS: readonly BasicInfoSectionMeta[] = [
       "effective_from",
       "effective_to",
       "status",
+    ],
+  },
+  {
+    slug: "financial-exchange-rates",
+    title: "Financial Exchange Rates",
+    description:
+      "Maintain effective-from financial exchange rates by currency pair for dispatch cost and revenue conversions.",
+    tableName: "financial_exchange_rate",
+    fields: [
+      "rate_date",
+      "from_currency",
+      "to_currency",
+      "exchange_rate",
+      "is_active",
+      "remark",
     ],
   },
   {

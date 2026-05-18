@@ -1,6 +1,7 @@
 BEGIN;
 
 INSERT INTO public.users (id, email, full_name, role, created_at, updated_at, user_code, status, phone, department, job_title, last_login_at, remarks) VALUES ('331fb823-e6c2-409e-a950-a72d9cb20a1d', 'reset.safe.user.1775361635182@example.com', 'Reset Safe User 1775361635182', 'Operations', '2026-04-05T04:00:35.4859+00:00', '2026-04-05T04:00:35.4859+00:00', 'RS5182', 'Active', '19990001111', 'QA', 'Reset Safe Tester', '2026-04-05T04:00:35.4859+00:00', 'reset-safe-1775361635182');
+INSERT INTO public.users (id, email, full_name, role, created_at, updated_at, user_code, status, phone, department, job_title, last_login_at, remarks) VALUES ('43f08bca-67df-409a-9c47-213c1270eac9', 'reset.safe.user.1779075414136@example.com', 'Reset Safe User 1779075414136', 'Operations', '2026-05-18T03:36:54.15384+00:00', '2026-05-18T03:36:54.15384+00:00', 'RS9897', 'Active', '19990001111', 'QA', 'Reset Safe Tester', '2026-05-18T03:36:54.15384+00:00', 'reset-safe-1779075414136');
 INSERT INTO public.users (id, email, full_name, role, created_at, updated_at, user_code, status, phone, department, job_title, last_login_at, remarks) VALUES ('45816238-3515-42a1-96f0-9823a8808e82', 'reset.safe.user.1775435540676@example.com', 'Reset Safe User 1775435540676', 'Operations', '2026-04-06T00:32:20.719814+00:00', '2026-04-06T00:32:20.719814+00:00', 'RS9893', 'Active', '19990001111', 'QA', 'Reset Safe Tester', '2026-04-06T00:32:20.719814+00:00', 'reset-safe-1775435540676');
 INSERT INTO public.users (id, email, full_name, role, created_at, updated_at, user_code, status, phone, department, job_title, last_login_at, remarks) VALUES ('5d446575-a34a-4f8c-8c3e-3556241679cc', 'reset.safe.user.1776646800690@example.com', 'Reset Safe User 1776646800690', 'Operations', '2026-04-20T01:00:00.711643+00:00', '2026-04-20T01:00:00.711643+00:00', 'RS9896', 'Active', '19990001111', 'QA', 'Reset Safe Tester', '2026-04-20T01:00:00.711643+00:00', 'reset-safe-1776646800690');
 INSERT INTO public.users (id, email, full_name, role, created_at, updated_at, user_code, status, phone, department, job_title, last_login_at, remarks) VALUES ('5dac0b3e-8a52-4a41-8a08-203b276022c6', 'reset.safe.user.1776554507193@example.com', 'Reset Safe User 1776554507193', 'Operations', '2026-04-18T23:21:47.213488+00:00', '2026-04-18T23:21:47.213488+00:00', 'RS9895', 'Active', '19990001111', 'QA', 'Reset Safe Tester', '2026-04-18T23:21:47.213488+00:00', 'reset-safe-1776554507193');
@@ -18,4 +19,4 @@ INSERT INTO public.users (id, email, full_name, role, created_at, updated_at, us
 
 COMMIT;
 
--- rows exported: 15
+-- rows exported: 16

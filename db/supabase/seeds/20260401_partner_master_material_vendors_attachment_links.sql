@@ -3,6 +3,7 @@ BEGIN;
 INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url, remark, created_at, updated_at) VALUES ('17c61229-6f80-4a02-a7c4-7cb383c6e18d', 'aef04608-a67f-474a-9d16-19fb51c33e54', 'https://example.com/reset-safe-material-1775282501708.pdf', 'reset-safe-1775282501708', '2026-04-04T06:01:41.780209+00:00', '2026-04-04T06:01:41.780209+00:00');
 INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url, remark, created_at, updated_at) VALUES ('2b7a63c8-fb9b-403a-ad58-df55c23a3a0e', '66d87b7e-6fee-4a8b-a8ba-6e1233983243', 'https://example.com/reset-safe-material-1775432601862.pdf', 'reset-safe-1775432601862', '2026-04-05T23:43:22.320912+00:00', '2026-04-05T23:43:22.320912+00:00');
 INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url, remark, created_at, updated_at) VALUES ('410e2de6-828b-4428-9bd5-5ece52089abd', 'b92e3b56-6141-4206-92a7-5784dfa5478a', 'https://example.com/reset-safe-material-1775282551814.pdf', 'reset-safe-1775282551814', '2026-04-04T06:02:31.916807+00:00', '2026-04-04T06:02:31.916807+00:00');
+INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url, remark, created_at, updated_at) VALUES ('7fab8dd9-f907-40a1-b83e-444a2cfe66fa', '4a3eb1d2-5fba-4667-b753-5a4e0ac0f728', 'https://example.com/reset-safe-material-1779075414136.pdf', 'reset-safe-1779075414136', '2026-05-18T03:36:54.169647+00:00', '2026-05-18T03:36:54.169647+00:00');
 INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url, remark, created_at, updated_at) VALUES ('99775d0f-4ced-48c0-8a12-1782ee42b734', '3f253719-ba20-438c-8a24-6ce24371ee5b', 'https://example.com/reset-safe-material-1775422194760.pdf', 'reset-safe-1775422194760', '2026-04-05T20:49:54.945843+00:00', '2026-04-05T20:49:54.945843+00:00');
 INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url, remark, created_at, updated_at) VALUES ('9fdf3731-c89b-4de5-92c9-f6262910e8ae', '2291ac4e-d407-468c-ad3a-0cd1fce30bb5', 'https://example.com/reset-safe-material-1775435540676.pdf', 'reset-safe-1775435540676', '2026-04-06T00:32:20.771301+00:00', '2026-04-06T00:32:20.771301+00:00');
 INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url, remark, created_at, updated_at) VALUES ('cf21173e-8f63-4597-a703-f87a3227b180', '7d6221ae-bb79-4388-8c23-f13b101e0614', 'https://example.com/reset-safe-material-1776554507193.pdf', 'reset-safe-1776554507193', '2026-04-18T23:21:47.234937+00:00', '2026-04-18T23:21:47.234937+00:00');
@@ -13,4 +14,4 @@ INSERT INTO public.material_vendor_attachment_links (id, material_vendor_id, url
 
 COMMIT;
 
--- rows exported: 10
+-- rows exported: 11

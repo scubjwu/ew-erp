@@ -92,9 +92,11 @@ sql_paths = [
   "./seeds/20260401_partner_master_container_owners_attachment_links.sql",
   "./seeds/20260403_purchase_order.sql",
   "./seeds/20260403_purchase_order_item.sql",
+  "./seeds/20260403_purchase_order_item_attachment_links.sql",
   "./seeds/20260403_purchase_order_container.sql",
   "./seeds/20260403_purchase_order_material_type.sql",
   "./seeds/20260403_purchase_finance_record.sql",
+  "./seeds/20260517_one_way_plan.sql",
 ]
 
 [db.network_restrictions]

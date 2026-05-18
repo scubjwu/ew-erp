@@ -229,8 +229,8 @@ function InventoryFilterInput({
 }
 
 function extractUnitCodes(raw: string): string[] {
-  // Matches 4 letters, optional spaces, 5-6 digits, optional space/hyphen, optional 1 digit
-  const regex = /[A-Z]{4}[\s]*\d{5,6}[\s-]*\d{0,1}/gi;
+  // ISO-style unit numbers: 3 owner letters + category (U/J/Z) + 6 digits + check digit.
+  const regex = /\b[A-Z]{3}[UJZ][\s]*\d{6}(?:[\s-]*\d)\b/gi;
   const matches = raw.match(regex);
   if (!matches?.length) return [];
   // Clean the matches by removing all spaces and hyphens, and uppercase them

@@ -61,6 +61,8 @@ import type {
   PurchaseBankInformationSnapshot,
   PurchaseDraftMaterialTypeInput,
   PurchaseEditFieldSet,
+  PurchaseOrderItemAttachmentInput,
+  PurchaseOrderItemAttachmentType,
   PurchaseOrderEditPermissions,
   PurchaseOrderDetail,
   PurchaseOrderDraftContainerInput,
@@ -104,6 +106,11 @@ type DraftMaterialTypeRow = PurchaseDraftMaterialTypeInput & {
   key: string;
 };
 
+type DraftAttachmentRow = PurchaseOrderItemAttachmentInput & {
+  key: string;
+  id?: string;
+};
+
 type EditableCellKey = {
   rowKey: string;
   column:
@@ -145,6 +152,16 @@ const FACTORY_PROGRESS_EDITABLE_COLUMNS = new Set<EditableCellKey["column"]>([
   "cscNumber",
 ]);
 
+const PURCHASE_ORDER_ATTACHMENT_TYPE_OPTIONS: Array<{
+  value: PurchaseOrderItemAttachmentType;
+  label: string;
+}> = [
+  { value: "VENDOR_RELEASE", label: "Vendor Release" },
+  { value: "GENERAL", label: "General" },
+  { value: "INVOICE", label: "Invoice" },
+  { value: "CONTRACT", label: "Contract" },
+];
+
 const FACTORY_PROGRESS_EDITABLE_CONTAINER_COLUMNS = new Set<EditableContainerField>([
   "estimatedOfflineDate",
   "offlineDate",
@@ -155,7 +172,12 @@ const FACTORY_PROGRESS_EDITABLE_CONTAINER_COLUMNS = new Set<EditableContainerFie
 
 type DraftFormState = Omit<
   PurchaseOrderDraftInput,
-  "orderNo" | "items" | "containers" | "materialTypes" | "vendorBankInformation"
+  | "orderNo"
+  | "items"
+  | "containers"
+  | "materialTypes"
+  | "itemAttachments"
+  | "vendorBankInformation"
 > & {
   vendorBankInformation: PurchaseBankInformationSnapshot | null;
 };
@@ -274,6 +296,66 @@ function createDraftContainerRow(input: PurchaseOrderDraftContainerInput): Draft
   };
 }
 
+const ITEM_OWNED_DRAFT_CONTAINER_FIELDS = [
+  "color",
+  "flp",
+  "lbx",
+  "lockingBarsCount",
+  "ventsCount",
+  "machineType",
+  "yom",
+  "estimatedOfflineDate",
+  "offlineDate",
+  "tareWeight",
+  "maximumWeight",
+  "cscNumber",
+] as const;
+
+type ItemOwnedDraftContainerField = (typeof ITEM_OWNED_DRAFT_CONTAINER_FIELDS)[number];
+
+function buildDraftContainerSharedFieldsFromItem(
+  item: DraftItemRow,
+  purchaseType: PurchaseType
+): Pick<PurchaseOrderDraftContainerInput, ItemOwnedDraftContainerField> {
+  return {
+    color: item.color ?? null,
+    flp: item.flp,
+    lbx: item.lbx,
+    lockingBarsCount: item.lockingBarsCount,
+    ventsCount: item.ventsCount,
+    machineType: item.machineType ?? null,
+    yom: item.yom ?? null,
+    estimatedOfflineDate: purchaseType === "FACTORY_ORDER" ? item.estimatedOfflineDate ?? null : null,
+    offlineDate: item.offlineDate ?? null,
+    tareWeight: item.tareWeight ?? null,
+    maximumWeight: item.maximumWeight ?? null,
+    cscNumber: item.cscNumber ?? null,
+  };
+}
+
+function getChangedDraftContainerSharedFields(args: {
+  previousItem?: DraftItemRow;
+  nextItem: DraftItemRow;
+  previousPurchaseType?: PurchaseType;
+  purchaseType: PurchaseType;
+}) {
+  if (!args.previousItem) return new Set<ItemOwnedDraftContainerField>();
+  const previousShared = buildDraftContainerSharedFieldsFromItem(
+    args.previousItem,
+    args.previousPurchaseType ?? args.purchaseType
+  );
+  const nextShared = buildDraftContainerSharedFieldsFromItem(args.nextItem, args.purchaseType);
+  const changed = new Set<ItemOwnedDraftContainerField>();
+
+  ITEM_OWNED_DRAFT_CONTAINER_FIELDS.forEach((field) => {
+    if (previousShared[field] !== nextShared[field]) {
+      changed.add(field);
+    }
+  });
+
+  return changed;
+}
+
 function patchToDraftContainerRow(
   row: PurchaseOrderContainer,
   patch?: PurchaseOrderContainerEditPatchInput
@@ -300,6 +382,8 @@ function patchToDraftContainerRow(
 function syncContainersWithItems(input: {
   current: DraftContainerRow[];
   items: DraftItemRow[];
+  previousItemsByKey: Map<string, DraftItemRow>;
+  previousPurchaseType: PurchaseType;
   purchaseType: PurchaseType;
   vendorReleaseDate: string | null;
 }) {
@@ -313,27 +397,66 @@ function syncContainersWithItems(input: {
       vendorReleaseDate: input.vendorReleaseDate,
     });
     const count = defaults.length;
+    const previousItem = input.previousItemsByKey.get(item.itemKey);
+    const changedFields = getChangedDraftContainerSharedFields({
+      previousItem,
+      previousPurchaseType: input.previousPurchaseType,
+      nextItem: item,
+      purchaseType: input.purchaseType,
+    });
     for (let index = 0; index < count; index += 1) {
       const base = defaults[index];
       const prior = existing[index];
       next.push(
-            prior
+        prior
           ? {
               ...prior,
               itemKey: item.itemKey,
-              estimatedOfflineDate:
-                input.purchaseType === "FACTORY_ORDER"
-                  ? prior.estimatedOfflineDate ?? base.estimatedOfflineDate
-                  : null,
-              offlineDate:
-                input.purchaseType === "FACTORY_ORDER"
-                  ? prior.offlineDate ?? base.offlineDate
-                  : base.offlineDate,
+              ...Object.fromEntries(
+                ITEM_OWNED_DRAFT_CONTAINER_FIELDS
+                  .filter((field) => changedFields.has(field))
+                  .map((field) => [field, base[field]])
+              ),
             }
           : createDraftContainerRow(base)
       );
     }
   }
+  return next;
+}
+
+function syncNewContainerDraftsWithItems(input: {
+  current: Record<string, DraftContainerRow[]>;
+  items: DraftItemRow[];
+  previousItemsByKey: Map<string, DraftItemRow>;
+  previousPurchaseType: PurchaseType;
+  purchaseType: PurchaseType;
+}) {
+  const next: Record<string, DraftContainerRow[]> = {};
+
+  for (const item of input.items) {
+    const existingRows = input.current[item.itemKey] ?? [];
+    if (existingRows.length === 0) continue;
+
+    const base = buildDraftContainerSharedFieldsFromItem(item, input.purchaseType);
+    const previousItem = input.previousItemsByKey.get(item.itemKey);
+    const changedFields = getChangedDraftContainerSharedFields({
+      previousItem,
+      previousPurchaseType: input.previousPurchaseType,
+      nextItem: item,
+      purchaseType: input.purchaseType,
+    });
+
+    next[item.itemKey] = existingRows.map((row) => ({
+      ...row,
+      ...Object.fromEntries(
+        ITEM_OWNED_DRAFT_CONTAINER_FIELDS
+          .filter((field) => changedFields.has(field))
+          .map((field) => [field, base[field]])
+      ),
+    }));
+  }
+
   return next;
 }
 
@@ -908,18 +1031,33 @@ function buildDraftMaterialTypesFromOrder(order: PurchaseOrderDetail): DraftMate
   }));
 }
 
+function buildDraftItemAttachmentsFromOrder(order: PurchaseOrderDetail): DraftAttachmentRow[] {
+  return order.itemAttachments.map((attachment) => ({
+    key: attachment.id,
+    id: attachment.id,
+    purchaseOrderItemId: attachment.purchaseOrderItemId,
+    attachmentType: attachment.attachmentType,
+    url: attachment.url,
+    remark: attachment.remark,
+  }));
+}
+
 export function PurchaseOrderCreateForm({
   options,
   initialOrder = null,
   mode = "create",
   editPermissions,
 }: Props) {
+  const initialDraftItems = useMemo(
+    () => (initialOrder ? buildDraftItemsFromOrder(initialOrder) : []),
+    [initialOrder]
+  );
   const initialItem = useMemo(
     () =>
       initialOrder
-        ? buildDraftItemsFromOrder(initialOrder)[0] ?? createEmptyItem(initialOrder.purchaseType, options.conditions)
+        ? initialDraftItems[0] ?? createEmptyItem(initialOrder.purchaseType, options.conditions)
         : createEmptyItem("FACTORY_ORDER", options.conditions),
-    [initialOrder, options.conditions]
+    [initialDraftItems, initialOrder, options.conditions]
   );
   const router = useRouter();
   const isEditMode = mode === "edit" && Boolean(initialOrder);
@@ -939,7 +1077,7 @@ export function PurchaseOrderCreateForm({
       : ""
   );
   const [items, setItems] = useState<DraftItemRow[]>(() =>
-    initialOrder ? buildDraftItemsFromOrder(initialOrder) : [initialItem]
+    initialOrder ? initialDraftItems : [initialItem]
   );
   const [containers, setContainers] = useState<DraftContainerRow[]>(() =>
     initialOrder && (!isEditMode || initialOrder.orderStatus === "DRAFT")
@@ -948,6 +1086,8 @@ export function PurchaseOrderCreateForm({
         : syncContainersWithItems({
             current: [],
             items: buildDraftItemsFromOrder(initialOrder),
+            previousItemsByKey: new Map(),
+            previousPurchaseType: initialOrder.purchaseType,
             purchaseType: initialOrder.purchaseType,
             vendorReleaseDate: initialOrder.vendorReleaseDate,
           })
@@ -971,6 +1111,9 @@ export function PurchaseOrderCreateForm({
       ? buildDraftMaterialTypesFromOrder(initialOrder)
       : buildFactoryMaterialTypeRows(options.materialVendors)
   );
+  const [itemAttachments, setItemAttachments] = useState<DraftAttachmentRow[]>(() =>
+    initialOrder ? buildDraftItemAttachmentsFromOrder(initialOrder) : []
+  );
   const [editingCell, setEditingCell] = useState<EditableCellKey | null>(null);
   const [expandedItemKey, setExpandedItemKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -984,23 +1127,73 @@ export function PurchaseOrderCreateForm({
     () => options.owners.find((option) => option.id === form.ownerId),
     [form.ownerId, options.owners]
   );
+  const itemAttachmentOptions = useMemo(() => {
+    const sizeMap = new Map(options.sizeCodes.map((option) => [option.id, option.code]));
+    const typeMap = new Map(options.typeCodes.map((option) => [option.id, option.code]));
+    const conditionMap = new Map(options.conditions.map((option) => [option.id, option.code]));
+
+    return items.map((item, index) => {
+      const sizeType = `${sizeMap.get(item.containerSizeCodeId ?? "") ?? "-"}${typeMap.get(item.containerTypeCodeId ?? "") ?? ""}` || "-";
+      const condition = conditionMap.get(item.containerConditionCodeId ?? "") ?? "-";
+      const color = item.color?.trim() || "-";
+      return {
+        value: item.itemKey,
+        label: `Line ${index + 1} · ${sizeType || "-"} · ${condition} · ${color}`,
+      };
+    });
+  }, [items, options.conditions, options.sizeCodes, options.typeCodes]);
   const useServerPagedContainerEditing = Boolean(
     isEditMode && initialOrder && initialOrder.orderStatus !== "DRAFT"
   );
   const factoryUsesInternalContainerNumbering =
     form.purchaseType === "FACTORY_ORDER" &&
     selectedOwner?.usesInternalContainerNumbering === true;
+  const previousItemsRef = useRef<Map<string, DraftItemRow>>(
+    new Map(
+      (initialOrder ? initialDraftItems : [initialItem]).map((item) => [
+        item.itemKey,
+        item,
+      ])
+    )
+  );
+  const previousPurchaseTypeRef = useRef<PurchaseType>(
+    initialOrder?.purchaseType ?? "FACTORY_ORDER"
+  );
+  const initialOrderItemsByKey = useMemo(
+    () =>
+      new Map(
+        initialDraftItems.map((item) => [item.itemKey, item] as const)
+      ),
+    [initialDraftItems]
+  );
 
   useEffect(() => {
-    if (useServerPagedContainerEditing) return;
-    setContainers((current) =>
-      syncContainersWithItems({
-        current,
-        items,
-        purchaseType: form.purchaseType,
-        vendorReleaseDate: form.vendorReleaseDate,
-      })
-    );
+    const previousItemsByKey = previousItemsRef.current;
+    const previousPurchaseType = previousPurchaseTypeRef.current;
+    if (useServerPagedContainerEditing) {
+      setNewContainerDraftsByItem((current) =>
+        syncNewContainerDraftsWithItems({
+          current,
+          items,
+          previousItemsByKey,
+          previousPurchaseType,
+          purchaseType: form.purchaseType,
+        })
+      );
+    } else {
+      setContainers((current) =>
+        syncContainersWithItems({
+          current,
+          items,
+          previousItemsByKey,
+          previousPurchaseType,
+          purchaseType: form.purchaseType,
+          vendorReleaseDate: form.vendorReleaseDate,
+        })
+      );
+    }
+    previousItemsRef.current = new Map(items.map((item) => [item.itemKey, item]));
+    previousPurchaseTypeRef.current = form.purchaseType;
   }, [form.purchaseType, form.vendorReleaseDate, items, useServerPagedContainerEditing]);
 
   async function loadEditContainerPage(itemKey: string, page = 1, pageSize = 20) {
@@ -1221,16 +1414,22 @@ export function PurchaseOrderCreateForm({
     const desiredActiveCount = getDesiredActiveContainerCount(item);
     const pageStart = (pageState.page - 1) * pageState.pageSize;
     const pageEnd = pageStart + pageState.pageSize;
+    const changedFields = getChangedDraftContainerSharedFields({
+      previousItem: initialOrderItemsByKey.get(item.itemKey),
+      nextItem: item,
+      purchaseType: form.purchaseType,
+    });
+    const sharedFieldValues = buildDraftContainerSharedFieldsFromItem(item, form.purchaseType);
     const existingRows = pageState.rows.map((row) => {
       const patch = containerEditPatches[row.id];
       const draft = patchToDraftContainerRow(row, patch);
       return {
         ...draft,
-        color: item.color ?? null,
-        flp: item.flp,
-        lbx: item.lbx,
-        lockingBarsCount: item.lockingBarsCount,
-        ventsCount: item.ventsCount,
+        ...Object.fromEntries(
+          ITEM_OWNED_DRAFT_CONTAINER_FIELDS
+            .filter((field) => changedFields.has(field))
+            .map((field) => [field, sharedFieldValues[field]])
+        ),
       };
     });
 
@@ -1250,14 +1449,7 @@ export function PurchaseOrderCreateForm({
         newDrafts[newRowsBeforePage + index] ??
         buildDefaultContainerDraft(item)
       );
-    }).map((row) => ({
-      ...row,
-      color: item.color ?? null,
-      flp: item.flp,
-      lbx: item.lbx,
-      lockingBarsCount: item.lockingBarsCount,
-      ventsCount: item.ventsCount,
-    }));
+    });
 
     return [...existingRows, ...syntheticRows];
   }
@@ -1374,6 +1566,9 @@ export function PurchaseOrderCreateForm({
     if (itemStructureLocked) return;
     setItems((current) => current.filter((item) => item.key !== key));
     setContainers((current) => current.filter((container) => container.itemKey !== key));
+    setItemAttachments((current) =>
+      current.filter((attachment) => attachment.purchaseOrderItemId !== key)
+    );
     setEditContainerPages((current) => {
       const next = { ...current };
       delete next[key];
@@ -1387,6 +1582,32 @@ export function PurchaseOrderCreateForm({
     if (expandedItemKey === key) {
       setExpandedItemKey(null);
     }
+  }
+
+  function addItemAttachment() {
+    setItemAttachments((current) => [
+      ...current,
+      {
+        key: makeKey(),
+        purchaseOrderItemId: null,
+        attachmentType: "",
+        url: "",
+        remark: null,
+      },
+    ]);
+  }
+
+  function updateItemAttachment(
+    key: string,
+    updater: (current: DraftAttachmentRow) => DraftAttachmentRow
+  ) {
+    setItemAttachments((current) =>
+      current.map((attachment) => (attachment.key === key ? updater(attachment) : attachment))
+    );
+  }
+
+  function removeItemAttachment(key: string) {
+    setItemAttachments((current) => current.filter((attachment) => attachment.key !== key));
   }
 
   function activateCell(rowKey: string, column: EditableCellKey["column"]) {
@@ -1409,20 +1630,38 @@ export function PurchaseOrderCreateForm({
       if (existingPageRow) {
         const currentDraft = patchToDraftContainerRow(existingPageRow, containerEditPatches[key]);
         const nextDraft = updater(currentDraft);
+        const nextPatch: PurchaseOrderContainerEditPatchInput = {
+          id: key,
+          itemKey: nextDraft.itemKey,
+        };
+
+        if (nextDraft.containerNumber !== existingPageRow.containerNumber) {
+          nextPatch.containerNumber = nextDraft.containerNumber;
+        }
+        if (nextDraft.machineType !== existingPageRow.machineType) {
+          nextPatch.machineType = nextDraft.machineType;
+        }
+        if (nextDraft.yom !== existingPageRow.yom) {
+          nextPatch.yom = nextDraft.yom;
+        }
+        if (nextDraft.estimatedOfflineDate !== existingPageRow.estimatedOfflineDate) {
+          nextPatch.estimatedOfflineDate = nextDraft.estimatedOfflineDate;
+        }
+        if (nextDraft.offlineDate !== existingPageRow.offlineDate) {
+          nextPatch.offlineDate = nextDraft.offlineDate;
+        }
+        if (nextDraft.tareWeight !== existingPageRow.tareWeight) {
+          nextPatch.tareWeight = nextDraft.tareWeight;
+        }
+        if (nextDraft.maximumWeight !== existingPageRow.maximumWeight) {
+          nextPatch.maximumWeight = nextDraft.maximumWeight;
+        }
+        if (nextDraft.cscNumber !== existingPageRow.cscNumber) {
+          nextPatch.cscNumber = nextDraft.cscNumber;
+        }
         setContainerEditPatches((current) => ({
           ...current,
-          [key]: {
-            id: key,
-            itemKey: nextDraft.itemKey,
-            containerNumber: nextDraft.containerNumber,
-            machineType: nextDraft.machineType,
-            yom: nextDraft.yom,
-            estimatedOfflineDate: nextDraft.estimatedOfflineDate,
-            offlineDate: nextDraft.offlineDate,
-            tareWeight: nextDraft.tareWeight,
-            maximumWeight: nextDraft.maximumWeight,
-            cscNumber: nextDraft.cscNumber,
-          },
+          [key]: nextPatch,
         }));
         return;
       }
@@ -1499,6 +1738,11 @@ export function PurchaseOrderCreateForm({
           useServerPagedContainerEditing && initialOrder
             ? Object.values(newContainerDraftsByItem).flat().map(({ key, ...container }) => container)
             : undefined,
+        itemAttachments: itemAttachments.map(({ key, id, ...attachment }) => ({
+          ...attachment,
+          url: attachment.url.trim(),
+          remark: attachment.remark?.trim() || null,
+        })),
         materialTypes,
       };
       const result =
@@ -1549,6 +1793,11 @@ export function PurchaseOrderCreateForm({
           useServerPagedContainerEditing && initialOrder
             ? Object.values(newContainerDraftsByItem).flat().map(({ key, ...container }) => container)
             : undefined,
+        itemAttachments: itemAttachments.map(({ key, id, ...attachment }) => ({
+          ...attachment,
+          url: attachment.url.trim(),
+          remark: attachment.remark?.trim() || null,
+        })),
         materialTypes,
       };
       const result =
@@ -2970,6 +3219,132 @@ export function PurchaseOrderCreateForm({
                 </div>
               </>
             ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>PO Item Attachments</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addItemAttachment}
+              disabled={itemStructureLocked}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Attachment
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {itemAttachments.length === 0 ? (
+              <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                No attachments added yet.
+              </div>
+            ) : (
+              itemAttachments.map((attachment, index) => (
+                <div
+                  key={attachment.key}
+                  className="rounded-lg border p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium">Attachment {index + 1}</div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeItemAttachment(attachment.key)}
+                      disabled={itemStructureLocked}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="space-y-1.5">
+                      <RequiredLabel required>PO Item</RequiredLabel>
+                      <Select
+                        value={attachment.purchaseOrderItemId ?? "__empty__"}
+                        onValueChange={(value) =>
+                          updateItemAttachment(attachment.key, (current) => ({
+                            ...current,
+                            purchaseOrderItemId: value === "__empty__" ? null : value,
+                          }))
+                        }
+                        disabled={itemStructureLocked}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose PO item" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__empty__">Choose PO item</SelectItem>
+                          {itemAttachmentOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <RequiredLabel required>Document Type</RequiredLabel>
+                      <Select
+                        value={attachment.attachmentType || "__empty__"}
+                        onValueChange={(value) =>
+                          updateItemAttachment(attachment.key, (current) => ({
+                            ...current,
+                            attachmentType:
+                              value === "__empty__"
+                                ? ""
+                                : (value as PurchaseOrderItemAttachmentType),
+                          }))
+                        }
+                        disabled={itemStructureLocked}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose document type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__empty__">Choose document type</SelectItem>
+                          {PURCHASE_ORDER_ATTACHMENT_TYPE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <RequiredLabel required>Attachment URL</RequiredLabel>
+                      <Input
+                        value={attachment.url}
+                        onChange={(event) =>
+                          updateItemAttachment(attachment.key, (current) => ({
+                            ...current,
+                            url: event.target.value,
+                          }))
+                        }
+                        placeholder="https://example.com/vendor-release.pdf"
+                        disabled={itemStructureLocked}
+                      />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2 xl:col-span-4">
+                      <Label>Remark</Label>
+                      <Input
+                        value={attachment.remark ?? ""}
+                        onChange={(event) =>
+                          updateItemAttachment(attachment.key, (current) => ({
+                            ...current,
+                            remark: event.target.value || null,
+                          }))
+                        }
+                        placeholder="Optional remark"
+                        disabled={itemStructureLocked}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
