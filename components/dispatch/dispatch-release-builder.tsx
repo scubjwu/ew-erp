@@ -232,9 +232,35 @@ function buildSourceLimit(
 }
 
 function buildSourceMixLabel(row: DepotDispatchSummaryRow) {
-  if (row.hasFactoryOrder && row.hasNewOrUsedPurchase) return "Factory + New/Used";
-  if (row.hasFactoryOrder) return "Factory Only";
-  return "New/Used Only";
+  const hasOwnInventory = row.availableDepotQty > 0;
+  const hasVendorReference = row.pendingOfflineQty > 0;
+
+  if (hasOwnInventory && hasVendorReference) return "Own Inventory + Vendor Release";
+  if (hasVendorReference) return "Vendor Release Only";
+  if (row.hasFactoryOrder && !row.hasNewOrUsedPurchase) return "Factory Only";
+  if (hasOwnInventory) return "Own Inventory Only";
+  return "No Source";
+}
+
+function normalizeSourceContextValue(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  return trimmed === "-" ? "" : trimmed;
+}
+
+function extractSourceCode(value: string | null | undefined) {
+  const normalized = normalizeSourceContextValue(value);
+  if (!normalized) return "";
+  return normalized.split("·")[0]?.trim() ?? normalized;
+}
+
+function matchesSourceContextValue(candidate: string | null | undefined, expected: string | null | undefined) {
+  const normalizedExpected = normalizeSourceContextValue(expected);
+  if (!normalizedExpected) return true;
+
+  const normalizedCandidate = normalizeSourceContextValue(candidate);
+  if (normalizedCandidate === normalizedExpected) return true;
+
+  return extractSourceCode(normalizedCandidate) === extractSourceCode(normalizedExpected);
 }
 
 function parseManualCount(value: string) {
@@ -1013,6 +1039,7 @@ export function DispatchReleaseBuilder({
   const [selectedVendorReleaseId, setSelectedVendorReleaseId] = useState<string>(
     editData?.sourcePurchaseOrderItemId || initialContext.sourcePurchaseOrderItemId
   );
+  const sourcePlanRoutingKeyRef = useRef("");
   const [vendorSource, setVendorSource] = useState<VendorReleaseSelectorRow | null>(
     editData?.sourcePurchaseOrderItemId || initialContext.sourcePurchaseOrderItemId
         ? {
@@ -1069,6 +1096,27 @@ export function DispatchReleaseBuilder({
     Boolean(initialContext.city) ||
     Boolean(initialContext.depot) ||
     Boolean(initialContext.sizeType);
+
+  useEffect(() => {
+    if (isEditMode || !sourcePlan) return;
+
+    sourcePlanRoutingKeyRef.current = "";
+    setSourceSelectorRow(null);
+    setVendorSelectorRow(null);
+    setVendorRows([]);
+    setVendorLoading(false);
+    setSelectedVendorReleaseId("");
+    setVendorSource(null);
+    setReleaseSource("");
+
+    if (preselectedBucket) {
+      setActiveBucket(preselectedBucket);
+      return;
+    }
+
+    setActiveBucket(null);
+  }, [isEditMode, preselectedBucket, sourcePlan?.id]);
+
   const sourceLimit = useMemo(
     () => (activeBucket ? buildSourceLimit(activeBucket, releaseSource, vendorSource) : 0),
     [activeBucket, releaseSource, vendorSource]
@@ -1433,6 +1481,108 @@ export function DispatchReleaseBuilder({
     setLesseeInputValue(sourcePlan.lesseeLabel === "-" ? "" : sourcePlan.lesseeLabel);
   }, [isEditMode, sourcePlan]);
 
+  async function fetchVendorReleaseRowsForBucket(row: DepotDispatchSummaryRow) {
+    return getVendorReleaseSelectorRows({
+      city: row.city,
+      depot: row.depot,
+      sizeType: row.sizeType,
+      condition: row.condition,
+      color: row.color,
+      machineType: row.machineType,
+    });
+  }
+
+  useEffect(() => {
+    if (isEditMode || !sourcePlan || !activeBucket || releaseSource) return;
+
+    const routingKey = `${sourcePlan.id}:${activeBucket.id}`;
+    if (sourcePlanRoutingKeyRef.current === routingKey) return;
+    sourcePlanRoutingKeyRef.current = routingKey;
+    const factoryOnly = activeBucket.hasFactoryOrder && !activeBucket.hasNewOrUsedPurchase;
+    const vendorOnly = !activeBucket.hasFactoryOrder && activeBucket.hasNewOrUsedPurchase;
+    const mixedSource = activeBucket.hasFactoryOrder && activeBucket.hasNewOrUsedPurchase;
+
+    if (factoryOnly) {
+      setReleaseSource("INTERNAL_FACTORY");
+      setVendorSource(null);
+      setSelectedVendorReleaseId("");
+      return;
+    }
+
+    if (mixedSource) {
+      setSourceSelectorRow(activeBucket);
+      return;
+    }
+
+    if (vendorOnly) {
+      let cancelled = false;
+      setVendorLoading(true);
+      void (async () => {
+        try {
+          const rows = await fetchVendorReleaseRowsForBucket(activeBucket);
+          if (cancelled) return;
+          setVendorRows(rows);
+          if (rows.length === 1) {
+            setReleaseSource("VENDOR_REF");
+            setVendorSource(rows[0] ?? null);
+            setSelectedVendorReleaseId(rows[0]?.purchaseOrderItemId ?? "");
+            setVendorSelectorRow(null);
+            return;
+          }
+          if (rows.length > 1) {
+            setSelectedVendorReleaseId("");
+            setVendorSelectorRow(activeBucket);
+            return;
+          }
+          toast({
+            title: "No vendor release source found",
+            description: "This plan bucket currently has no selectable vendor release source.",
+          });
+        } catch (error) {
+          if (cancelled) return;
+          toast({
+            variant: "destructive",
+            title: "Could not load vendor release rows",
+            description: getErrorMessage(error),
+          });
+        } finally {
+          if (!cancelled) {
+            setVendorLoading(false);
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    toast({
+      title: "No source available",
+      description: "This plan bucket currently has no available source for release creation.",
+    });
+  }, [activeBucket, isEditMode, releaseSource, sourcePlan]);
+
+  useEffect(() => {
+    if (isEditMode || !sourcePlan || activeBucket || releaseSource) return;
+
+    const matchedBucket = bucketResult.rows.find((row) => {
+      return (
+        matchesSourceContextValue(row.region, sourcePlan.region) &&
+        matchesSourceContextValue(row.city, sourcePlan.cityCode) &&
+        matchesSourceContextValue(row.depot, sourcePlan.depotCode) &&
+        matchesSourceContextValue(row.sizeType, sourcePlan.sizeType) &&
+        matchesSourceContextValue(row.condition, sourcePlan.condition) &&
+        matchesSourceContextValue(row.color, sourcePlan.color) &&
+        matchesSourceContextValue(row.machineType, sourcePlan.machineType)
+      );
+    });
+
+    if (matchedBucket) {
+      setActiveBucket(matchedBucket);
+    }
+  }, [activeBucket, bucketResult.rows, isEditMode, releaseSource, sourcePlan]);
+
   useEffect(() => {
     if (isEditMode) return;
     if (!activeBucket || !releaseSource) {
@@ -1675,15 +1825,69 @@ export function DispatchReleaseBuilder({
     await runBucketSearch(next);
   }
 
-  function openSourceFlow(row: DepotDispatchSummaryRow) {
-    if (row.hasFactoryOrder && !row.hasNewOrUsedPurchase) {
+  function routeBucketBySources(row: DepotDispatchSummaryRow) {
+    const factoryOnly = row.hasFactoryOrder && !row.hasNewOrUsedPurchase;
+    const vendorOnly = !row.hasFactoryOrder && row.hasNewOrUsedPurchase;
+    const mixedSource = row.hasFactoryOrder && row.hasNewOrUsedPurchase;
+
+    if (factoryOnly) {
       setActiveBucket(row);
       setReleaseSource("INTERNAL_FACTORY");
       setVendorSource(null);
       setSelectedVendorReleaseId("");
       return;
     }
-    setSourceSelectorRow(row);
+
+    if (mixedSource) {
+      setSourceSelectorRow(row);
+      return;
+    }
+
+    if (vendorOnly) {
+      setVendorLoading(true);
+      setSelectedVendorReleaseId("");
+      void (async () => {
+        try {
+          const rows = await fetchVendorReleaseRowsForBucket(row);
+          setVendorRows(rows);
+          if (rows.length === 1) {
+            setActiveBucket(row);
+            setReleaseSource("VENDOR_REF");
+            setVendorSource(rows[0] ?? null);
+            setSelectedVendorReleaseId(rows[0]?.purchaseOrderItemId ?? "");
+            setVendorSelectorRow(null);
+            return;
+          }
+          if (rows.length > 1) {
+            setActiveBucket(row);
+            setVendorSelectorRow(row);
+            return;
+          }
+          toast({
+            title: "No vendor release source found",
+            description: "This bucket currently has no selectable vendor release source.",
+          });
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Could not load vendor release rows",
+            description: getErrorMessage(error),
+          });
+        } finally {
+          setVendorLoading(false);
+        }
+      })();
+      return;
+    }
+
+    toast({
+      title: "No source available",
+      description: "This bucket currently has no available source for release creation.",
+    });
+  }
+
+  function openSourceFlow(row: DepotDispatchSummaryRow) {
+    routeBucketBySources(row);
   }
 
   function handleChooseBucket(row: DepotDispatchSummaryRow) {
@@ -1704,15 +1908,24 @@ export function DispatchReleaseBuilder({
     setVendorLoading(true);
     setSelectedVendorReleaseId("");
     try {
-      const rows = await getVendorReleaseSelectorRows({
-        city: sourceSelectorRow.city,
-        depot: sourceSelectorRow.depot,
-        sizeType: sourceSelectorRow.sizeType,
-        condition: sourceSelectorRow.condition,
-        color: sourceSelectorRow.color,
-        machineType: sourceSelectorRow.machineType,
-      });
+      const rows = await fetchVendorReleaseRowsForBucket(sourceSelectorRow);
       setVendorRows(rows);
+      if (rows.length === 0) {
+        toast({
+          title: "No vendor release source found",
+          description: "This dispatch bucket currently has no selectable vendor release source.",
+        });
+        return;
+      }
+      if (rows.length === 1) {
+        setActiveBucket(sourceSelectorRow);
+        setReleaseSource("VENDOR_REF");
+        setVendorSource(rows[0] ?? null);
+        setSelectedVendorReleaseId(rows[0]?.purchaseOrderItemId ?? "");
+        setVendorSelectorRow(null);
+        setSourceSelectorRow(null);
+        return;
+      }
       setVendorSelectorRow(sourceSelectorRow);
       setSourceSelectorRow(null);
     } catch (error) {
@@ -3253,7 +3466,9 @@ export function DispatchReleaseBuilder({
           <DialogHeader>
             <DialogTitle>Select Release Source</DialogTitle>
             <DialogDescription>
-              Choose whether this release uses our depot inventory or references a vendor release.
+              {sourcePlan
+                ? "Choose whether this release uses our own inventory or references a vendor release."
+                : "Choose whether this release uses our depot inventory or references a vendor release."}
             </DialogDescription>
           </DialogHeader>
           {sourceSelectorRow ? (
@@ -3274,7 +3489,7 @@ export function DispatchReleaseBuilder({
             </Button>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" variant="outline" onClick={handleSelectDepotInventory}>
-                Depot Inventory
+                {sourcePlan ? "Own Inventory" : "Depot Inventory"}
               </Button>
               <Button type="button" onClick={() => void handleSelectVendorReference()} disabled={vendorLoading}>
                 Reference Vendor Release

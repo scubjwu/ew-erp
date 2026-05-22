@@ -385,6 +385,43 @@ function normalizedBucketMatch(value: string | null | undefined) {
   return normalizeBucketFilterValue(value).toUpperCase();
 }
 
+function extractBucketCode(value: string | null | undefined) {
+  const normalized = normalizeBucketFilterValue(value);
+  if (!normalized) return "";
+  const firstSegment = normalized.split("·")[0]?.trim() ?? "";
+  const codeCandidate = firstSegment || normalized;
+  return codeCandidate.split(/\s+/)[0]?.trim().toUpperCase() ?? "";
+}
+
+function buildDepotBucketLabel(depotCode: string | null | undefined, depotName: string | null | undefined) {
+  const code = normalizeBucketFilterValue(depotCode);
+  const name = normalizeBucketFilterValue(depotName);
+  if (code && name) return `${code} · ${name}`;
+  return code || name;
+}
+
+function matchesDepotBucketValue(
+  depotCode: string | null | undefined,
+  depotName: string | null | undefined,
+  bucketDepot: string | null | undefined
+) {
+  const bucketValue = normalizeBucketFilterValue(bucketDepot);
+  if (!bucketValue) return true;
+
+  const normalizedBucket = normalizedBucketMatch(bucketValue);
+  const normalizedDepotCode = normalizedBucketMatch(depotCode);
+  const normalizedDepotName = normalizedBucketMatch(depotName);
+  const normalizedDepotLabel = normalizedBucketMatch(buildDepotBucketLabel(depotCode, depotName));
+  const bucketCode = extractBucketCode(bucketValue);
+
+  return (
+    normalizedDepotCode === normalizedBucket ||
+    normalizedDepotName === normalizedBucket ||
+    normalizedDepotLabel === normalizedBucket ||
+    (!!bucketCode && normalizedDepotCode === bucketCode)
+  );
+}
+
 function normalizeContainerNumber(value: string | null | undefined) {
   return normalizeText(value).toUpperCase();
 }
@@ -397,6 +434,15 @@ function toNumber(value: number | string | null | undefined) {
 
 function toInteger(value: number | string | null | undefined) {
   return Math.max(0, Math.trunc(toNumber(value)));
+}
+
+function resolveBucketCapacityLimit(freshValue: number, currentValue: number) {
+  const normalizedFresh = Number.isFinite(freshValue) ? freshValue : 0;
+  const normalizedCurrent = Number.isFinite(currentValue) ? currentValue : 0;
+  if (normalizedFresh === 0 && normalizedCurrent > 0) {
+    return normalizedCurrent;
+  }
+  return normalizedFresh;
 }
 
 function formatDate(value: string | null | undefined) {
@@ -691,8 +737,7 @@ function matchesVendorReleaseBucket(
 ) {
   return (
     normalizedBucketMatch(row.locationCityCode) === normalizedBucketMatch(extractCityCode(bucket.city)) &&
-    (normalizedBucketMatch(row.depotName) === normalizedBucketMatch(bucket.depot) ||
-      normalizedBucketMatch(row.depotCode) === normalizedBucketMatch(bucket.depot)) &&
+    matchesDepotBucketValue(row.depotCode, row.depotName, bucket.depot) &&
     normalizedBucketMatch(row.sizeType) === normalizedBucketMatch(bucket.sizeType) &&
     normalizedBucketMatch(row.condition) === normalizedBucketMatch(bucket.condition) &&
     normalizedBucketMatch(row.color) === normalizedBucketMatch(bucket.color) &&
@@ -1155,7 +1200,7 @@ async function resolveSourceItemAnchor(input: DispatchReleasePersistInput) {
     const rowDepotCode = normalizeBucketFilterValue(
       Array.isArray(row.depot) ? row.depot[0]?.depot_code : row.depot?.depot_code
     );
-    if (depotValue && rowDepotName !== depotValue && rowDepotCode !== depotValue) {
+    if (!matchesDepotBucketValue(rowDepotCode, rowDepotName, depotValue)) {
       return false;
     }
 
@@ -1322,14 +1367,22 @@ async function getFreshBucketRow(input: DispatchReleasePersistInput) {
 async function validateReleaseCapacity(input: DispatchReleasePersistInput) {
   const freshBucket = await getFreshBucketRow(input);
   if (input.releaseSource === "INTERNAL_FACTORY") {
-    if (input.releaseQty > freshBucket.totalAvailableQty) {
-      throw new Error(`Release Qty cannot exceed total available qty ${freshBucket.totalAvailableQty}.`);
+    const effectiveLimit = resolveBucketCapacityLimit(
+      freshBucket.totalAvailableQty,
+      input.bucket.totalAvailableQty
+    );
+    if (input.releaseQty > effectiveLimit) {
+      throw new Error(`Release Qty cannot exceed total available qty ${effectiveLimit}.`);
     }
   }
 
   if (input.releaseSource === "INTERNAL_DEPOT") {
-    if (input.releaseQty > freshBucket.availableDepotQty) {
-      throw new Error(`Release Qty cannot exceed available depot qty ${freshBucket.availableDepotQty}.`);
+    const effectiveLimit = resolveBucketCapacityLimit(
+      freshBucket.availableDepotQty,
+      input.bucket.availableDepotQty
+    );
+    if (input.releaseQty > effectiveLimit) {
+      throw new Error(`Release Qty cannot exceed available depot qty ${effectiveLimit}.`);
     }
   }
 
@@ -1344,7 +1397,7 @@ async function validateReleaseCapacity(input: DispatchReleasePersistInput) {
     if (!matchesVendorReleaseBucket(vendorRow, input.bucket)) {
       throw new Error("The selected vendor release source no longer matches the current dispatch bucket.");
     }
-    const effectiveLimit = Math.min(vendorRow.remainingQty, freshBucket.totalAvailableQty);
+    const effectiveLimit = vendorRow.remainingQty;
     if (input.releaseQty > effectiveLimit) {
       throw new Error(`Release Qty cannot exceed vendor-release source limit ${effectiveLimit}.`);
     }
@@ -1361,14 +1414,18 @@ async function validateUpdatedReleaseCapacity(
   const currentUnassignedQty = toInteger(currentOrder.unassigned_qty);
 
   if (input.releaseSource === "INTERNAL_FACTORY") {
-    const effectiveLimit = freshBucket.totalAvailableQty + currentUnassignedQty;
+    const effectiveLimit =
+      resolveBucketCapacityLimit(freshBucket.totalAvailableQty, input.bucket.totalAvailableQty) +
+      currentUnassignedQty;
     if (input.releaseQty > effectiveLimit) {
       throw new Error(`Release Qty cannot exceed total available qty ${effectiveLimit}.`);
     }
   }
 
   if (input.releaseSource === "INTERNAL_DEPOT") {
-    const effectiveLimit = freshBucket.availableDepotQty + currentUnassignedQty;
+    const effectiveLimit =
+      resolveBucketCapacityLimit(freshBucket.availableDepotQty, input.bucket.availableDepotQty) +
+      currentUnassignedQty;
     if (input.releaseQty > effectiveLimit) {
       throw new Error(`Release Qty cannot exceed available depot qty ${effectiveLimit}.`);
     }
@@ -1390,10 +1447,7 @@ async function validateUpdatedReleaseCapacity(
     if (!matchesVendorReleaseBucket(vendorRow, input.bucket)) {
       throw new Error("The selected vendor release source no longer matches the current dispatch bucket.");
     }
-    const effectiveLimit = Math.min(
-      vendorRow.remainingQty + currentUnassignedQty,
-      freshBucket.totalAvailableQty + currentUnassignedQty
-    );
+    const effectiveLimit = vendorRow.remainingQty + currentUnassignedQty;
     if (input.releaseQty > effectiveLimit) {
       throw new Error(`Release Qty cannot exceed vendor-release source limit ${effectiveLimit}.`);
     }

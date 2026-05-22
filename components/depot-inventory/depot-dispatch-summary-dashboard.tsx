@@ -54,9 +54,6 @@ type Props = {
 };
 
 const PAGE_SIZE = 20;
-const STICKY_RIGHT_HEAD_CLASS = "sticky right-0 z-30 bg-card";
-const STICKY_RIGHT_CELL_CLASS = "sticky right-0 z-20 bg-card";
-
 const EMPTY_FILTERS: DepotDispatchSummaryQuery = {
   region: "",
   city: "",
@@ -92,6 +89,13 @@ function formatDate(value: string | null | undefined) {
 
 function formatVendorReleaseLabel(row: VendorReleaseSelectorRow) {
   return row.vendorReleaseNumber;
+}
+
+function buildSourceMixLabel(row: DepotDispatchSummaryRow) {
+  if (row.hasFactoryOrder && !row.hasNewOrUsedPurchase) return "Factory Only";
+  if (!row.hasFactoryOrder && row.hasNewOrUsedPurchase) return "Vendor Release Only";
+  if (row.hasFactoryOrder && row.hasNewOrUsedPurchase) return "Own Inventory + Vendor Release";
+  return "No Source";
 }
 
 function appliedFilterSummary(filters: DepotDispatchSummaryQuery) {
@@ -260,18 +264,74 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
     }
   }
 
+  async function fetchVendorReleaseRowsForBucket(row: DepotDispatchSummaryRow) {
+    return getVendorReleaseSelectorRows({
+      city: row.city,
+      depot: row.depot,
+      sizeType: row.sizeType,
+      condition: row.condition,
+      color: row.color,
+      machineType: row.machineType,
+    });
+  }
+
   function handleReleaseClick(row: DepotDispatchSummaryRow) {
-    if (row.hasFactoryOrder && !row.hasNewOrUsedPurchase) {
+    const factoryOnly = row.hasFactoryOrder && !row.hasNewOrUsedPurchase;
+    const vendorOnly = !row.hasFactoryOrder && row.hasNewOrUsedPurchase;
+    const mixedSource = row.hasFactoryOrder && row.hasNewOrUsedPurchase;
+
+    if (factoryOnly) {
       router.push(dispatchReleaseHref(row, "INTERNAL_FACTORY"));
       return;
     }
-    setSelectedVendorRelease("");
-    setSourceSelectorRow(row);
+
+    if (mixedSource) {
+      setSelectedVendorRelease("");
+      setSourceSelectorRow(row);
+      return;
+    }
+
+    if (vendorOnly) {
+      setVendorLoading(true);
+      setSelectedVendorRelease("");
+      void (async () => {
+        try {
+          const rows = await fetchVendorReleaseRowsForBucket(row);
+          setVendorRows(rows);
+          if (rows.length === 1) {
+            router.push(dispatchReleaseHref(row, "VENDOR_REF", rows[0]));
+            return;
+          }
+          if (rows.length > 1) {
+            setVendorSelectorRow(row);
+            return;
+          }
+          toast({
+            title: "No vendor release source found",
+            description: "This bucket currently has no selectable vendor release source.",
+          });
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Could not load vendor release rows",
+            description: getErrorMessage(error),
+          });
+        } finally {
+          setVendorLoading(false);
+        }
+      })();
+      return;
+    }
+
+    toast({
+      title: "No source available",
+      description: "This bucket currently has no available source for release creation.",
+    });
   }
 
   function handleSelectDepotInventory() {
     if (!sourceSelectorRow) return;
-    router.push(dispatchReleaseHref(sourceSelectorRow, "INTERNAL_DEPOT"));
+    router.push(dispatchReleaseHref(sourceSelectorRow, "INTERNAL_FACTORY"));
   }
 
   async function handleSelectVendorReference() {
@@ -279,15 +339,21 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
     setVendorLoading(true);
     setSelectedVendorRelease("");
     try {
-      const rows = await getVendorReleaseSelectorRows({
-        city: sourceSelectorRow.city,
-        depot: sourceSelectorRow.depot,
-        sizeType: sourceSelectorRow.sizeType,
-        condition: sourceSelectorRow.condition,
-        color: sourceSelectorRow.color,
-        machineType: sourceSelectorRow.machineType,
-      });
+      const rows =
+        vendorRows.length > 0 ? vendorRows : await fetchVendorReleaseRowsForBucket(sourceSelectorRow);
       setVendorRows(rows);
+      if (rows.length === 1) {
+        router.push(dispatchReleaseHref(sourceSelectorRow, "VENDOR_REF", rows[0]));
+        setSourceSelectorRow(null);
+        return;
+      }
+      if (rows.length === 0) {
+        toast({
+          title: "No vendor release source found",
+          description: "This bucket currently has no selectable vendor release source.",
+        });
+        return;
+      }
       setVendorSelectorRow(sourceSelectorRow);
       setSourceSelectorRow(null);
     } catch (error) {
@@ -522,7 +588,7 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
                   <TableHead className="h-12 px-3 text-center text-xs">Earliest Est Offline Date</TableHead>
                   <TableHead className="h-12 px-3 text-center text-xs">Earliest Freeday Expiry Date</TableHead>
                   <TableHead className="h-12 px-3 text-center text-xs">Shortage Alert</TableHead>
-                  <TableHead className={`h-12 px-3 text-center text-xs ${STICKY_RIGHT_HEAD_CLASS}`}>Actions</TableHead>
+                  <TableHead className="h-12 px-3 text-center text-xs">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -555,7 +621,7 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
                       <TableCell className="px-3 py-3 text-center text-sm">
                         {row.shortageAlert ? <Badge variant="destructive">Alert</Badge> : "-"}
                       </TableCell>
-                      <TableCell className={`px-3 py-3 text-center ${STICKY_RIGHT_CELL_CLASS}`}>
+                      <TableCell className="px-3 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <Button asChild size="sm" variant="outline" className="h-8 px-3 text-sm">
                             <Link href={summaryViewHref(row)}>View</Link>
@@ -606,12 +672,7 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
               <div><span className="font-medium">Machine Type:</span> {sourceSelectorRow.machineType}</div>
               <div><span className="font-medium">Available Depot Qty:</span> {sourceSelectorRow.availableDepotQty}</div>
               <div>
-                <span className="font-medium">Source Mix:</span>{" "}
-                {sourceSelectorRow.hasFactoryOrder && sourceSelectorRow.hasNewOrUsedPurchase
-                  ? "Factory + New/Used"
-                  : sourceSelectorRow.hasFactoryOrder
-                    ? "Factory Only"
-                    : "New/Used Only"}
+                <span className="font-medium">Source Mix:</span> {buildSourceMixLabel(sourceSelectorRow)}
               </div>
             </div>
           ) : null}

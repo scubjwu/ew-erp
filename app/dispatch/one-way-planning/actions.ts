@@ -950,23 +950,31 @@ function mapRow(row: OneWayPlanRowRecord): OneWayPlanManagementRow {
   const size = first(row.size);
   const type = first(row.type);
   const condition = first(row.condition);
+  const region = normalizeText(polCity?.region) || "-";
+  const cityCode = normalizeText(polCity?.city_code) || "-";
+  const depotCode = normalizeText(depot?.depot_code) || "-";
+  const sizeType = buildSizeTypeLabel(size?.size_code, type?.type_code);
+  const conditionCode = normalizeText(condition?.condition_code) || "-";
+  const color = normalizeText(row.color_code) || "-";
+  const machineType = normalizeText(row.machine_type) || "-";
 
   return {
     id: row.id,
     planId: normalizeText(row.plan_id) || "-",
     status: (normalizeText(row.status) || "SUBMITTED") as OneWayPlanStatus,
     conversionStatus: normalizeConversionStatus(row.conversion_status),
+    bucketId: [region, cityCode, depotCode, sizeType, conditionCode, color, machineType].join("|"),
     shipperRequestId: normalizeText(row.shipper_request_id) || "-",
     applyDate: row.apply_date,
     availabilityDate: row.availability_date,
     lesseeLabel: buildLesseeLabel(lessee),
-    depotCode: normalizeText(depot?.depot_code) || "-",
-    polCode: normalizeText(polCity?.city_code) || "-",
+    depotCode,
+    polCode: cityCode,
     pod: normalizeText(row.pod_codes_raw) || "-",
-    sizeType: buildSizeTypeLabel(size?.size_code, type?.type_code),
-    condition: normalizeText(condition?.condition_code) || "-",
-    color: normalizeText(row.color_code) || "-",
-    machineType: normalizeText(row.machine_type) || "-",
+    sizeType,
+    condition: conditionCode,
+    color,
+    machineType,
     quantity: row.planned_qty ?? 0,
     authorizedQty: row.authorized_qty ?? 0,
     remainingQty: row.remaining_qty ?? 0,
@@ -974,7 +982,7 @@ function mapRow(row: OneWayPlanRowRecord): OneWayPlanManagementRow {
     nonPickedUpQty: row.non_picked_up_qty ?? 0,
     shortfall: computeShortfall(row.planned_qty, row.remaining_qty),
     onhireNo: normalizeText(row.onhire_no) || "-",
-    region: normalizeText(polCity?.region) || "-",
+    region,
     carrier: normalizeText(row.carrier) || "-",
     currency: normalizeText(row.currency) || "-",
     rv: row.rv ?? 0,
@@ -1198,6 +1206,7 @@ export async function getOneWayPlanDetail(planId: string): Promise<OneWayPlanDet
   return {
     id: row.id,
     planId: normalizeText(row.plan_id) || "-",
+    bucketId: [region, polCode, depotCode, sizeType, conditionCode, color, machineType].join("|"),
     status: (normalizeText(row.status) || "SUBMITTED") as OneWayPlanStatus,
     conversionStatus: normalizeConversionStatus(row.conversion_status),
     applyDate: row.apply_date,
@@ -1906,6 +1915,59 @@ export async function updateOneWayPlan(
   revalidatePath("/dispatch/one-way-planning");
   revalidatePath(`/dispatch/one-way-planning/${normalizedId}`);
   revalidatePath(`/dispatch/one-way-planning/${normalizedId}/edit`);
+
+  return {
+    id: updateResult.data.id,
+    planId: updateResult.data.plan_id ?? "-",
+  };
+}
+
+export async function cancelOneWayPlan(
+  planId: string
+): Promise<{ id: string; planId: string }> {
+  const supabase = createServerSupabaseClient();
+  const normalizedId = normalizeText(planId);
+  if (!normalizedId) throw new Error("Plan id is required.");
+
+  const { data, error } = await supabase
+    .from("one_way_plan")
+    .select("id, plan_id, status, conversion_status")
+    .eq("id", normalizedId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("One way plan not found.");
+
+  const currentStatus = (normalizeText(data.status) || "SUBMITTED") as OneWayPlanStatus;
+  const conversionStatus = normalizeConversionStatus(data.conversion_status);
+
+  if (conversionStatus !== "OPEN") {
+    throw new Error("Converted plans cannot be cancelled.");
+  }
+  if (currentStatus === "CANCELLED") {
+    throw new Error("Plan is already cancelled.");
+  }
+  if (currentStatus === "COMPLETED") {
+    throw new Error("Completed plans cannot be cancelled.");
+  }
+
+  const updateResult = await supabase
+    .from("one_way_plan")
+    .update({ status: "CANCELLED" })
+    .eq("id", normalizedId)
+    .eq("conversion_status", "OPEN")
+    .select("id, plan_id")
+    .maybeSingle();
+
+  if (updateResult.error) throw new Error(updateResult.error.message);
+  if (!updateResult.data) {
+    throw new Error("The source one way plan is no longer open for cancellation.");
+  }
+
+  revalidatePath("/dispatch/one-way-planning");
+  revalidatePath(`/dispatch/one-way-planning/${normalizedId}`);
+  revalidatePath(`/dispatch/one-way-planning/${normalizedId}/edit`);
+  revalidatePath("/depot-inventory/summary-for-dispatch");
 
   return {
     id: updateResult.data.id,

@@ -310,7 +310,9 @@ def build_existing_maps(container: str) -> tuple[dict[str, CityRow], dict[str, D
 
 
 def load_sheet_rows(path: Path) -> list[dict[str, object]]:
-    df = pd.read_excel(path, engine="xlrd")
+    suffix = path.suffix.lower()
+    engine = "xlrd" if suffix == ".xls" else None
+    df = pd.read_excel(path, engine=engine)
     df.columns = SHEET_COLUMNS
     records: list[dict[str, object]] = []
     for _, row in df.iloc[1:].iterrows():

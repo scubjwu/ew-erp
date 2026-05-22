@@ -838,12 +838,14 @@ async function assertBasicInfoRestored(supabase) {
   await assertTableCount(supabase, "region_codes", 18);
   await must(supabase.from("region_codes").select("id").eq("region_code", "China").single(), "verify region seed");
 
-  await assertTableCount(supabase, "cities", 413);
+  await assertTableCount(supabase, "cities", 414);
   await must(supabase.from("cities").select("id").eq("city_code", "USLAX").single(), "verify city seed");
+  await must(supabase.from("cities").select("id").eq("city_code", "CNSZX").single(), "verify restored city seed");
 
-  await assertTableCount(supabase, "depots", 415);
+  await assertTableCount(supabase, "depots", 760);
   await must(supabase.from("depots").select("id").eq("depot_code", "USLAX001").single(), "verify depot seed");
   await must(supabase.from("depots").select("id").eq("depot_code", "USLAXVDP").single(), "verify vendor depot seed");
+  await must(supabase.from("depots").select("id").eq("depot_code", "CNSZXVDP").single(), "verify restored Shenzhen depot seed");
 
   await assertTableCount(supabase, "depot_attachment_links", 0);
   await assertTableCount(supabase, "depot_additional_costs", 0);

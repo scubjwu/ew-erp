@@ -59,6 +59,7 @@ export type OneWayPlanManagementRow = {
   planId: string;
   status: OneWayPlanStatus;
   conversionStatus: OneWayPlanConversionStatus;
+  bucketId: string;
   shipperRequestId: string;
   applyDate: string | null;
   availabilityDate: string | null;
@@ -365,6 +366,7 @@ export type OneWayPlanDetail = {
   planId: string;
   status: OneWayPlanStatus;
   conversionStatus: OneWayPlanConversionStatus;
+  bucketId: string;
   applyDate: string | null;
   availabilityDate: string | null;
   arrangedDispatchDate: string | null;

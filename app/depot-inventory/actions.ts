@@ -355,8 +355,25 @@ function resolveRegionLabel(raw: BaseContainerRowRaw) {
   return raw.location?.region ?? "-";
 }
 
+function formatDepotLabel(input: {
+  depotCode?: string | null;
+  depotName?: string | null;
+}) {
+  const depotCode = normalizeText(input.depotCode);
+  const depotName = normalizeText(input.depotName);
+
+  if (depotCode && depotName) {
+    return `${depotCode} · ${depotName}`;
+  }
+
+  return depotCode || depotName || "-";
+}
+
 function resolveDepotLabel(raw: BaseContainerRowRaw) {
-  return raw.depot?.depot_name ?? raw.depot?.depot_code ?? "-";
+  return formatDepotLabel({
+    depotCode: raw.depot?.depot_code,
+    depotName: raw.depot?.depot_name,
+  });
 }
 
 function resolveFlpLbEod(raw: BaseContainerRowRaw) {
@@ -1532,15 +1549,16 @@ type OneWayPlanSummaryRowRaw = {
 function buildSummaryBucketPartsFromOneWayPlan(plan: OneWayPlanSummaryRowRaw) {
   const cityCode = normalizeText(plan.pol_city?.city_code) || "-";
   const cityName = normalizeText(plan.pol_city?.city_name);
-  const depotCode = normalizeText(plan.depot?.depot_code) || "-";
-  const depotName = normalizeText(plan.depot?.depot_name);
   const sizeType = `${plan.size?.size_code ?? ""}${plan.type?.type_code ?? ""}` || "-";
   const condition = plan.condition?.condition_code ?? "-";
 
   return summaryBucketParts({
     region: plan.pol_city?.region,
     city: cityName ? `${cityCode} · ${cityName}` : cityCode,
-    depot: depotName ? `${depotCode} · ${depotName}` : depotCode,
+    depot: formatDepotLabel({
+      depotCode: plan.depot?.depot_code,
+      depotName: plan.depot?.depot_name,
+    }),
     sizeType,
     condition,
     color: plan.color_code ?? "-",
@@ -2647,6 +2665,12 @@ export async function getVendorReleaseSelectorRows(input: {
         ? `${row.location_city_code} · ${row.location_city_name}`
         : row.location_city_code || row.location_city_name || "-";
     const cityCode = row.location_city_code ?? "";
+    const depotCode = row.depot_code ?? "";
+    const depotName = row.depot_name ?? "";
+    const depotLabel =
+      depotCode && depotName
+        ? `${depotCode} · ${depotName}`
+        : depotCode || depotName || "-";
 
     if (
       input.region &&
@@ -2660,8 +2684,9 @@ export async function getVendorReleaseSelectorRows(input: {
         normalizedSummaryBucketMatch(input.city) === normalizedSummaryBucketMatch(cityLabel) ||
         normalizedSummaryBucketMatch(input.city) === normalizedSummaryBucketMatch(cityCode)) &&
       (!input.depot ||
-        normalizedSummaryBucketMatch(input.depot) ===
-          normalizedSummaryBucketMatch(row.depot_name ?? row.depot_code ?? "-")) &&
+        normalizedSummaryBucketMatch(input.depot) === normalizedSummaryBucketMatch(depotLabel) ||
+        normalizedSummaryBucketMatch(input.depot) === normalizedSummaryBucketMatch(depotCode) ||
+        normalizedSummaryBucketMatch(input.depot) === normalizedSummaryBucketMatch(depotName)) &&
       (!input.sizeType ||
         normalizedSummaryBucketMatch(input.sizeType) === normalizedSummaryBucketMatch(row.size_type)) &&
       (!input.condition ||

@@ -41,6 +41,22 @@ function normalizeBucketContextValue(value: string) {
   return trimmed === "-" ? "" : trimmed;
 }
 
+function extractCodeFromLabel(value: string) {
+  const normalized = normalizeBucketContextValue(value);
+  if (!normalized) return "";
+  return normalized.split("·")[0]?.trim() ?? normalized;
+}
+
+function matchesContextValue(candidate: string, expected: string) {
+  const normalizedExpected = normalizeBucketContextValue(expected);
+  if (!normalizedExpected) return true;
+
+  const normalizedCandidate = normalizeBucketContextValue(candidate);
+  if (normalizedCandidate === normalizedExpected) return true;
+
+  return extractCodeFromLabel(normalizedCandidate) === extractCodeFromLabel(normalizedExpected);
+}
+
 async function getBucketById(bucketId: string): Promise<DepotDispatchSummaryRow | null> {
   if (!bucketId) return null;
   const rows = await getDepotDispatchSummary({
@@ -92,13 +108,13 @@ function matchesBucket(
   }
 ) {
   return (
-    normalizeBucketContextValue(row.region) === normalizeBucketContextValue(context.region) &&
-    normalizeBucketContextValue(row.city) === normalizeBucketContextValue(context.city) &&
-    normalizeBucketContextValue(row.depot) === normalizeBucketContextValue(context.depot) &&
-    normalizeBucketContextValue(row.sizeType) === normalizeBucketContextValue(context.sizeType) &&
-    normalizeBucketContextValue(row.condition) === normalizeBucketContextValue(context.condition) &&
-    normalizeBucketContextValue(row.color) === normalizeBucketContextValue(context.color) &&
-    normalizeBucketContextValue(row.machineType) === normalizeBucketContextValue(context.machineType)
+    matchesContextValue(row.region, context.region) &&
+    matchesContextValue(row.city, context.city) &&
+    matchesContextValue(row.depot, context.depot) &&
+    matchesContextValue(row.sizeType, context.sizeType) &&
+    matchesContextValue(row.condition, context.condition) &&
+    matchesContextValue(row.color, context.color) &&
+    matchesContextValue(row.machineType, context.machineType)
   );
 }
 
@@ -147,7 +163,6 @@ export default async function CreateDispatchReleasePage({
   const effectiveContext = sourcePlan
     ? {
         ...initialContext,
-        releaseSource: "INTERNAL_DEPOT",
         region: sourcePlan.region === "-" ? "" : sourcePlan.region,
         city: sourcePlan.cityCode === "-" ? "" : sourcePlan.cityCode,
         depot: sourcePlan.depotCode === "-" ? "" : sourcePlan.depotCode,

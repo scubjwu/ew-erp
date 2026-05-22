@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
+import { cancelOneWayPlan } from "@/app/dispatch/one-way-planning/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -12,6 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/errors";
 import type { OneWayPlanDetail } from "@/types/one-way-planning";
 
 function displayValue(value: string | number | null | undefined) {
@@ -29,8 +34,8 @@ function formatMoney(value: number) {
 
 function buildCreateReleaseHref(detail: OneWayPlanDetail) {
   const params = new URLSearchParams({
-    releaseSource: "INTERNAL_DEPOT",
     oneWayPlanId: detail.id,
+    bucketId: detail.bucketId,
     region: detail.region === "-" ? "" : detail.region,
     city: detail.polCode === "-" ? "" : detail.polCode,
     depot: detail.depotCode === "-" ? "" : detail.depotCode,
@@ -60,10 +65,44 @@ function Section({
 }
 
 export function OneWayPlanDetailView({ detail }: { detail: OneWayPlanDetail }) {
+  const router = useRouter();
+  const [cancelling, setCancelling] = useState(false);
   const canCreateRelease =
     detail.conversionStatus === "OPEN" &&
     (detail.status === "SUBMITTED" || detail.status === "APPROVED") &&
     detail.depotCode !== "-";
+  const canCancel =
+    detail.conversionStatus === "OPEN" &&
+    detail.status !== "CANCELLED" &&
+    detail.status !== "COMPLETED";
+
+  async function handleCancelPlan() {
+    if (
+      !window.confirm(
+        `Cancel one way plan ${detail.planId}? This will remove its quantity from Planned Dispatch Qty.`
+      )
+    ) {
+      return;
+    }
+
+    setCancelling(true);
+    try {
+      const result = await cancelOneWayPlan(detail.id);
+      toast({
+        title: "One way plan cancelled",
+        description: `${result.planId} is now CANCELLED.`,
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not cancel one way plan",
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 md:px-6 lg:px-8">
@@ -75,6 +114,14 @@ export function OneWayPlanDetailView({ detail }: { detail: OneWayPlanDetail }) {
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="outline">
             <Link href={`/dispatch/one-way-planning/${detail.id}/edit`}>Edit</Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!canCancel || cancelling}
+            onClick={() => void handleCancelPlan()}
+          >
+            {cancelling ? "Cancelling..." : "Cancel"}
           </Button>
           {canCreateRelease ? (
             <Button asChild type="button" variant="outline">

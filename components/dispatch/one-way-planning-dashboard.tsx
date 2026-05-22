@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, MoreHorizontal, RotateCcw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { getOneWayPlanManagement } from "@/app/dispatch/one-way-planning/actions";
+import {
+  cancelOneWayPlan,
+  getOneWayPlanManagement,
+} from "@/app/dispatch/one-way-planning/actions";
 import { SearchableAutocompleteInput } from "@/components/purchase/searchable-autocomplete-input";
 import { StandardListPageHeader } from "@/components/shared/page-standard/standard-list-page-header";
 import { StandardTablePagination } from "@/components/shared/page-standard/standard-table-pagination";
@@ -12,6 +15,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -124,8 +132,8 @@ function displayValue(value: string | number | null | undefined) {
 
 function buildCreateReleaseHref(row: OneWayPlanManagementRow) {
   const params = new URLSearchParams({
-    releaseSource: "INTERNAL_DEPOT",
     oneWayPlanId: row.id,
+    bucketId: row.bucketId,
     region: row.region === "-" ? "" : row.region,
     city: row.polCode === "-" ? "" : row.polCode,
     depot: row.depotCode === "-" ? "" : row.depotCode,
@@ -231,6 +239,33 @@ export function OneWayPlanningDashboard({ initial, filterOptions }: Props) {
     const next = { ...draftFilters, page: nextPage };
     setDraftFilters(next);
     await runSearch(next);
+  }
+
+  async function handleCancelPlan(row: OneWayPlanManagementRow) {
+    if (
+      !window.confirm(
+        `Cancel one way plan ${row.planId}? This will remove its quantity from Planned Dispatch Qty.`
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const cancelled = await cancelOneWayPlan(row.id);
+      toast({
+        title: "One way plan cancelled",
+        description: `${cancelled.planId} is now CANCELLED.`,
+      });
+      await runSearch(result.filters);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not cancel one way plan",
+        description: getErrorMessage(error),
+      });
+      setLoading(false);
+    }
   }
 
   return (
@@ -659,6 +694,10 @@ export function OneWayPlanningDashboard({ initial, filterOptions }: Props) {
                         row.conversionStatus === "OPEN" &&
                         (row.status === "SUBMITTED" || row.status === "APPROVED") &&
                         row.depotCode !== "-";
+                      const canCancel =
+                        row.conversionStatus === "OPEN" &&
+                        row.status !== "CANCELLED" &&
+                        row.status !== "COMPLETED";
                       const createReleaseHref = buildCreateReleaseHref(row);
                       return (
                         <>
@@ -685,12 +724,6 @@ export function OneWayPlanningDashboard({ initial, filterOptions }: Props) {
                     <TableCell>{displayValue(row.onhireNo)}</TableCell>
                     <TableCell className="sticky right-0 z-10 bg-background text-right">
                       <div className="flex justify-end gap-2">
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/dispatch/one-way-planning/${row.id}`}>View</Link>
-                        </Button>
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/dispatch/one-way-planning/${row.id}/edit`}>Edit</Link>
-                        </Button>
                         {canCreateRelease ? (
                           <Button asChild type="button" variant="outline" size="sm">
                             <Link href={createReleaseHref}>Create Release</Link>
@@ -710,6 +743,37 @@ export function OneWayPlanningDashboard({ initial, filterOptions }: Props) {
                             Create Release
                           </Button>
                         )}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-1">
+                              <MoreHorizontal className="h-4 w-4" />
+                              More
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            className="w-32 p-2"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className="flex flex-col gap-1">
+                              <Button asChild variant="ghost" size="sm" className="justify-start">
+                                <Link href={`/dispatch/one-way-planning/${row.id}`}>View</Link>
+                              </Button>
+                              <Button asChild variant="ghost" size="sm" className="justify-start">
+                                <Link href={`/dispatch/one-way-planning/${row.id}/edit`}>Edit</Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="justify-start"
+                                disabled={!canCancel || loading}
+                                onClick={() => void handleCancelPlan(row)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </TableCell>
                         </>
