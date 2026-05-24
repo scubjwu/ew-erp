@@ -2924,6 +2924,7 @@ function ensureFactoryProgressEditPayloadAllowed(
       }
       if (
         "containerNumber" in nextContainer &&
+        trimOrNull(currentContainer.containerNumber) &&
         trimOrNull(nextContainer.containerNumber) !== trimOrNull(currentContainer.containerNumber)
       ) {
         throw new Error("Container Number cannot be changed in the current order status.");

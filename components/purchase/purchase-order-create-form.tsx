@@ -33,7 +33,10 @@ import {
   shouldShowVendorReleaseFields,
 } from "@/app/purchase/po-management/create-helpers";
 import { AutocompleteFilterInput } from "@/components/shared/page-standard/autocomplete-filter-input";
-import { PurchaseContainerBulkUpdateModal } from "@/components/purchase/purchase-container-bulk-update-modal";
+import {
+  PurchaseContainerBulkUpdateModal,
+  type PurchaseContainerBulkAssignableRow,
+} from "@/components/purchase/purchase-container-bulk-update-modal";
 import { StandardTablePagination } from "@/components/shared/page-standard/standard-table-pagination";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -965,7 +968,7 @@ function buildFormStateFromOrder(order: PurchaseOrderDetail): DraftFormState {
 }
 
 function buildDraftItemsFromOrder(order: PurchaseOrderDetail): DraftItemRow[] {
-  return order.items.map((item) => ({
+  return (order.items ?? []).map((item) => ({
     key: item.id,
     itemKey: item.id,
     locationCityId: item.locationCityId,
@@ -1004,7 +1007,7 @@ function buildDraftItemsFromOrder(order: PurchaseOrderDetail): DraftItemRow[] {
 }
 
 function buildDraftContainersFromOrder(order: PurchaseOrderDetail): DraftContainerRow[] {
-  return order.containers.map((container) => ({
+  return (order.containers ?? []).map((container) => ({
     key: container.id,
     itemKey: container.purchaseOrderItemId ?? "",
     containerNumber: container.containerNumber,
@@ -1024,7 +1027,7 @@ function buildDraftContainersFromOrder(order: PurchaseOrderDetail): DraftContain
 }
 
 function buildDraftMaterialTypesFromOrder(order: PurchaseOrderDetail): DraftMaterialTypeRow[] {
-  return order.materialTypes.map((row) => ({
+  return (order.materialTypes ?? []).map((row) => ({
     key: row.id,
     materialType: row.materialType,
     materialVendorId: row.materialVendorId,
@@ -1032,7 +1035,7 @@ function buildDraftMaterialTypesFromOrder(order: PurchaseOrderDetail): DraftMate
 }
 
 function buildDraftItemAttachmentsFromOrder(order: PurchaseOrderDetail): DraftAttachmentRow[] {
-  return order.itemAttachments.map((attachment) => ({
+  return (order.itemAttachments ?? []).map((attachment) => ({
     key: attachment.id,
     id: attachment.id,
     purchaseOrderItemId: attachment.purchaseOrderItemId,
@@ -1452,6 +1455,64 @@ export function PurchaseOrderCreateForm({
     });
 
     return [...existingRows, ...syntheticRows];
+  }
+
+  function getAllDraftContainersForItem(itemKey: string): PurchaseContainerBulkAssignableRow[] {
+    if (!useServerPagedContainerEditing || !initialOrder) {
+      return containers
+        .filter((row) => row.itemKey === itemKey)
+        .map((row) => ({
+          id: row.key,
+          itemKey: row.itemKey,
+          containerNumber: row.containerNumber,
+          persistedContainerNumber: null,
+        }));
+    }
+
+    const persistedRows = initialOrder.containers
+      .filter((row) => row.purchaseOrderItemId === itemKey)
+      .map((row) => {
+        const patch = containerEditPatches[row.id];
+        const draft = patchToDraftContainerRow(row, patch);
+        return {
+          id: row.id,
+          itemKey,
+          containerNumber: draft.containerNumber,
+          persistedContainerNumber: row.containerNumber,
+        };
+      });
+    const newRows = (newContainerDraftsByItem[itemKey] ?? []).map((row) => ({
+      id: row.key,
+      itemKey,
+      containerNumber: row.containerNumber,
+      persistedContainerNumber: null,
+    }));
+    return [...persistedRows, ...newRows];
+  }
+
+  function getDisplayContainerAssignments(itemKey: string): PurchaseContainerBulkAssignableRow[] {
+    const item = items.find((entry) => entry.itemKey === itemKey);
+    if (!item) return [];
+
+    if (!useServerPagedContainerEditing || !initialOrder) {
+      return getDisplayContainersForItem(item).map((row) => ({
+        id: row.key,
+        itemKey: row.itemKey,
+        containerNumber: row.containerNumber,
+        persistedContainerNumber: null,
+      }));
+    }
+
+    const persistedById = new Map(
+      initialOrder.containers.map((row) => [row.id, row] as const)
+    );
+
+    return getDisplayContainersForItem(item).map((row) => ({
+      id: row.key,
+      itemKey: row.itemKey,
+      containerNumber: row.containerNumber,
+      persistedContainerNumber: persistedById.get(row.key)?.containerNumber ?? null,
+    }));
   }
 
   function canEditItemColumn(column: EditableCellKey["column"]) {
@@ -3355,6 +3416,11 @@ export function PurchaseOrderCreateForm({
           }}
           itemKey={bulkUpdateItemKey ?? ""}
           allowEstimatedOfflineDate={form.purchaseType === "FACTORY_ORDER"}
+          allowNumberOnlyAssignment={
+            form.purchaseType === "NEW_CONTAINER" ||
+            form.purchaseType === "USED_CONTAINER" ||
+            (form.purchaseType === "FACTORY_ORDER" && !factoryUsesInternalContainerNumbering)
+          }
           allowedFields={
             fullEditAllowed
               ? [
@@ -3374,6 +3440,8 @@ export function PurchaseOrderCreateForm({
                   "cscNumber",
                 ]
           }
+          assignableRows={bulkUpdateItemKey ? getDisplayContainerAssignments(bulkUpdateItemKey) : []}
+          itemRows={bulkUpdateItemKey ? getAllDraftContainersForItem(bulkUpdateItemKey) : []}
           onResolveRows={async (containerNumbers) => {
             if (!bulkUpdateItemKey) return [];
             if (useServerPagedContainerEditing && initialOrder) {

@@ -43,9 +43,19 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   itemKey: string;
   allowEstimatedOfflineDate: boolean;
+  allowNumberOnlyAssignment: boolean;
   allowedFields: BulkFieldKey[];
   onResolveRows: (containerNumbers: string[]) => Promise<PurchaseOrderContainer[]>;
+  assignableRows: PurchaseContainerBulkAssignableRow[];
+  itemRows: PurchaseContainerBulkAssignableRow[];
   onApply: (patches: PurchaseOrderContainerEditPatchInput[]) => void;
+};
+
+export type PurchaseContainerBulkAssignableRow = {
+  id: string;
+  itemKey: string;
+  containerNumber: string | null;
+  persistedContainerNumber: string | null;
 };
 
 const FIELD_OPTIONS: Array<{ key: BulkFieldKey; label: string }> = [
@@ -80,6 +90,8 @@ const HEADER_ALIASES: Record<string, BulkFieldKey | "containerNumber"> = {
   cscno: "cscNumber",
 };
 
+const MANUAL_CONTAINER_NUMBER_PATTERN = /^[A-Z]{4}\d{7}$/;
+
 function parseGrid(value: string) {
   return value
     .split(/\r?\n/)
@@ -90,6 +102,10 @@ function parseGrid(value: string) {
 
 function normalizeContainerNumber(value: string) {
   return value.trim().toUpperCase();
+}
+
+function isValidContainerNumber(value: string) {
+  return MANUAL_CONTAINER_NUMBER_PATTERN.test(value);
 }
 
 function normalizeHeaderKey(value: string) {
@@ -262,8 +278,11 @@ export function PurchaseContainerBulkUpdateModal({
   onOpenChange,
   itemKey,
   allowEstimatedOfflineDate,
+  allowNumberOnlyAssignment,
   allowedFields,
   onResolveRows,
+  assignableRows,
+  itemRows,
   onApply,
 }: Props) {
   const [rawPaste, setRawPaste] = useState("");
@@ -285,6 +304,17 @@ export function PurchaseContainerBulkUpdateModal({
       ),
     [dataRows]
   );
+  const numberOnlyRows = useMemo(
+    () =>
+      dataRows
+        .map((row) => normalizeContainerNumber(String(row[0] ?? "")))
+        .filter(Boolean),
+    [dataRows]
+  );
+  const isNumberOnlyMode = useMemo(() => {
+    if (!allowNumberOnlyAssignment || dataRows.length === 0) return false;
+    return dataRows.every((row) => row.length <= 1);
+  }, [allowNumberOnlyAssignment, dataRows]);
 
   const selectableFields = useMemo(
     () =>
@@ -323,7 +353,7 @@ export function PurchaseContainerBulkUpdateModal({
   useEffect(() => {
     let alive = true;
     async function loadBaseRows() {
-      if (!open || containerNumbers.length === 0) {
+      if (!open || isNumberOnlyMode || containerNumbers.length === 0) {
         setBaseRows(new Map());
         return;
       }
@@ -351,9 +381,106 @@ export function PurchaseContainerBulkUpdateModal({
     return () => {
       alive = false;
     };
-  }, [containerNumbers, onResolveRows, open]);
+  }, [containerNumbers, isNumberOnlyMode, onResolveRows, open]);
+
+  const numberOnlyPreview = useMemo(() => {
+    if (!isNumberOnlyMode) {
+      return {
+        validCount: 0,
+        assignableCount: 0,
+        error: null as string | null,
+      };
+    }
+
+    const duplicates = new Set<string>();
+    const seen = new Set<string>();
+    for (const containerNumber of numberOnlyRows) {
+      if (seen.has(containerNumber)) {
+        duplicates.add(containerNumber);
+      }
+      seen.add(containerNumber);
+    }
+    if (duplicates.size > 0) {
+      return {
+        validCount: 0,
+        assignableCount: 0,
+        error: `Duplicate container numbers found: ${Array.from(duplicates).join(", ")}.`,
+      };
+    }
+
+    const invalid = numberOnlyRows.find((containerNumber) => !isValidContainerNumber(containerNumber));
+    if (invalid) {
+      return {
+        validCount: 0,
+        assignableCount: 0,
+        error: `${invalid}: Container Number must match 4 letters followed by 7 digits.`,
+      };
+    }
+
+    const assignableTargetRows = assignableRows.filter(
+      (row) => !normalizeContainerNumber(row.persistedContainerNumber ?? "")
+    );
+    const assignableTargetIds = new Set(assignableTargetRows.map((row) => row.id));
+    const conflictingExisting = new Set(
+      itemRows
+        .filter((row) => !assignableTargetIds.has(row.id))
+        .map((row) => normalizeContainerNumber(row.containerNumber ?? ""))
+        .filter(Boolean)
+    );
+    const conflictingValue = numberOnlyRows.find((containerNumber) => conflictingExisting.has(containerNumber));
+    if (conflictingValue) {
+      return {
+        validCount: 0,
+        assignableCount: assignableTargetRows.length,
+        error: `${conflictingValue}: Container Number already exists on another line in this item.`,
+      };
+    }
+
+    if (numberOnlyRows.length > assignableTargetRows.length) {
+      return {
+        validCount: 0,
+        assignableCount: assignableTargetRows.length,
+        error: `Pasted ${numberOnlyRows.length} container numbers, but only ${assignableTargetRows.length} blank container lines are available.`,
+      };
+    }
+
+    return {
+      validCount: numberOnlyRows.length,
+      assignableCount: assignableTargetRows.length,
+      error: null as string | null,
+    };
+  }, [assignableRows, isNumberOnlyMode, itemRows, numberOnlyRows]);
 
   function handleApply() {
+    if (isNumberOnlyMode) {
+      if (numberOnlyPreview.error) {
+        toast({
+          title: "Some bulk update values are invalid.",
+          description: numberOnlyPreview.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const targetRows = assignableRows.filter(
+        (row) => !normalizeContainerNumber(row.persistedContainerNumber ?? "")
+      );
+      const patches = targetRows.slice(0, numberOnlyRows.length).map((row, index) => ({
+        id: row.id,
+        itemKey,
+        containerNumber: numberOnlyRows[index]!,
+      }));
+
+      if (patches.length === 0) {
+        toast({ title: "No valid container updates to apply." });
+        return;
+      }
+
+      onApply(patches);
+      onOpenChange(false);
+      return;
+    }
+
     const patches = new Map<string, PurchaseOrderContainerEditPatchInput>();
     const validationErrors: string[] = [];
 
@@ -518,9 +645,13 @@ export function PurchaseContainerBulkUpdateModal({
           </div>
 
           <div className="text-xs text-muted-foreground">
-            {loading
-              ? "Loading matching containers..."
-              : `${baseRows.size} matched container(s) will be staged into this PO edit draft.`}
+            {isNumberOnlyMode
+              ? numberOnlyPreview.error
+                ? numberOnlyPreview.error
+                : `${numberOnlyPreview.validCount} container number(s) will be assigned into blank rows in this PO edit draft.`
+              : loading
+                ? "Loading matching containers..."
+                : `${baseRows.size} matched container(s) will be staged into this PO edit draft.`}
           </div>
         </div>
 

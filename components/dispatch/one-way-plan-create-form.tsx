@@ -118,6 +118,12 @@ function parseNumber(value: string, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseRequiredNumber(value: string) {
+  if (!value.trim()) return Number.NaN;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
 function clearZeroOnFocus(
   value: string,
   onChange: (next: string) => void,
@@ -187,18 +193,18 @@ export function OneWayPlanCreateForm({ options }: Props) {
         conditionCodeId: form.conditionCodeId,
         color: form.color,
         machineType: form.machineType,
-        quantity: parseNumber(form.quantity),
+        quantity: parseRequiredNumber(form.quantity),
         authorizedQty: parseNumber(form.authorizedQty),
         remainingQty: parseNumber(form.remainingQty),
         pickedUpQty: parseNumber(form.pickedUpQty),
         nonPickedUpQty: parseNumber(form.nonPickedUpQty),
-        pickupCharge: parseNumber(form.pickupCharge),
-        freeDays: parseNumber(form.freeDays),
-        perDiem: parseNumber(form.perDiem),
-        dpp: parseNumber(form.dpp),
+        pickupCharge: parseRequiredNumber(form.pickupCharge),
+        freeDays: parseRequiredNumber(form.freeDays),
+        perDiem: parseRequiredNumber(form.perDiem),
+        dpp: parseRequiredNumber(form.dpp),
         carrier: form.carrier,
         currency: form.currency,
-        rv: parseNumber(form.rv),
+        rv: parseRequiredNumber(form.rv),
         remarks: form.remarks,
       };
 
@@ -266,7 +272,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <SearchableAutocompleteInput
-            label="Lessee Name"
+            label="Lessee Name *"
             placeholder="Search lessee"
             options={options.lessees}
             value={form.lesseeId}
@@ -313,7 +319,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SearchableAutocompleteInput
-            label="POL"
+            label="POL *"
             placeholder="Search POL"
             options={options.polCities}
             value={form.polCityId}
@@ -331,7 +337,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             }}
           />
           <SearchableAutocompleteInput
-            label="Depot Code"
+            label="Depot Code *"
             placeholder={form.polCityId ? "Search depot" : "Select POL first or search all depots"}
             options={filteredDepotOptions}
             value={form.depotId}
@@ -349,7 +355,8 @@ export function OneWayPlanCreateForm({ options }: Props) {
             }}
           />
           <div className="space-y-1.5 md:col-span-2 xl:col-span-2">
-            <Label>POD</Label>
+            <Label>POD *</Label>
+            
             <Input
               value={form.pod}
               placeholder="e.g. USTBA / USLAX"
@@ -358,7 +365,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Size/Type</Label>
+            <Label>Size/Type *</Label>
             <Select
               value={selectedSizeTypeValue}
               onValueChange={(value) => {
@@ -388,7 +395,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Condition</Label>
+            <Label>Condition *</Label>
             <Select
               value={form.conditionCodeId || "__EMPTY__"}
               onValueChange={(value) =>
@@ -448,7 +455,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="space-y-1.5">
-            <Label>Quantity</Label>
+            <Label>Quantity *</Label>
             <Input
               type="number"
               min="0"
@@ -526,10 +533,9 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Pick-up Charge</Label>
+            <Label>Pick-up Charge *</Label>
             <Input
               type="number"
-              min="0"
               step="0.01"
               value={form.pickupCharge}
               onChange={(event) =>
@@ -543,7 +549,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Free Days</Label>
+            <Label>Free Days *</Label>
             <Input
               type="number"
               min="0"
@@ -557,7 +563,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Per Diem</Label>
+            <Label>Per Diem *</Label>
             <Input
               type="number"
               min="0"
@@ -572,7 +578,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>DPP</Label>
+            <Label>DPP *</Label>
             <Input
               type="number"
               min="0"
@@ -594,7 +600,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Currency</Label>
+            <Label>Currency *</Label>
             <Input
               value={form.currency}
               onChange={(event) =>
@@ -603,7 +609,7 @@ export function OneWayPlanCreateForm({ options }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>RV</Label>
+            <Label>DV / RV *</Label>
             <Input
               type="number"
               min="0"

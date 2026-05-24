@@ -1673,6 +1673,12 @@ function requireNonNegativeNumber(value: number, label: string) {
   }
 }
 
+function requireFiniteNumber(value: number, label: string) {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} is required.`);
+  }
+}
+
 export async function createOneWayPlan(
   input: OneWayPlanCreateInput
 ): Promise<OneWayPlanCreateResult> {
@@ -1689,20 +1695,24 @@ export async function createOneWayPlan(
   requireValue(input.sizeCodeId, "Size Code");
   requireValue(input.typeCodeId, "Type Code");
   requireValue(input.conditionCodeId, "Condition");
-  requireValue(input.color, "Color");
-  requireValue(input.carrier, "Carrier");
   requireValue(input.currency, "Currency");
+
+  requireFiniteNumber(input.quantity, "Quantity");
+  requireFiniteNumber(input.pickupCharge, "Pick-up Charge");
+  requireFiniteNumber(input.freeDays, "Free Days");
+  requireFiniteNumber(input.perDiem, "Per Diem");
+  requireFiniteNumber(input.dpp, "DPP");
+  requireFiniteNumber(input.rv, "DV / RV");
 
   requireNonNegativeNumber(input.quantity, "Quantity");
   requireNonNegativeNumber(input.authorizedQty, "Authorized Qty");
   requireNonNegativeNumber(input.remainingQty, "Remaining Qty");
   requireNonNegativeNumber(input.pickedUpQty, "Picked Up Qty");
   requireNonNegativeNumber(input.nonPickedUpQty, "Non Picked Up Qty");
-  requireNonNegativeNumber(input.pickupCharge, "Pick-up Charge");
   requireNonNegativeNumber(input.freeDays, "Free Days");
   requireNonNegativeNumber(input.perDiem, "Per Diem");
   requireNonNegativeNumber(input.dpp, "DPP");
-  requireNonNegativeNumber(input.rv, "RV");
+  requireNonNegativeNumber(input.rv, "DV / RV");
 
   const supabase = createServerSupabaseClient();
   const payload = {
@@ -1719,7 +1729,7 @@ export async function createOneWayPlan(
     size_code_id: input.sizeCodeId,
     type_code_id: input.typeCodeId,
     condition_code_id: input.conditionCodeId,
-    color_code: normalizeText(input.color),
+    color_code: normalizeText(input.color) || null,
     machine_type: normalizeText(input.machineType) || null,
     planned_qty: input.quantity,
     authorized_qty: input.authorizedQty,
@@ -1730,7 +1740,7 @@ export async function createOneWayPlan(
     free_days: input.freeDays,
     per_diem: input.perDiem,
     dpp: input.dpp,
-    carrier: normalizeText(input.carrier),
+    carrier: normalizeText(input.carrier) || null,
     currency: normalizeText(input.currency).toUpperCase() || null,
     rv: input.rv,
     shipper_request_id: normalizeText(input.shipperRequestId) || null,
@@ -1839,20 +1849,24 @@ export async function updateOneWayPlan(
     requireValue(input.sizeCodeId, "Size/Type");
     requireValue(input.typeCodeId, "Size/Type");
     requireValue(input.conditionCodeId, "Condition");
-    requireValue(input.color, "Color");
-    requireValue(input.carrier, "Carrier");
     requireValue(input.currency, "Currency");
+
+    requireFiniteNumber(input.quantity, "Quantity");
+    requireFiniteNumber(input.pickupCharge, "Pick-up Charge");
+    requireFiniteNumber(input.freeDays, "Free Days");
+    requireFiniteNumber(input.perDiem, "Per Diem");
+    requireFiniteNumber(input.dpp, "DPP");
+    requireFiniteNumber(input.rv, "DV / RV");
 
     requireNonNegativeNumber(input.quantity, "Quantity");
     requireNonNegativeNumber(input.authorizedQty, "Authorized Qty");
     requireNonNegativeNumber(input.remainingQty, "Remaining Qty");
     requireNonNegativeNumber(input.pickedUpQty, "Picked Up Qty");
     requireNonNegativeNumber(input.nonPickedUpQty, "Non Picked Up Qty");
-    requireNonNegativeNumber(input.pickupCharge, "Pick-up Charge");
     requireNonNegativeNumber(input.freeDays, "Free Days");
     requireNonNegativeNumber(input.perDiem, "Per Diem");
     requireNonNegativeNumber(input.dpp, "DPP");
-    requireNonNegativeNumber(input.rv, "RV");
+    requireNonNegativeNumber(input.rv, "DV / RV");
 
     if (hasRelease) {
       if (
@@ -1884,7 +1898,7 @@ export async function updateOneWayPlan(
     size_code_id: input.sizeCodeId,
     type_code_id: input.typeCodeId,
     condition_code_id: input.conditionCodeId,
-    color_code: normalizeText(input.color),
+    color_code: normalizeText(input.color) || null,
     machine_type: normalizeText(input.machineType) || null,
     planned_qty: input.quantity,
     authorized_qty: input.authorizedQty,
@@ -1895,7 +1909,7 @@ export async function updateOneWayPlan(
     free_days: input.freeDays,
     per_diem: input.perDiem,
     dpp: input.dpp,
-    carrier: normalizeText(input.carrier),
+    carrier: normalizeText(input.carrier) || null,
     currency: normalizeText(input.currency).toUpperCase() || null,
     rv: input.rv,
     shipper_request_id: normalizeText(input.shipperRequestId) || null,
