@@ -442,10 +442,24 @@ function matchesBucketRowContext(
     machineType: string | null | undefined;
   }
 ) {
+  const rowDepotCode = extractBucketCode(row.depot);
+  const rowDepotName = normalizeBucketFilterValue(row.depot)
+    .split("·")
+    .slice(1)
+    .join("·")
+    .trim();
+  const bucketDepotCode = extractBucketCode(bucket.depot);
+  const bucketDepotName = normalizeBucketFilterValue(bucket.depot)
+    .split("·")
+    .slice(1)
+    .join("·")
+    .trim();
+
   return (
     normalizedBucketMatch(row.region) === normalizedBucketMatch(bucket.region) &&
     extractCityCode(row.city) === extractCityCode(bucket.city) &&
-    matchesDepotBucketValue(row.depot, row.depot, bucket.depot) &&
+    (matchesDepotBucketValue(rowDepotCode || row.depot, rowDepotName || row.depot, bucket.depot) ||
+      matchesDepotBucketValue(bucketDepotCode || bucket.depot, bucketDepotName || bucket.depot, row.depot)) &&
     normalizedBucketMatch(row.sizeType) === normalizedBucketMatch(bucket.sizeType) &&
     normalizedBucketMatch(row.condition) === normalizedBucketMatch(bucket.condition) &&
     normalizedBucketMatch(row.color) === normalizedBucketMatch(bucket.color) &&
@@ -4448,10 +4462,14 @@ export async function getDispatchReleaseDetail(
       sourceCity:
         sourceCityLabel !== "-" ? sourceCityLabel : fallbackCityLabel,
       sourceDepot:
-        normalizeText(sourceItemDepot?.depot_name) ||
-        normalizeText(sourceItemDepot?.depot_code) ||
-        normalizeText(fromDepot?.depot_name) ||
-        normalizeText(fromDepot?.depot_code) ||
+        buildDepotBucketLabel(
+          normalizeText(sourceItemDepot?.depot_code) ||
+            normalizeText(fromDepot?.depot_code) ||
+            null,
+          normalizeText(sourceItemDepot?.depot_name) ||
+            normalizeText(fromDepot?.depot_name) ||
+            null
+        ) ||
         "-",
       containerSelectionMode: normalizeText(orderRow.box_selection_mode) || null,
     },
