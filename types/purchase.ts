@@ -275,6 +275,8 @@ export interface PurchaseOrderSummary extends PurchaseOrderBase {
   primaryTypeCode?: string | null;
   primaryConditionCode?: string | null;
   primaryColor?: string | null;
+  earliestEstimatedOfflineDate?: string | null;
+  earliestFreedayExpiryDate?: string | null;
   remainingQty?: number | null;
   cancelledQty?: number | null;
 }

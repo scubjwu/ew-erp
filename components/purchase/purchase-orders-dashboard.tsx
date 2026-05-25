@@ -184,6 +184,8 @@ function downloadCsv(filename: string, rows: PurchaseOrderManagementResult["rows
     "Size/Type",
     "Condition",
     "Color",
+    "Earliest Est. Offline Date",
+    "Earliest Freeday Expiry Date",
     "Planned Qty",
     "Available Qty",
     "Remaining Qty",
@@ -206,6 +208,8 @@ function downloadCsv(filename: string, rows: PurchaseOrderManagementResult["rows
         row.sizeTypeLabel,
         row.conditionLabel,
         row.primaryColor,
+        row.earliestEstimatedOfflineDate,
+        row.earliestFreedayExpiryDate,
         row.totalPlannedQty,
         row.totalAvailableQty,
         row.remainingQty,
@@ -670,7 +674,7 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
         </div>
 
         <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
-            <Table className="min-w-[1880px] table-fixed border-separate border-spacing-0">
+            <Table className="min-w-[2120px] table-fixed border-separate border-spacing-0">
               <colgroup>
                 <col style={{ width: "120px" }} />
                 <col style={{ width: "180px" }} />
@@ -683,6 +687,8 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                 <col style={{ width: "120px" }} />
                 <col style={{ width: "120px" }} />
                 <col style={{ width: "120px" }} />
+                <col style={{ width: "160px" }} />
+                <col style={{ width: "150px" }} />
                 <col style={{ width: "160px" }} />
                 <col style={{ width: "140px" }} />
                 <col style={{ width: "150px" }} />
@@ -712,6 +718,8 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                       />
                     </TableHead>
                   ))}
+                  <TableHead className="min-w-[150px]">Earliest Est. Offline Date</TableHead>
+                  <TableHead className="min-w-[160px]">Earliest Freeday Expiry Date</TableHead>
                   <TableHead>
                     <SortButton
                       label="Status"
@@ -727,7 +735,7 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
               <TableBody>
                 {result.rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={SORTABLE_COLUMNS.length + 2} className="h-28 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={SORTABLE_COLUMNS.length + 4} className="h-28 text-center text-sm text-muted-foreground">
                       {loading ? "Loading purchase orders..." : "No purchase orders found for the current filters."}
                     </TableCell>
                   </TableRow>
@@ -750,6 +758,8 @@ export function PurchaseOrdersDashboard({ initial, pageSize, filterOptions }: Pr
                       <TableCell className="min-w-[120px] text-center">{row.remainingQty}</TableCell>
                       <TableCell className="min-w-[120px] text-center">{row.cancelledQty}</TableCell>
                       <TableCell className="min-w-[160px] text-right">{row.prepaidBalance.toFixed(2)}</TableCell>
+                      <TableCell className="min-w-[150px]">{row.earliestEstimatedOfflineDate ?? "-"}</TableCell>
+                      <TableCell className="min-w-[160px]">{row.earliestFreedayExpiryDate ?? "-"}</TableCell>
                       <TableCell>
                         <Badge variant={statusVariant(row.orderStatus)}>{row.orderStatus}</Badge>
                       </TableCell>

@@ -422,6 +422,37 @@ function matchesDepotBucketValue(
   );
 }
 
+function matchesBucketRowContext(
+  row: {
+    region: string | null | undefined;
+    city: string | null | undefined;
+    depot: string | null | undefined;
+    sizeType: string | null | undefined;
+    condition: string | null | undefined;
+    color: string | null | undefined;
+    machineType: string | null | undefined;
+  },
+  bucket: {
+    region: string | null | undefined;
+    city: string | null | undefined;
+    depot: string | null | undefined;
+    sizeType: string | null | undefined;
+    condition: string | null | undefined;
+    color: string | null | undefined;
+    machineType: string | null | undefined;
+  }
+) {
+  return (
+    normalizedBucketMatch(row.region) === normalizedBucketMatch(bucket.region) &&
+    extractCityCode(row.city) === extractCityCode(bucket.city) &&
+    matchesDepotBucketValue(row.depot, row.depot, bucket.depot) &&
+    normalizedBucketMatch(row.sizeType) === normalizedBucketMatch(bucket.sizeType) &&
+    normalizedBucketMatch(row.condition) === normalizedBucketMatch(bucket.condition) &&
+    normalizedBucketMatch(row.color) === normalizedBucketMatch(bucket.color) &&
+    normalizedBucketMatch(row.machineType) === normalizedBucketMatch(bucket.machineType)
+  );
+}
+
 function normalizeContainerNumber(value: string | null | undefined) {
   return normalizeText(value).toUpperCase();
 }
@@ -1331,7 +1362,7 @@ async function ensureUniqueReleaseNumber(releaseNumber: string) {
 }
 
 async function getFreshBucketRow(input: DispatchReleasePersistInput) {
-  const summary = await getDepotDispatchSummary({
+  const filteredSummary = await getDepotDispatchSummary({
     region: normalizeBucketFilterValue(input.bucket.region),
     city: extractCityCode(input.bucket.city),
     depot: normalizeBucketFilterValue(input.bucket.depot),
@@ -1345,23 +1376,35 @@ async function getFreshBucketRow(input: DispatchReleasePersistInput) {
   });
 
   const matched =
-    summary.rows.find((row) => row.id === input.bucket.id) ??
-    summary.rows.find(
-      (row) =>
-        normalizedBucketMatch(row.region) === normalizedBucketMatch(input.bucket.region) &&
-        normalizedBucketMatch(row.city) === normalizedBucketMatch(input.bucket.city) &&
-        normalizedBucketMatch(row.depot) === normalizedBucketMatch(input.bucket.depot) &&
-        normalizedBucketMatch(row.sizeType) === normalizedBucketMatch(input.bucket.sizeType) &&
-        normalizedBucketMatch(row.condition) === normalizedBucketMatch(input.bucket.condition) &&
-        normalizedBucketMatch(row.color) === normalizedBucketMatch(input.bucket.color) &&
-        normalizedBucketMatch(row.machineType) === normalizedBucketMatch(input.bucket.machineType)
-    );
+    filteredSummary.rows.find((row) => row.id === input.bucket.id) ??
+    filteredSummary.rows.find((row) => matchesBucketRowContext(row, input.bucket));
 
-  if (!matched) {
+  if (matched) {
+    return matched;
+  }
+
+  const unfilteredSummary = await getDepotDispatchSummary({
+    region: "",
+    city: "",
+    depot: "",
+    owner: "",
+    sizeType: "",
+    condition: "",
+    color: "",
+    machineType: "",
+    page: 1,
+    pageSize: 5000,
+  });
+
+  const fallbackMatched =
+    unfilteredSummary.rows.find((row) => row.id === input.bucket.id) ??
+    unfilteredSummary.rows.find((row) => matchesBucketRowContext(row, input.bucket));
+
+  if (!fallbackMatched) {
     throw new Error("The selected dispatch availability bucket is no longer available.");
   }
 
-  return matched;
+  return fallbackMatched;
 }
 
 async function validateReleaseCapacity(input: DispatchReleasePersistInput) {

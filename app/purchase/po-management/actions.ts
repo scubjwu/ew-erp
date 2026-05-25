@@ -38,7 +38,6 @@ import {
 } from "@/app/purchase/po-management/create-helpers";
 import {
   applyQuickFilterDates,
-  firstPurchaseItemByOrder,
   groupPurchaseItemsByOrder,
   normalizeRalLikeSearch,
   rowMatchesAnyPurchaseItem,
@@ -282,6 +281,8 @@ type PurchaseItemRowRaw = {
   container_size_code_id: string | null;
   container_type_code_id: string | null;
   container_condition_code_id: string | null;
+  estimated_offline_date: string | null;
+  offline_date: string | null;
   location_code?: string | null;
   location_name?: string | null;
   size_code?: string | null;
@@ -734,9 +735,10 @@ function mapPurchaseOrderItemAttachmentRow(
 
 function mapPurchaseRow(
   row: PurchaseOrderRowRaw,
-  firstItem?: PurchaseItemRowRaw,
+  itemsForOrder: PurchaseItemRowRaw[] = [],
   containers: PurchaseOrderContainer[] = []
 ): PurchaseOrderManagementRow {
+  const firstItem = itemsForOrder[0];
   const totalPlannedQty = toNumber(row.total_planned_qty);
   const totalAvailableQty = toNumber(row.total_available_qty);
   const totalReceivedQty = toNumber(row.total_received_qty);
@@ -757,6 +759,16 @@ function mapPurchaseRow(
     row.supplier?.legal_company_name ??
     row.supplier?.vendor_code ??
     null;
+  const earliestEstimatedOfflineDate = computeEarliestEstimatedOfflineDate(
+    row.purchase_type,
+    itemsForOrder,
+    containers
+  );
+  const earliestFreedayExpiryDate = computeEarliestFreedayExpiryDate(
+    row.purchase_type,
+    itemsForOrder,
+    row.freeday
+  );
 
   return {
     id: row.id,
@@ -804,6 +816,8 @@ function mapPurchaseRow(
     primaryTypeCode: typeCode,
     primaryConditionCode: firstItem?.condition?.condition_code ?? null,
     primaryColor: firstItem?.color ?? null,
+    earliestEstimatedOfflineDate,
+    earliestFreedayExpiryDate,
     locationLabel,
     vendorLabel,
     sizeTypeLabel,
@@ -960,6 +974,8 @@ async function loadPurchaseItems(orderIds: string[]) {
         container_size_code_id,
         container_type_code_id,
         container_condition_code_id,
+        estimated_offline_date,
+        offline_date,
         location:cities(id, city_code, city_name),
         size:container_size_codes(id, size_code, size_name),
         type:container_type_codes(id, type_code, type_description),
@@ -1004,6 +1020,7 @@ async function loadPurchaseContainers(orderIds: string[]) {
         vents_count,
         machine_type,
         yom,
+        estimated_offline_date,
         offline_date,
         planned_pod,
         tare_weight,
@@ -1239,6 +1256,61 @@ function filterRowsByBase(
   });
 }
 
+function normalizeDateOnly(value: string | null | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const directMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (directMatch) return directMatch[1];
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function earliestDate(values: Array<string | null | undefined>) {
+  const normalized = values
+    .map((value) => normalizeDateOnly(value))
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => left.localeCompare(right));
+  return normalized[0] ?? null;
+}
+
+function addDays(date: string, days: number) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function computeEarliestEstimatedOfflineDate(
+  purchaseType: PurchaseType,
+  itemsForOrder: PurchaseItemRowRaw[],
+  containers: PurchaseOrderContainer[]
+) {
+  if (purchaseType !== "FACTORY_ORDER") return null;
+  return earliestDate([
+    ...itemsForOrder.map((item) => item.estimated_offline_date),
+    ...containers.map((container) => container.estimatedOfflineDate),
+  ]);
+}
+
+function computeEarliestFreedayExpiryDate(
+  purchaseType: PurchaseType,
+  itemsForOrder: PurchaseItemRowRaw[],
+  freeday: number | null | undefined
+) {
+  if (purchaseType === "FACTORY_ORDER") return null;
+  if (freeday == null || !Number.isFinite(freeday)) return null;
+
+  const expiries = itemsForOrder
+    .map((item) => normalizeDateOnly(item.offline_date))
+    .filter((value): value is string => Boolean(value))
+    .map((baseDate) => addDays(baseDate, freeday))
+    .filter((value): value is string => Boolean(value));
+
+  return earliestDate(expiries);
+}
+
 export async function getPurchaseOrders(
   params: PurchaseOrderManagementQuery
 ): Promise<PurchaseOrderManagementResult> {
@@ -1298,7 +1370,6 @@ export async function getPurchaseOrders(
   ]);
 
   const itemsByOrder = groupPurchaseItemsByOrder(items);
-  const firstItems = firstPurchaseItemByOrder(itemsByOrder);
   const containersByOrder = new Map<string, PurchaseOrderContainer[]>();
   for (const container of containerRows.map(mapPurchaseOrderContainer)) {
     const current = containersByOrder.get(container.purchaseOrderId) ?? [];
@@ -1307,7 +1378,7 @@ export async function getPurchaseOrders(
   }
 
   const mappedRows = baseRows.map((row) =>
-    mapPurchaseRow(row, firstItems.get(row.id), containersByOrder.get(row.id) ?? [])
+    mapPurchaseRow(row, itemsByOrder.get(row.id) ?? [], containersByOrder.get(row.id) ?? [])
   );
   const baseFilteredRows = filterRowsByBase(mappedRows, filters);
   const filteredRows = filterRowsByItems(baseFilteredRows, itemsByOrder, filters);
