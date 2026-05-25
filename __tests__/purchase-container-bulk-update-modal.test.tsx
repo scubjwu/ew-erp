@@ -73,11 +73,11 @@ describe("PurchaseContainerBulkUpdateModal", () => {
         onResolveRows={vi.fn().mockResolvedValue([])}
         assignableRows={[
           { id: "row-1", itemKey: "item-1", containerNumber: null, persistedContainerNumber: null },
-          { id: "row-2", itemKey: "item-1", containerNumber: "CIMU0000001", persistedContainerNumber: null },
+          { id: "row-2", itemKey: "item-1", containerNumber: null, persistedContainerNumber: null },
         ]}
         itemRows={[
           { id: "row-1", itemKey: "item-1", containerNumber: null, persistedContainerNumber: null },
-          { id: "row-2", itemKey: "item-1", containerNumber: "CIMU0000001", persistedContainerNumber: null },
+          { id: "row-2", itemKey: "item-1", containerNumber: null, persistedContainerNumber: null },
           { id: "row-3", itemKey: "item-1", containerNumber: "MSCU1234567", persistedContainerNumber: "MSCU1234567" },
         ]}
         onApply={onApply}
@@ -94,6 +94,48 @@ describe("PurchaseContainerBulkUpdateModal", () => {
       { id: "row-1", itemKey: "item-1", containerNumber: "CIMU0597382" },
       { id: "row-2", itemKey: "item-1", containerNumber: "CIMU0597084" },
     ]);
+  });
+
+  it("does not treat unsaved draft container numbers as blank assignable rows", async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+
+    render(
+      <PurchaseContainerBulkUpdateModal
+        open
+        onOpenChange={vi.fn()}
+        itemKey="item-1"
+        allowEstimatedOfflineDate={false}
+        allowNumberOnlyAssignment
+        allowedFields={["yom", "machineType"]}
+        onResolveRows={vi.fn().mockResolvedValue([])}
+        assignableRows={[
+          { id: "row-1", itemKey: "item-1", containerNumber: "BSIU9405814", persistedContainerNumber: null },
+          { id: "row-2", itemKey: "item-1", containerNumber: null, persistedContainerNumber: null },
+        ]}
+        itemRows={[
+          { id: "row-1", itemKey: "item-1", containerNumber: "BSIU9405814", persistedContainerNumber: null },
+          { id: "row-2", itemKey: "item-1", containerNumber: null, persistedContainerNumber: null },
+          { id: "row-3", itemKey: "item-1", containerNumber: "BSIU9508643", persistedContainerNumber: "BSIU9508643" },
+        ]}
+        onApply={onApply}
+      />
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("Paste container updates from Excel..."),
+      "BSIU9405814{enter}BSIU9508643"
+    );
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(onApply).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Some bulk update values are invalid.",
+        variant: "destructive",
+        description: "Pasted 2 container numbers, but only 1 blank container lines are available.",
+      })
+    );
   });
 
   it("blocks number-only assignment when pasted numbers exceed blank displayed rows", async () => {

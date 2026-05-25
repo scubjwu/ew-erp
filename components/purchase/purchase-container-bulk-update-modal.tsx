@@ -108,6 +108,94 @@ function isValidContainerNumber(value: string) {
   return MANUAL_CONTAINER_NUMBER_PATTERN.test(value);
 }
 
+function isAssignableBlankRow(row: PurchaseContainerBulkAssignableRow) {
+  return (
+    !normalizeContainerNumber(row.persistedContainerNumber ?? "") &&
+    !normalizeContainerNumber(row.containerNumber ?? "")
+  );
+}
+
+function buildNumberOnlyAssignmentPlan(args: {
+  pastedNumbers: string[];
+  itemRows: PurchaseContainerBulkAssignableRow[];
+  assignableRows: PurchaseContainerBulkAssignableRow[];
+}) {
+  const duplicates = new Set<string>();
+  const seen = new Set<string>();
+  for (const containerNumber of args.pastedNumbers) {
+    if (seen.has(containerNumber)) {
+      duplicates.add(containerNumber);
+    }
+    seen.add(containerNumber);
+  }
+  if (duplicates.size > 0) {
+    return {
+      validCount: 0,
+      assignableCount: 0,
+      targetRows: [] as PurchaseContainerBulkAssignableRow[],
+      error: `Duplicate container numbers found: ${Array.from(duplicates).join(", ")}.`,
+    };
+  }
+
+  const invalid = args.pastedNumbers.find((containerNumber) => !isValidContainerNumber(containerNumber));
+  if (invalid) {
+    return {
+      validCount: 0,
+      assignableCount: 0,
+      targetRows: [] as PurchaseContainerBulkAssignableRow[],
+      error: `${invalid}: Container Number must match 4 letters followed by 7 digits.`,
+    };
+  }
+
+  const targetRows = args.assignableRows.filter(isAssignableBlankRow);
+  if (args.pastedNumbers.length > targetRows.length) {
+    return {
+      validCount: 0,
+      assignableCount: targetRows.length,
+      targetRows,
+      error: `Pasted ${args.pastedNumbers.length} container numbers, but only ${targetRows.length} blank container lines are available.`,
+    };
+  }
+
+  const simulatedAssignments = new Map<string, string>();
+  targetRows.slice(0, args.pastedNumbers.length).forEach((row, index) => {
+    const nextValue = args.pastedNumbers[index];
+    if (nextValue) {
+      simulatedAssignments.set(row.id, nextValue);
+    }
+  });
+
+  const finalSeen = new Set<string>();
+  const conflictingValue = args.itemRows.find((row) => {
+    const nextValue = normalizeContainerNumber(
+      simulatedAssignments.get(row.id) ?? row.containerNumber ?? ""
+    );
+    if (!nextValue) return false;
+    if (finalSeen.has(nextValue)) return true;
+    finalSeen.add(nextValue);
+    return false;
+  });
+
+  if (conflictingValue) {
+    const conflictingNextValue = normalizeContainerNumber(
+      simulatedAssignments.get(conflictingValue.id) ?? conflictingValue.containerNumber ?? ""
+    );
+    return {
+      validCount: 0,
+      assignableCount: targetRows.length,
+      targetRows,
+      error: `${conflictingNextValue}: Container Number already exists on another line in this item.`,
+    };
+  }
+
+  return {
+    validCount: args.pastedNumbers.length,
+    assignableCount: targetRows.length,
+    targetRows,
+    error: null as string | null,
+  };
+}
+
 function normalizeHeaderKey(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -388,67 +476,16 @@ export function PurchaseContainerBulkUpdateModal({
       return {
         validCount: 0,
         assignableCount: 0,
+        targetRows: [] as PurchaseContainerBulkAssignableRow[],
         error: null as string | null,
       };
     }
 
-    const duplicates = new Set<string>();
-    const seen = new Set<string>();
-    for (const containerNumber of numberOnlyRows) {
-      if (seen.has(containerNumber)) {
-        duplicates.add(containerNumber);
-      }
-      seen.add(containerNumber);
-    }
-    if (duplicates.size > 0) {
-      return {
-        validCount: 0,
-        assignableCount: 0,
-        error: `Duplicate container numbers found: ${Array.from(duplicates).join(", ")}.`,
-      };
-    }
-
-    const invalid = numberOnlyRows.find((containerNumber) => !isValidContainerNumber(containerNumber));
-    if (invalid) {
-      return {
-        validCount: 0,
-        assignableCount: 0,
-        error: `${invalid}: Container Number must match 4 letters followed by 7 digits.`,
-      };
-    }
-
-    const assignableTargetRows = assignableRows.filter(
-      (row) => !normalizeContainerNumber(row.persistedContainerNumber ?? "")
-    );
-    const assignableTargetIds = new Set(assignableTargetRows.map((row) => row.id));
-    const conflictingExisting = new Set(
-      itemRows
-        .filter((row) => !assignableTargetIds.has(row.id))
-        .map((row) => normalizeContainerNumber(row.containerNumber ?? ""))
-        .filter(Boolean)
-    );
-    const conflictingValue = numberOnlyRows.find((containerNumber) => conflictingExisting.has(containerNumber));
-    if (conflictingValue) {
-      return {
-        validCount: 0,
-        assignableCount: assignableTargetRows.length,
-        error: `${conflictingValue}: Container Number already exists on another line in this item.`,
-      };
-    }
-
-    if (numberOnlyRows.length > assignableTargetRows.length) {
-      return {
-        validCount: 0,
-        assignableCount: assignableTargetRows.length,
-        error: `Pasted ${numberOnlyRows.length} container numbers, but only ${assignableTargetRows.length} blank container lines are available.`,
-      };
-    }
-
-    return {
-      validCount: numberOnlyRows.length,
-      assignableCount: assignableTargetRows.length,
-      error: null as string | null,
-    };
+    return buildNumberOnlyAssignmentPlan({
+      pastedNumbers: numberOnlyRows,
+      itemRows,
+      assignableRows,
+    });
   }, [assignableRows, isNumberOnlyMode, itemRows, numberOnlyRows]);
 
   function handleApply() {
@@ -462,10 +499,7 @@ export function PurchaseContainerBulkUpdateModal({
         return;
       }
 
-      const targetRows = assignableRows.filter(
-        (row) => !normalizeContainerNumber(row.persistedContainerNumber ?? "")
-      );
-      const patches = targetRows.slice(0, numberOnlyRows.length).map((row, index) => ({
+      const patches = numberOnlyPreview.targetRows.slice(0, numberOnlyRows.length).map((row, index) => ({
         id: row.id,
         itemKey,
         containerNumber: numberOnlyRows[index]!,

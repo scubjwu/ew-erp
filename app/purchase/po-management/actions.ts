@@ -2195,6 +2195,17 @@ function validateManualContainerNumbers(
   if (invalidContainer?.containerNumber) {
     throw new Error("Container Number must match 4 letters followed by 7 digits.");
   }
+  const seen = new Set<string>();
+  const duplicate = args.containers.find((container) => {
+    const containerNumber = trimOrNull(container.containerNumber)?.toUpperCase();
+    if (!containerNumber) return false;
+    if (seen.has(containerNumber)) return true;
+    seen.add(containerNumber);
+    return false;
+  });
+  if (duplicate?.containerNumber) {
+    throw new Error(`Duplicate Container Number is not allowed: ${duplicate.containerNumber.toUpperCase()}`);
+  }
   if (args.purchaseType === "FACTORY_ORDER" && args.requireFactoryContainerNumbersOnSubmit) {
     const missingContainer = args.containers.find(
       (container) => !trimOrNull(container.containerNumber)
@@ -2203,6 +2214,69 @@ function validateManualContainerNumbers(
       throw new Error("Container Number is required for factory orders when the owner uses manual numbering.");
     }
   }
+}
+
+function buildEffectiveContainersForValidation(
+  currentOrder: PurchaseOrderDetail,
+  input: Pick<PurchaseOrderDraftInput, "containers" | "containerEdits" | "newContainers">
+): Array<{ containerNumber: string | null | undefined }> {
+  if ((input.containers?.length ?? 0) > 0) {
+    return input.containers;
+  }
+
+  const editsById = new Map(
+    (input.containerEdits ?? []).map((container) => [container.id, container] as const)
+  );
+
+  const persistedRows = currentOrder.containers.map((container) => {
+    const patch = editsById.get(container.id);
+    return {
+      containerNumber:
+        patch && "containerNumber" in patch
+          ? patch.containerNumber
+          : container.containerNumber,
+    };
+  });
+
+  const newRows = (input.newContainers ?? []).map((container) => ({
+    containerNumber: container.containerNumber,
+  }));
+
+  return [...persistedRows, ...newRows];
+}
+
+function buildEffectiveContainersWithItemKey(
+  currentOrder: PurchaseOrderDetail,
+  input: Pick<PurchaseOrderDraftInput, "containers" | "containerEdits" | "newContainers">
+): Array<{ itemKey: string; containerNumber: string | null | undefined }> {
+  if ((input.containers?.length ?? 0) > 0) {
+    return input.containers.map((container) => ({
+      itemKey: container.itemKey,
+      containerNumber: container.containerNumber,
+    }));
+  }
+
+  const editsById = new Map(
+    (input.containerEdits ?? []).map((container) => [container.id, container] as const)
+  );
+
+  const persistedRows = currentOrder.containers.map((container) => {
+    const patch = editsById.get(container.id);
+    return {
+      itemKey: container.purchaseOrderItemId ?? "",
+      containerNumber:
+        patch && "containerNumber" in patch
+          ? patch.containerNumber
+          : container.containerNumber,
+    };
+  });
+
+  const newRows = (input.newContainers ?? []).map((container) => ({
+    itemKey: container.itemKey,
+    containerNumber: container.containerNumber,
+  }));
+
+  return [...persistedRows, ...newRows];
 }
 
 function buildDefaultContainerDraftForItem(
@@ -3720,13 +3794,15 @@ export async function updatePurchaseOrderDraft(
   if (orderRow.order_status !== "DRAFT") {
     throw new Error(`Only DRAFT purchase orders can be fully edited. Current status: ${orderRow.order_status}.`);
   }
+  const currentOrder = await getPurchaseOrderDetail(orderId);
+  if (!currentOrder) throw new Error("Purchase order not found.");
 
   if (!input.purchaseType) throw new Error("Purchase Type is required.");
   if (input.items.length === 0) throw new Error("At least one purchase item is required.");
   validateManualContainerNumbers({
     purchaseType: input.purchaseType,
     usesInternalContainerNumbering,
-    containers: input.containers,
+    containers: buildEffectiveContainersForValidation(currentOrder, input),
   });
 
   await validateRalColors(supabase, [
@@ -3789,11 +3865,14 @@ export async function submitPurchaseOrderDraftUpdate(
   if (orderRow.order_status !== "DRAFT") {
     throw new Error(`Only DRAFT purchase orders can be submitted from edit. Current status: ${orderRow.order_status}.`);
   }
+  const currentOrder = await getPurchaseOrderDetail(orderId);
+  if (!currentOrder) throw new Error("Purchase order not found.");
+  const effectiveContainers = buildEffectiveContainersWithItemKey(currentOrder, input);
 
   validateManualContainerNumbers({
     purchaseType: input.purchaseType,
     usesInternalContainerNumbering,
-    containers: input.containers,
+    containers: effectiveContainers,
     requireFactoryContainerNumbersOnSubmit: true,
   });
   validateSubmitRequiredFields(input);
@@ -3803,7 +3882,7 @@ export async function submitPurchaseOrderDraftUpdate(
   ]);
 
   const containerCounts = new Map<string, number>();
-  for (const row of input.containers) {
+  for (const row of effectiveContainers) {
     containerCounts.set(row.itemKey, (containerCounts.get(row.itemKey) ?? 0) + 1);
   }
   for (const item of input.items) {
@@ -3932,11 +4011,12 @@ export async function updatePurchaseOrderPending(
   if (editPermissions.editableFieldSet === "factory_progress_limited") {
     ensureFactoryProgressEditPayloadAllowed(currentOrder, input);
   }
+  const effectiveContainers = buildEffectiveContainersForValidation(currentOrder, input);
 
   validateManualContainerNumbers({
     purchaseType: input.purchaseType,
     usesInternalContainerNumbering,
-    containers: input.containers,
+    containers: effectiveContainers,
     requireFactoryContainerNumbersOnSubmit: true,
   });
   if (editPermissions.requiresMandatoryValidationOnSubmit) {

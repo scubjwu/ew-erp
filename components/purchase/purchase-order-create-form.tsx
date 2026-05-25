@@ -99,6 +99,7 @@ type DraftItemRow = PurchaseOrderDraftItemInput & {
 
 type DraftContainerRow = PurchaseOrderDraftContainerInput & {
   key: string;
+  persistedContainerNumber: string | null;
 };
 
 type EditContainerPageState = PurchaseOrderEditContainerPage & {
@@ -202,6 +203,10 @@ function isValidManualContainerNumber(value: string | null | undefined) {
   return MANUAL_CONTAINER_NUMBER_PATTERN.test(value.trim().toUpperCase());
 }
 
+function normalizeManualContainerNumber(value: string | null | undefined) {
+  return value?.trim().toUpperCase() ?? "";
+}
+
 function findConditionIdByCode(options: PurchaseDraftFormOptions["conditions"], code: string) {
   return options.find((option) => option.code === code)?.id ?? null;
 }
@@ -296,6 +301,7 @@ function createDraftContainerRow(input: PurchaseOrderDraftContainerInput): Draft
   return {
     ...input,
     key: makeKey(),
+    persistedContainerNumber: null,
   };
 }
 
@@ -379,6 +385,7 @@ function patchToDraftContainerRow(
     tareWeight: patch?.tareWeight ?? row.tareWeight,
     maximumWeight: patch?.maximumWeight ?? row.maximumWeight,
     cscNumber: patch?.cscNumber ?? row.cscNumber,
+    persistedContainerNumber: row.containerNumber,
   };
 }
 
@@ -1023,6 +1030,7 @@ function buildDraftContainersFromOrder(order: PurchaseOrderDetail): DraftContain
     tareWeight: container.tareWeight,
     maximumWeight: container.maximumWeight,
     cscNumber: container.cscNumber,
+    persistedContainerNumber: container.containerNumber,
   }));
 }
 
@@ -1099,7 +1107,7 @@ export function PurchaseOrderCreateForm({
           item: initialItem,
           purchaseType: "FACTORY_ORDER",
           vendorReleaseDate: null,
-        }).map((row) => ({ ...row, key: makeKey() }))
+        }).map((row) => createDraftContainerRow(row))
   );
   const [editContainerPages, setEditContainerPages] = useState<Record<string, EditContainerPageState>>({});
   const [containerEditPatches, setContainerEditPatches] = useState<
@@ -1465,7 +1473,7 @@ export function PurchaseOrderCreateForm({
           id: row.key,
           itemKey: row.itemKey,
           containerNumber: row.containerNumber,
-          persistedContainerNumber: null,
+          persistedContainerNumber: row.persistedContainerNumber,
         }));
     }
 
@@ -1499,7 +1507,7 @@ export function PurchaseOrderCreateForm({
         id: row.key,
         itemKey: row.itemKey,
         containerNumber: row.containerNumber,
-        persistedContainerNumber: null,
+        persistedContainerNumber: row.persistedContainerNumber,
       }));
     }
 
@@ -1750,16 +1758,24 @@ export function PurchaseOrderCreateForm({
   function validateManualContainerNumbers(requireFactoryContainerNumbers = false) {
     if (form.purchaseType === "FACTORY_ORDER" && factoryUsesInternalContainerNumbering) return;
     const containerRows = useServerPagedContainerEditing && initialOrder
-      ? [
-          ...Object.values(containerEditPatches),
-          ...Object.values(newContainerDraftsByItem).flat(),
-        ]
+      ? items.flatMap((item) => getAllDraftContainersForItem(item.itemKey))
       : containers;
     const invalidContainer = containerRows.find(
       (container) => !isValidManualContainerNumber(container.containerNumber)
     );
     if (invalidContainer) {
       throw new Error("Container Number must match 4 letters followed by 7 digits.");
+    }
+    const seen = new Set<string>();
+    const duplicate = containerRows.find((container) => {
+      const normalized = normalizeManualContainerNumber(container.containerNumber);
+      if (!normalized) return false;
+      if (seen.has(normalized)) return true;
+      seen.add(normalized);
+      return false;
+    });
+    if (duplicate?.containerNumber) {
+      throw new Error(`Duplicate Container Number is not allowed: ${normalizeManualContainerNumber(duplicate.containerNumber)}`);
     }
     if (
       requireFactoryContainerNumbers &&
@@ -3494,6 +3510,52 @@ export function PurchaseOrderCreateForm({
               }));
           }}
           onApply={(patches) => {
+            const currentRows = bulkUpdateItemKey ? getAllDraftContainersForItem(bulkUpdateItemKey) : [];
+            const patchesById = new Map(patches.map((patch) => [patch.id, patch] as const));
+            const touchedSavedRow = currentRows.find((row) => {
+              const patch = patchesById.get(row.id);
+              if (!patch || !("containerNumber" in patch)) return false;
+              const persisted = normalizeManualContainerNumber(row.persistedContainerNumber);
+              const nextValue = normalizeManualContainerNumber(patch.containerNumber);
+              return Boolean(persisted) && Boolean(nextValue) && persisted !== nextValue;
+            });
+            if (touchedSavedRow) {
+              toast({
+                title: "Could not apply bulk update",
+                description: "Saved container numbers cannot be overridden by bulk update.",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            const finalRows = currentRows.map((row) => {
+              const patch = patchesById.get(row.id);
+              return {
+                ...row,
+                containerNumber:
+                  patch && "containerNumber" in patch ? patch.containerNumber ?? null : row.containerNumber,
+              };
+            });
+            const seenNumbers = new Set<string>();
+            let duplicateValue: string | null = null;
+            for (const row of finalRows) {
+              const normalized = normalizeManualContainerNumber(row.containerNumber);
+              if (!normalized) continue;
+              if (seenNumbers.has(normalized)) {
+                duplicateValue = normalized;
+                break;
+              }
+              seenNumbers.add(normalized);
+            }
+            if (duplicateValue) {
+              toast({
+                title: "Could not apply bulk update",
+                description: `Duplicate Container Number is not allowed: ${duplicateValue}`,
+                variant: "destructive",
+              });
+              return;
+            }
+
             if (useServerPagedContainerEditing) {
               setContainerEditPatches((current) => {
                 const next = { ...current };
