@@ -2558,6 +2558,7 @@ async function ensureVendorReleaseMasterContainers(
       container_number: containerNumber,
       color: normalizeText(item.color) || null,
       machine_type: normalizeText(item.machine_type) || null,
+      yom: item.yom ?? null,
       flp: Boolean(item.flp),
       lbx: Boolean(item.lbx),
       locking_bars: toInteger(item.locking_bars_count) > 0,
