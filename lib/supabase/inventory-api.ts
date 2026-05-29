@@ -1,4 +1,8 @@
 import { createBrowserClient } from "@/lib/supabase/client";
+import {
+  filterInTransitInventoryRows,
+  mapInTransitInventoryRows,
+} from "@/lib/inventory/in-transit-read-model";
 import type { InventoryDateFilters, InventoryRow } from "@/types/inventory";
 
 type InventoryDbRow = {
@@ -312,188 +316,150 @@ export async function fetchInventoryData(
   params?: InventoryQueryParams
 ): Promise<InventoryRow[]> {
   const supabase = createBrowserClient();
+  const { data: containerData, error: containerError } = await supabase
+    .from("container")
+    .select(
+      "id, container_number, color, machine_type, yom, vents, flp, lbx, locking_bars, status, lifecycle_stage, current_transfer_id, container_size_code_id, container_type_code_id, container_condition_code_id"
+    )
+    .eq("lifecycle_stage", "IN_TRANSIT");
 
-  // Explicitly use DB constraint names for joins.
-  let selectBase = `
-    *,
-    sales_rep:users!rel_inventory_sales(full_name),
-    attached_customer:customers!rel_inventory_customer(company_name),
-    actual_depot:depots(depot_name, depot_tel, depot_address),
-    pol_city:cities!pol_id(city_name, city_code),
-    pod_city:cities!pod_id(city_name, city_code)
-  `;
-  
-  if (params) {
-    const tf = params.textFilters;
-    const hasSalesRep = !!tf.salesRep?.trim();
-    const hasCustomer = !!tf.customer?.trim();
+  if (containerError) throw containerError;
 
-    // Use inner joins only when corresponding foreign filters are present.
-    if (hasSalesRep && hasCustomer) {
-      selectBase = `
-        *,
-        sales_rep:users!rel_inventory_sales!inner(full_name),
-        attached_customer:customers!rel_inventory_customer!inner(company_name),
-        actual_depot:depots(depot_name, depot_tel, depot_address),
-        pol_city:cities!pol_id(city_name, city_code),
-        pod_city:cities!pod_id(city_name, city_code)
-      `;
-    } else if (hasSalesRep) {
-      selectBase = `
-        *,
-        sales_rep:users!rel_inventory_sales!inner(full_name),
-        attached_customer:customers!rel_inventory_customer(company_name),
-        actual_depot:depots(depot_name, depot_tel, depot_address),
-        pol_city:cities!pol_id(city_name, city_code),
-        pod_city:cities!pod_id(city_name, city_code)
-      `;
-    } else if (hasCustomer) {
-      selectBase = `
-        *,
-        sales_rep:users!rel_inventory_sales(full_name),
-        attached_customer:customers!rel_inventory_customer!inner(company_name),
-        actual_depot:depots(depot_name, depot_tel, depot_address),
-        pol_city:cities!pol_id(city_name, city_code),
-        pod_city:cities!pod_id(city_name, city_code)
-      `;
-    }
-  }
+  const containers = (containerData ?? []) as Array<{
+    id: string;
+    container_number: string | null;
+    color: string | null;
+    machine_type: string | null;
+    yom: number | null;
+    vents: number | null;
+    flp: boolean | null;
+    lbx: boolean | null;
+    locking_bars: boolean | null;
+    status: string | null;
+    lifecycle_stage: string | null;
+    current_transfer_id: string | null;
+    container_size_code_id: string | null;
+    container_type_code_id: string | null;
+    container_condition_code_id: string | null;
+  }>;
 
-  // 后面的 query 构建和 map 逻辑保持 V31.4 的版本不变
-  let query: any = supabase
-    .from("inventory")
-    .select(selectBase)
-    .eq("lifecycle_stage", "OW Lease");
+  const transferOrderIds = Array.from(
+    new Set(containers.map((row) => row.current_transfer_id).filter(Boolean))
+  ) as string[];
+  const sizeCodeIds = Array.from(
+    new Set(containers.map((row) => row.container_size_code_id).filter(Boolean))
+  ) as string[];
+  const typeCodeIds = Array.from(
+    new Set(containers.map((row) => row.container_type_code_id).filter(Boolean))
+  ) as string[];
+  const conditionCodeIds = Array.from(
+    new Set(containers.map((row) => row.container_condition_code_id).filter(Boolean))
+  ) as string[];
 
-  if (params) {
-    const { pasteUnits, textFilters: tf, dateFilters: df } = params;
+  const [
+    transferOrderResult,
+    transferItemResult,
+    sizeCodeResult,
+    typeCodeResult,
+    conditionCodeResult,
+  ] = await Promise.all([
+    transferOrderIds.length > 0
+      ? supabase
+          .from("transfer_order")
+          .select("id, dispatch_vendor_id, pol_city_id, pod_city_id, onhire_no, carrier")
+          .in("id", transferOrderIds)
+      : Promise.resolve({ data: [], error: null }),
+    transferOrderIds.length > 0
+      ? supabase
+          .from("transfer_item")
+          .select(
+            "transfer_order_id, container_id, delivery_date, eta, gate_in_ref, return_depot_name, return_depot_address, return_depot_tel, arrange_date, customer_order_num, remark2"
+          )
+          .in("transfer_order_id", transferOrderIds)
+      : Promise.resolve({ data: [], error: null }),
+    sizeCodeIds.length > 0
+      ? supabase.from("container_size_codes").select("id, size_code").in("id", sizeCodeIds)
+      : Promise.resolve({ data: [], error: null }),
+    typeCodeIds.length > 0
+      ? supabase.from("container_type_codes").select("id, type_code").in("id", typeCodeIds)
+      : Promise.resolve({ data: [], error: null }),
+    conditionCodeIds.length > 0
+      ? supabase
+          .from("container_condition_codes")
+          .select("id, condition_code")
+          .in("id", conditionCodeIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
-    if (pasteUnits.length > 0) {
-      query = query.in("unit_number", pasteUnits);
-    }
+  if (transferOrderResult.error) throw transferOrderResult.error;
+  if (transferItemResult.error) throw transferItemResult.error;
+  if (sizeCodeResult.error) throw sizeCodeResult.error;
+  if (typeCodeResult.error) throw typeCodeResult.error;
+  if (conditionCodeResult.error) throw conditionCodeResult.error;
 
-    if (tf.specs) {
-      const specsTrimmed = tf.specs.trim();
-      // Regex to extract starting numbers as Size, and the rest as Type
-      const match = specsTrimmed.match(/^(\d*)(.*)$/);
-      if (match) {
-        const sizePart = match[1].trim();
-        const typePart = match[2].trim();
+  const transferOrders = (transferOrderResult.data ?? []) as Array<{
+    id: string;
+    dispatch_vendor_id: string | null;
+    pol_city_id: string | null;
+    pod_city_id: string | null;
+    onhire_no: string | null;
+    carrier: string | null;
+  }>;
 
-        if (sizePart) {
-          query = query.ilike("container_size", `%${sizePart}%`);
-        }
-        if (typePart) {
-          query = query.ilike("container_type", `%${typePart}%`);
-        }
-      }
-    }
-    if (tf.condition) query = query.ilike("condition", `%${tf.condition.trim()}%`);
-    if (tf.status) query = query.ilike("status", `%${tf.status.trim()}%`);
+  const cityIds = Array.from(
+    new Set(
+      transferOrders.flatMap((row) => [row.pol_city_id, row.pod_city_id]).filter(Boolean)
+    )
+  ) as string[];
+  const lesseeIds = Array.from(
+    new Set(transferOrders.map((row) => row.dispatch_vendor_id).filter(Boolean))
+  ) as string[];
 
-    if (tf.color) query = query.ilike("color", `%${tf.color.trim()}%`);
-    if (tf.engine) query = query.ilike("container_specs->>engine", `%${tf.engine.trim()}%`);
-    if (tf.pol) query = query.ilike("pol", `%${tf.pol.trim()}%`);
-    if (tf.pod) query = query.ilike("pod", `%${tf.pod.trim()}%`);
-    if (tf.carrier) query = query.ilike("logistics_data->>carrier", `%${tf.carrier.trim()}%`);
-    if (tf.transitCompany) query = query.ilike("logistics_data->>lessee", `%${tf.transitCompany.trim()}%`);
-    if (tf.onhire_no) query = query.ilike("logistics_data->>onhire_no", `%${tf.onhire_no.trim()}%`);
-    if (tf.customerOrderNum) query = query.ilike("financial_data->>customer_order_no", `%${tf.customerOrderNum.trim()}%`);
+  const [cityResult, lesseeResult] = await Promise.all([
+    cityIds.length > 0
+      ? supabase.from("cities").select("id, city_code").in("id", cityIds)
+      : Promise.resolve({ data: [], error: null }),
+    lesseeIds.length > 0
+      ? supabase
+          .from("lessees")
+          .select("id, company_name, legal_company_name, lessee_code")
+          .in("id", lesseeIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
-    // 使用我们定义的别名进行过滤
-    if (tf.salesRep) query = query.ilike("sales_rep.full_name", `%${tf.salesRep.trim()}%`);
-    if (tf.customer) query = query.ilike("attached_customer.company_name", `%${tf.customer.trim()}%`);
+  if (cityResult.error) throw cityResult.error;
+  if (lesseeResult.error) throw lesseeResult.error;
 
-    if (df.etaFrom) query = query.gte("eta", df.etaFrom);
-    if (df.etaTo) query = query.lte("eta", df.etaTo);
-    if (df.salesDateFrom) query = query.gte("logistics_data->>arrange_date", df.salesDateFrom);
-    if (df.salesDateTo) query = query.lte("logistics_data->>arrange_date", df.salesDateTo);
-    if (df.onHireFrom) query = query.gte("logistics_data->>onhire_date", df.onHireFrom);
-    if (df.onHireTo) query = query.lte("logistics_data->>onhire_date", df.onHireTo);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    console.error("Supabase Query Error:", error); // 打印详细错误到控制台
-    throw error;
-  }
-
-  return ((data ?? []) as InventoryDbRow[]).map((row) => {
-    const flp = row.container_specs?.flp || "-";
-    const lbx = row.container_specs?.lbx || "-";
-    const is3Bars = row.container_specs?.locking_bars === "3 LOCKING BARS";
-    const eod = is3Bars ? "EOD" : "-";
-    const flpLbEod = `${flp}/${lbx}/${eod}`;
-
-    const size = row.container_size || "";
-    const type = row.container_type || "";
-    const specs = `${size}${type}`;
-
-    return {
-      id: row.id,
-      unit: row.unit_number || "",
-      size,
-      type,
-      specs,
-      condition: row.condition || "",
-      color: row.color || row.container_specs?.color_code || "",
-      yom: String(row.container_specs?.year || ""),
-      vents: row.container_specs?.VENT || "",
-      engine: row.container_specs?.engine || "",
-      pod: row.pod_city?.city_code || row.logistics_data?.pod || "",
-      eta: row.eta || row.logistics_data?.eta || "",
-      carrier: row.logistics_data?.carrier || "",
-      status: row.status || "",
-      salesDate: row.logistics_data?.arrange_date || "",
-      // 读取别名对应的属性
-      salesRep: row.sales_rep?.full_name || "",
-      customer: row.attached_customer?.company_name || "",
-      sales_region: row.financial_data?.sales_region || "",
-      price: Number(row.target_price || 0),
-      customerOrderNum: row.financial_data?.customer_order_no || "",
-      depotName:
-        row.actual_depot?.depot_name ||
-        row.planned_depot_name ||
-        row.logistics_data?.planned_depot_Name ||
-        "",
-      depotAddr: row.actual_depot?.depot_address || row.logistics_data?.planned_depot_Addr || "",
-      depotTel: row.actual_depot?.depot_tel || row.logistics_data?.planned_depot_Tel || "",
-      gateInRef: row.logistics_data?.gate_in_ref || "",
-      transitCompany: row.logistics_data?.lessee || "",
-      pol: row.pol_city?.city_code || row.logistics_data?.pol || "",
-      onhire_no: row.logistics_data?.onhire_no || "",
-      onhire_date: row.logistics_data?.onhire_date || "",
-      cost: Number(row.cost_price || 0),
-      remark2: row.remarks?.remark2 || "",
-      remark1: row.remarks?.remark1 || "",
-      purchase_date: row.purchase_date || "",
-      planned_depot_name: row.planned_depot_name || "",
-      actual_depot_id: row.actual_depot_id,
-      pol_id: row.pol_id,
-      pod_id: row.pod_id,
-      actual_depot: row.actual_depot
-        ? {
-            depot_name: row.actual_depot.depot_name || "",
-            depot_tel: row.actual_depot.depot_tel || "",
-            depot_address: row.actual_depot.depot_address || "",
-          }
-        : null,
-      pol_city: row.pol_city
-        ? {
-            city_name: row.pol_city.city_name || "",
-            city_code: row.pol_city.city_code || "",
-          }
-        : null,
-      pod_city: row.pod_city
-        ? {
-            city_name: row.pod_city.city_name || "",
-            city_code: row.pod_city.city_code || "",
-          }
-        : null,
-      flpLbEod,
-      onhireNum: row.logistics_data?.onhire_no || "",
-      salesRegion: row.financial_data?.sales_region || "",
-      onHireDate: row.logistics_data?.onhire_date || "",
-    };
+  const rows = mapInTransitInventoryRows({
+    containers,
+    transferOrders,
+    transferItems: (transferItemResult.data ?? []) as Array<{
+      transfer_order_id: string | null;
+      container_id: string | null;
+      delivery_date: string | null;
+      eta: string | null;
+      gate_in_ref: string | null;
+      return_depot_name: string | null;
+      return_depot_address: string | null;
+      return_depot_tel: string | null;
+      arrange_date: string | null;
+      customer_order_num: string | null;
+      remark2: string | null;
+    }>,
+    sizeCodes: (sizeCodeResult.data ?? []) as Array<{ id: string; size_code: string | null }>,
+    typeCodes: (typeCodeResult.data ?? []) as Array<{ id: string; type_code: string | null }>,
+    conditionCodes: (conditionCodeResult.data ?? []) as Array<{
+      id: string;
+      condition_code: string | null;
+    }>,
+    cities: (cityResult.data ?? []) as Array<{ id: string; city_code: string | null }>,
+    lessees: (lesseeResult.data ?? []) as Array<{
+      id: string;
+      company_name: string | null;
+      legal_company_name: string | null;
+      lessee_code: string | null;
+    }>,
   });
+
+  return filterInTransitInventoryRows(rows, params);
 }

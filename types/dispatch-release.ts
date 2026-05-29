@@ -71,12 +71,20 @@ export type DispatchReleasePersistSelectedContainerInput = {
   containerId: string | null;
   containerNumber: string;
   pickupDate?: string | null;
+  eta?: Date | null;
   truckingCost?: number | string | null;
   truckingCostCurrency?: string | null;
   repairCost?: number | string | null;
   repairCostCurrency?: string | null;
   damageClaim?: number | string | null;
   damageClaimCurrency?: string | null;
+  gateInRef?: string | null;
+  returnDepotName?: string | null;
+  returnDepotAddress?: string | null;
+  returnDepotTel?: string | null;
+  arrangeDate?: Date | null;
+  customerOrderNum?: string | null;
+  remark2?: string | null;
   remark?: string | null;
 };
 

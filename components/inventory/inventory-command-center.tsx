@@ -139,6 +139,8 @@ export const ALL_GRID_COLUMNS: (keyof InventoryRow)[] = [
   "price",
   "customerOrderNum",
   "depotName",
+  "depotAddr",
+  "depotTel",
   "gateInRef",
   "transitCompany",
   "pol",
@@ -300,7 +302,7 @@ function shallowMapEqual(a: DirtyCellMap, b: DirtyCellMap): boolean {
   return true;
 }
 
-const CSV_HEADERS: string[] = [
+export const CSV_HEADERS: string[] = [
   "Unit#",
   "Specs",
   "Condition",
@@ -864,9 +866,9 @@ const InventoryDataRow = React.memo(function InventoryDataRow({
   onCellPaste,
   optionsCache,
 }: DataRowProps) {
-  const depotNameDisplay = row.actual_depot?.depot_name || row.planned_depot_name || "";
-  const depotAddressDisplay = row.actual_depot?.depot_address || "-";
-  const depotTelDisplay = row.actual_depot?.depot_tel || "-";
+  const depotNameDisplay = row.depotName || row.actual_depot?.depot_name || row.planned_depot_name || "";
+  const depotAddressDisplay = row.depotAddr || row.actual_depot?.depot_address || "-";
+  const depotTelDisplay = row.depotTel || row.actual_depot?.depot_tel || "-";
   const podDisplay = row.pod_city?.city_name || row.pod || "";
 
   return (
@@ -1272,6 +1274,47 @@ const InventoryDataRow = React.memo(function InventoryDataRow({
             </p>
           </div>
         }
+        onStartEdit={onStartEdit}
+        onEditValueChange={onEditValueChange}
+        onStageEdit={onStageEdit}
+        onCancelEdit={onCancelEdit}
+        onFocusCell={onFocusCell}
+        onCellPaste={onCellPaste}
+      />
+      <GridCell
+        rowId={row.id}
+        rowIndex={rowIndex}
+        colIndex={activeColumns.indexOf("depotAddr")}
+        field="depotAddr"
+        isEditable={false}
+        value={depotAddressDisplay}
+        editingCell={editingCell}
+        editValue={editValue}
+        dirtyCells={dirtyCells}
+        invalidCells={invalidCells}
+        selection={selection}
+        tdClassName="text-muted-foreground"
+        onStartEdit={onStartEdit}
+        onEditValueChange={onEditValueChange}
+        onStageEdit={onStageEdit}
+        onCancelEdit={onCancelEdit}
+        onFocusCell={onFocusCell}
+        onCellPaste={onCellPaste}
+        titleValue={depotAddressDisplay}
+      />
+      <GridCell
+        rowId={row.id}
+        rowIndex={rowIndex}
+        colIndex={activeColumns.indexOf("depotTel")}
+        field="depotTel"
+        isEditable={false}
+        value={depotTelDisplay}
+        editingCell={editingCell}
+        editValue={editValue}
+        dirtyCells={dirtyCells}
+        invalidCells={invalidCells}
+        selection={selection}
+        tdClassName="font-mono text-muted-foreground"
         onStartEdit={onStartEdit}
         onEditValueChange={onEditValueChange}
         onStageEdit={onStageEdit}
@@ -2232,11 +2275,8 @@ export function InventoryCommandCenter() {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
-              Inventory Command Center
+              In-Transit Inventory
             </h1>
-            <p className="text-xs text-muted-foreground sm:text-sm">
-              Power table · sticky columns · sort · pagination · export
-            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -2673,6 +2713,24 @@ export function InventoryCommandCenter() {
                 <SortHeader
                   label="DepotName"
                   colKey="depotName"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={onSort}
+                  headerSticky={headerSticky}
+                  className="w-28"
+                />
+                <SortHeader
+                  label="DepotAddr"
+                  colKey="depotAddr"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={onSort}
+                  headerSticky={headerSticky}
+                  className="w-32"
+                />
+                <SortHeader
+                  label="DepotTel"
+                  colKey="depotTel"
                   sortKey={sortKey}
                   sortDir={sortDir}
                   onSort={onSort}

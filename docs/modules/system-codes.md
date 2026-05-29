@@ -22,28 +22,28 @@ Current scope includes:
 - Size Codes
 - Type Codes
 - Operation Price Configs
+- Financial Exchange Rates
 - Container Number Rules
 
-## Current Design and Workflow
+## Current Design And Workflow
 
 ### Module shape
 
 The module has two layers:
 
 1. center page
-- a card-based overview page at `/basic-info`
-- shows business-facing descriptions and record counts
-
+   - a card-based overview page at `/basic-info`
+   - shows business-facing descriptions and record counts
 2. section pages
-- one page per master-data area
-- typically implemented as list/search/create/edit/view CRUD flows
+   - one page per master-data area
+   - typically implemented as list/search/create/edit/view CRUD flows
 
 ### Current implementation pattern
 
 The standard pattern for an active `System Codes` page is:
 
 1. route page under `app/basic-info/<section>/page.tsx`
-2. server-side query and export logic in `app/basic-info/<section>/actions.ts`
+2. server-side query and export logic in matching `actions.ts`
 3. dashboard/list component under `components/basic-info/`
 4. form dialog and view dialog components under `components/basic-info/`
 5. type definitions under `types/`
@@ -54,18 +54,16 @@ The standard pattern for an active `System Codes` page is:
 
 Current center-page flow:
 
-- route: [`app/basic-info/page.tsx`](/Users/palayapan/Documents/ew-erp/app/basic-info/page.tsx)
-- count API: [`lib/supabase/basic-info-api.ts`](/Users/palayapan/Documents/ew-erp/lib/supabase/basic-info-api.ts)
-- UI: [`components/basic-info/basic-info-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/basic-info-dashboard.tsx)
-- metadata and labels: [`types/basic-info.ts`](/Users/palayapan/Documents/ew-erp/types/basic-info.ts)
+- route: [`app/basic-info/page.tsx`](/Users/palaya/Documents/ew-erp/app/basic-info/page.tsx)
+- count API: [`lib/supabase/basic-info-api.ts`](/Users/palaya/Documents/ew-erp/lib/supabase/basic-info-api.ts)
+- UI: [`components/basic-info/basic-info-dashboard.tsx`](/Users/palaya/Documents/ew-erp/components/basic-info/basic-info-dashboard.tsx)
+- metadata and labels: [`types/basic-info.ts`](/Users/palaya/Documents/ew-erp/types/basic-info.ts)
 
 The center page counts rows by table name and displays business-facing cards, not implementation internals.
 
 ## Current Delivery Status
 
-### Delivered reference pages
-
-These areas are treated as current delivered master-data flows or current reference implementations:
+Delivered reference pages:
 
 - Company Information
 - Region Codes
@@ -77,21 +75,16 @@ These areas are treated as current delivered master-data flows or current refere
 - Size Codes
 - Type Codes
 - Operation Price Configs
+- Financial Exchange Rates
 - Container Number Rules
 
-### Reality check
+Reality check:
 
-`System Codes` is the strongest delivered module in the repository, but engineers should still verify page-specific behavior in code and migrations before assuming every section has identical maturity.
+- `System Codes` is still the strongest delivered CRUD module in the repository
+- implementation maturity is high across the delivered sections, but engineers should still verify page-specific action wiring and child-table behavior in code
+- `financial_exchange_rate` is now a real delivered section, not just a backend table
 
-When in doubt, use the company, region, city, and related active dashboards and actions as the concrete truth.
-
-Important `2026-03-31` update:
-
-- business-facing English labels are now centralized in [`types/basic-info.ts`](/Users/palayapan/Documents/ew-erp/types/basic-info.ts)
-- `Container Number Rules` is no longer metadata-only; it now has its own delivered route, actions, dashboard, form dialog, and view dialog
-- basic-info public-write coverage was normalized again in `20260331083000`, `20260331091000`, and `20260331094500`
-
-## Data and Schema Surface
+## Data And Schema Surface
 
 Current active `System Codes` tables include:
 
@@ -108,26 +101,35 @@ Current active `System Codes` tables include:
 - `container_size_codes`
 - `container_type_codes`
 - `operation_price_configs`
+- `financial_exchange_rate`
 - `container_number_rules`
+
+Closely related lookup table that affects current workflows:
+
+- `ral_color_codes`
 
 Current permission truth:
 
-- browser/public write flows are expected to work for the main delivered basic-info tables through migration-managed grants and RLS policies
+- browser/public write flows are expected to work for the main delivered system-code tables through migration-managed grants and RLS policies
 - `depot_attachment_links` and `depot_additional_costs` remain child-table exceptions that also require delete coverage
+- `financial_exchange_rate` is part of the delivered browser-write surface
 
-Important migration references for this baseline:
+Important migration references for the current baseline:
 
-- [`db/supabase/migrations/20260331083000_container_size_codes_public_write_fix.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331083000_container_size_codes_public_write_fix.sql)
-- [`db/supabase/migrations/20260331091000_container_number_rules_public_write.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331091000_container_number_rules_public_write.sql)
-- [`db/supabase/migrations/20260331094500_basic_info_public_write_unified_fix.sql`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations/20260331094500_basic_info_public_write_unified_fix.sql)
+- [`db/supabase/migrations/20260331083000_container_size_codes_public_write_fix.sql`](/Users/palaya/Documents/ew-erp/db/supabase/migrations/20260331083000_container_size_codes_public_write_fix.sql)
+- [`db/supabase/migrations/20260331091000_container_number_rules_public_write.sql`](/Users/palaya/Documents/ew-erp/db/supabase/migrations/20260331091000_container_number_rules_public_write.sql)
+- [`db/supabase/migrations/20260331094500_basic_info_public_write_unified_fix.sql`](/Users/palaya/Documents/ew-erp/db/supabase/migrations/20260331094500_basic_info_public_write_unified_fix.sql)
+- [`db/supabase/migrations/20260510143000_dispatch_release_financial_exchange_rates_step1.sql`](/Users/palaya/Documents/ew-erp/db/supabase/migrations/20260510143000_dispatch_release_financial_exchange_rates_step1.sql)
+- [`db/supabase/migrations/20260510161000_financial_exchange_rate_public_policies.sql`](/Users/palaya/Documents/ew-erp/db/supabase/migrations/20260510161000_financial_exchange_rate_public_policies.sql)
+- [`db/supabase/migrations/20260510173000_financial_exchange_rate_start_from_currency_expansion.sql`](/Users/palaya/Documents/ew-erp/db/supabase/migrations/20260510173000_financial_exchange_rate_start_from_currency_expansion.sql)
 
 Related schema sources:
 
-- [`db/supabase/migrations/`](/Users/palayapan/Documents/ew-erp/db/supabase/migrations)
-- [`db/full_schema.sql`](/Users/palayapan/Documents/ew-erp/db/full_schema.sql)
-- [`db/remote_full_schema.sql`](/Users/palayapan/Documents/ew-erp/db/remote_full_schema.sql)
+- [`db/supabase/migrations/`](/Users/palaya/Documents/ew-erp/db/supabase/migrations)
+- [`db/full_schema.sql`](/Users/palaya/Documents/ew-erp/db/full_schema.sql)
+- [`db/remote_full_schema.sql`](/Users/palaya/Documents/ew-erp/db/remote_full_schema.sql)
 
-## Local Reset and Seed Coverage
+## Local Reset And Seed Coverage
 
 `System Codes` is tightly coupled to the local seed/reset workflow.
 
@@ -148,20 +150,18 @@ Current seed-covered `System Codes` tables include:
 - `container_number_rules`
 - `operation_price_configs`
 
+Important current note:
+
+- `financial_exchange_rate` is delivered in UI, but it is not currently part of the managed local seed list in [`db/supabase/config.toml`](/Users/palaya/Documents/ew-erp/db/supabase/config.toml)
+- engineers touching `financial_exchange_rate` should treat reset-safe persistence expectations explicitly rather than assuming it behaves like the older seed-backed basic-info tables
+
 Seed workflow references:
 
-- [`scripts/export_basic_info_seeds.py`](/Users/palayapan/Documents/ew-erp/scripts/export_basic_info_seeds.py)
-- [`scripts/verify_basic_info_seeds.py`](/Users/palayapan/Documents/ew-erp/scripts/verify_basic_info_seeds.py)
-- [`db/supabase/seeds/`](/Users/palayapan/Documents/ew-erp/db/supabase/seeds)
+- [`scripts/export_basic_info_seeds.py`](/Users/palaya/Documents/ew-erp/scripts/export_basic_info_seeds.py)
+- [`scripts/verify_basic_info_seeds.py`](/Users/palaya/Documents/ew-erp/scripts/verify_basic_info_seeds.py)
+- [`db/supabase/seeds/`](/Users/palaya/Documents/ew-erp/db/supabase/seeds)
 
-Engineers must update seed coverage when introducing a new `System Codes` table or when adding reset-sensitive child data to an existing table.
-
-Recent seed-sync note:
-
-- `container_number_rules`, `cities`, `condition_codes`, `operation_price_configs`, and `size_codes` seed artifacts were refreshed on `2026-03-31`
-- seed script behavior, not UI behavior alone, remains the reset-survival truth
-
-## UI and Interaction Standards for This Module
+## UI And Interaction Standards For This Module
 
 `System Codes` is the current UI standard-setter for master-data pages.
 
@@ -178,7 +178,7 @@ The module standard is:
 
 Module-specific supporting standard:
 
-- [`docs/basic-info-list-standard.md`](/Users/palayapan/Documents/ew-erp/docs/basic-info-list-standard.md)
+- [`docs/basic-info-list-standard.md`](/Users/palaya/Documents/ew-erp/docs/basic-info-list-standard.md)
 
 ## Required Regression Coverage
 
@@ -195,31 +195,33 @@ Current `System Codes` coverage inside that workflow includes:
 - declared search-filter coverage
 - reset-equivalent recovery to the unfiltered result set
 - filtered export data-source validation
-- representative reset-safe persistence assertions across the delivered `Basic Info` seed-backed tables
+- representative reset-safe persistence assertions across the delivered seed-backed basic-info tables
 - verification that seed export captures new local rows before reset and that those rows still exist after reset
 - cleanup of temporary regression rows after the run
 
-Regression execution records do not belong in this module doc. Use [`/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md`](/Users/palayapan/Documents/ew-erp/docs/daily-regression-log.md) for regression failures, fixes, reruns, and commit history. Keep [`/Users/palayapan/Documents/ew-erp/docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md) for planning and carry-forward items only.
+Regression execution records do not belong in this module doc. Use [`docs/daily-regression-log.md`](/Users/palaya/Documents/ew-erp/docs/daily-regression-log.md) for regression failures, fixes, reruns, and commit history. Keep [`docs/daily-todo.md`](/Users/palaya/Documents/ew-erp/docs/daily-todo.md) for planning and carry-forward items only.
 
 ## Reference Implementations
 
 Use these as first-open references:
 
 - center page:
-  - [`app/basic-info/page.tsx`](/Users/palayapan/Documents/ew-erp/app/basic-info/page.tsx)
-  - [`components/basic-info/basic-info-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/basic-info-dashboard.tsx)
+  - [`app/basic-info/page.tsx`](/Users/palaya/Documents/ew-erp/app/basic-info/page.tsx)
+  - [`components/basic-info/basic-info-dashboard.tsx`](/Users/palaya/Documents/ew-erp/components/basic-info/basic-info-dashboard.tsx)
 - metadata and section map:
-  - [`types/basic-info.ts`](/Users/palayapan/Documents/ew-erp/types/basic-info.ts)
-- active CRUD page wiring:
-  - [`app/basic-info/companies/page.tsx`](/Users/palayapan/Documents/ew-erp/app/basic-info/companies/page.tsx)
-  - [`app/basic-info/companies/actions.ts`](/Users/palayapan/Documents/ew-erp/app/basic-info/companies/actions.ts)
-  - [`components/basic-info/company-profiles-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/company-profiles-dashboard.tsx)
+  - [`types/basic-info.ts`](/Users/palaya/Documents/ew-erp/types/basic-info.ts)
+- company-information reference:
+  - [`app/basic-info/companies/page.tsx`](/Users/palaya/Documents/ew-erp/app/basic-info/companies/page.tsx)
+  - [`app/basic-info/companies/actions.ts`](/Users/palaya/Documents/ew-erp/app/basic-info/companies/actions.ts)
+  - [`components/basic-info/company-profiles-dashboard.tsx`](/Users/palaya/Documents/ew-erp/components/basic-info/company-profiles-dashboard.tsx)
+- financial exchange rates:
+  - [`app/basic-info/financial-exchange-rates/page.tsx`](/Users/palaya/Documents/ew-erp/app/basic-info/financial-exchange-rates/page.tsx)
+  - [`app/basic-info/financial-exchange-rates/actions.ts`](/Users/palaya/Documents/ew-erp/app/basic-info/financial-exchange-rates/actions.ts)
+  - [`components/basic-info/financial-exchange-rates-dashboard.tsx`](/Users/palaya/Documents/ew-erp/components/basic-info/financial-exchange-rates-dashboard.tsx)
 - container number rules:
-  - [`app/basic-info/container-number-rules/page.tsx`](/Users/palayapan/Documents/ew-erp/app/basic-info/container-number-rules/page.tsx)
-  - [`app/basic-info/container-number-rules/actions.ts`](/Users/palayapan/Documents/ew-erp/app/basic-info/container-number-rules/actions.ts)
-  - [`components/basic-info/container-number-rules-dashboard.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/container-number-rules-dashboard.tsx)
-  - [`components/basic-info/container-number-rule-form-dialog.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/container-number-rule-form-dialog.tsx)
-  - [`components/basic-info/container-number-rule-view-dialog.tsx`](/Users/palayapan/Documents/ew-erp/components/basic-info/container-number-rule-view-dialog.tsx)
+  - [`app/basic-info/container-number-rules/page.tsx`](/Users/palaya/Documents/ew-erp/app/basic-info/container-number-rules/page.tsx)
+  - [`app/basic-info/container-number-rules/actions.ts`](/Users/palaya/Documents/ew-erp/app/basic-info/container-number-rules/actions.ts)
+  - [`components/basic-info/container-number-rules-dashboard.tsx`](/Users/palaya/Documents/ew-erp/components/basic-info/container-number-rules-dashboard.tsx)
 
 ## Common Failure Modes
 
@@ -244,7 +246,7 @@ Usual causes:
 
 - table missing from seed scripts
 - child table missing from seed scripts
-- FK restore order not handled correctly
+- UI section assumed to be reset-safe without matching seed coverage
 
 ### Naming inconsistency
 
@@ -254,52 +256,14 @@ Symptom:
 
 Usual causes:
 
-- one location updated without updating the rest of the module naming surface
+- one location updated without updating the rest of the naming surface
 
-### Section drift
+### Lookup-table confusion
 
 Symptom:
 
-- one `System Codes` page behaves unlike the rest of the module
+- engineers assume every supporting lookup under `public` should have a `System Codes` page
 
-Usual causes:
+Usual cause:
 
-- new implementation invented custom patterns instead of copying the existing module standard
-
-## How To Extend This Module
-
-When adding a new `System Codes` page:
-
-1. define the table and workflow first
-2. add the migration and required permissions
-3. add the route page
-4. add `actions.ts` for list/search/export behavior
-5. add dashboard/list UI
-6. add form and view dialogs
-7. add seed coverage if reset survival is expected
-8. align titles, descriptions, and card metadata
-9. update the global doc if the module scope or milestone status changed
-10. update this module doc if schema surface, standards, or reference implementations changed
-
-## Current Gaps and Risks
-
-- some sections may still need polish for export completeness, consistency, or permission alignment
-- any schema expansion in reset-sensitive tables can break local persistence if seed scripts are not updated at the same time
-- engineers may incorrectly assume every `/basic-info` path is equally mature without checking the actual route and action implementation
-
-## Maintenance Rules
-
-Update this document when:
-
-- a new `System Codes` section becomes active
-- a section changes workflow materially
-- seed coverage changes
-- naming conventions change
-- a new page becomes the preferred reference implementation
-
-Daily execution planning does not belong in this module doc. Track day-by-day work and unresolved action items in [`docs/daily-todo.md`](/Users/palayapan/Documents/ew-erp/docs/daily-todo.md).
-
-## Changelog
-
-- `2026-03-31` — Initial `System Codes` module document created.
-- `2026-04-03` — Documented the required daily regression scope for delivered `System Codes` pages and clarified that regression execution history now belongs in `docs/daily-regression-log.md`.
+- workflow-support lookup tables such as `ral_color_codes` are treated as if they were user-maintained master-data sections

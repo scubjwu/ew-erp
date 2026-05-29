@@ -11,6 +11,7 @@ import {
   buildTransferFinancePackage,
   buildTransferInvoiceDrafts,
 } from "@/lib/dispatch-release-finance";
+import { buildOwnedContainerInsertPayload } from "@/lib/container-master-payloads";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   FinancialExchangeRateInput,
@@ -117,6 +118,7 @@ type TransferItemDetail = {
   containerId: string;
   containerNumber: string;
   pickupDate: string | null;
+  eta: string | null;
   pickedUp: boolean;
   truckingCost: number;
   truckingCostCurrency: string;
@@ -124,6 +126,20 @@ type TransferItemDetail = {
   repairCostCurrency: string;
   damageClaim: number;
   damageClaimCurrency: string;
+  gateInRef: string | null;
+  returnDepotName: string | null;
+  returnDepotAddress: string | null;
+  returnDepotTel: string | null;
+  arrangeDate: string | null;
+  customerOrderNum: string | null;
+  remark2: string | null;
+  pickupChargeRevenue: number;
+  dailyRentRevenue: number;
+  damageRecoveryRevenue: number;
+  handlingFeeAllocated: number;
+  revenueTotal: number;
+  costTotal: number;
+  profitTotal: number;
   remark: string | null;
 };
 
@@ -189,12 +205,20 @@ type TransferItemMutationRow = {
   id: string;
   item_status: string | null;
   delivery_date: string | null;
+  eta: string | null;
   trucking_cost: number | null;
   trucking_cost_currency: string | null;
   repair_cost: number | null;
   repair_cost_currency: string | null;
   damage_claim: number | null;
   damage_claim_currency: string | null;
+  gate_in_ref: string | null;
+  return_depot_name: string | null;
+  return_depot_address: string | null;
+  return_depot_tel: string | null;
+  arrange_date: string | null;
+  customer_order_num: string | null;
+  remark2: string | null;
   remark: string | null;
   container:
     | {
@@ -215,12 +239,20 @@ type ResolvedSelectedContainer = {
   purchaseOrderId: string;
   purchaseOrderItemId: string;
   pickupDate: string | null;
+  eta: string | null;
   truckingCost: number;
   truckingCostCurrency: string;
   repairCost: number;
   repairCostCurrency: string;
   damageClaim: number;
   damageClaimCurrency: string;
+  gateInRef: string | null;
+  returnDepotName: string | null;
+  returnDepotAddress: string | null;
+  returnDepotTel: string | null;
+  arrangeDate: string | null;
+  customerOrderNum: string | null;
+  remark2: string | null;
   remark: string | null;
 };
 
@@ -490,7 +522,11 @@ function resolveBucketCapacityLimit(freshValue: number, currentValue: number) {
   return normalizedFresh;
 }
 
-function formatDate(value: string | null | undefined) {
+function formatDate(value: string | Date | null | undefined) {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
   const normalized = normalizeText(value);
   return normalized ? normalized.slice(0, 10) : null;
 }
@@ -1621,12 +1657,20 @@ async function resolveSelectedContainerIds(input: DispatchReleasePersistInput) {
       purchaseOrderId,
       purchaseOrderItemId,
       pickupDate,
+      eta: formatDate(row.eta),
       truckingCost: formatMoney(row.truckingCost),
       truckingCostCurrency: normalizeDispatchReleaseCurrency(row.truckingCostCurrency),
       repairCost: formatMoney(row.repairCost),
       repairCostCurrency: normalizeDispatchReleaseCurrency(row.repairCostCurrency),
       damageClaim: formatMoney(row.damageClaim),
       damageClaimCurrency: normalizeDispatchReleaseCurrency(row.damageClaimCurrency),
+      gateInRef: normalizeText(row.gateInRef) || null,
+      returnDepotName: normalizeText(row.returnDepotName) || null,
+      returnDepotAddress: normalizeText(row.returnDepotAddress) || null,
+      returnDepotTel: normalizeText(row.returnDepotTel) || null,
+      arrangeDate: formatDate(row.arrangeDate),
+      customerOrderNum: normalizeText(row.customerOrderNum) || null,
+      remark2: normalizeText(row.remark2) || null,
       remark: normalizeText(row.remark) || null,
     };
   });
@@ -2128,12 +2172,20 @@ async function loadTransferItemsForMutation(transferOrderId: string) {
         id,
         item_status,
         delivery_date,
+        eta,
         trucking_cost,
         trucking_cost_currency,
         repair_cost,
         repair_cost_currency,
         damage_claim,
         damage_claim_currency,
+        gate_in_ref,
+        return_depot_name,
+        return_depot_address,
+        return_depot_tel,
+        arrange_date,
+        customer_order_num,
+        remark2,
         remark,
         container:container_id(id, container_number)
       `
@@ -2554,27 +2606,25 @@ async function ensureVendorReleaseMasterContainers(
 
   if (rowsToInsert.length > 0) {
     const purchaseOrder = firstRelationRow(item.purchase_order);
-    const insertPayload = rowsToInsert.map((containerNumber) => ({
-      container_number: containerNumber,
-      color: normalizeText(item.color) || null,
-      machine_type: normalizeText(item.machine_type) || null,
-      yom: item.yom ?? null,
-      flp: Boolean(item.flp),
-      lbx: Boolean(item.lbx),
-      locking_bars: toInteger(item.locking_bars_count) > 0,
-      vents: toInteger(item.vents_count) > 0,
-      manufacture_date: item.yom ? `${item.yom}-01-01` : null,
-      owner_type: "OWN",
-      owner_id: normalizeText(purchaseOrder?.owner_id) || null,
-      lifecycle_stage: "IN_YARD",
-      status: "AVAILABLE",
-      current_depot_id: normalizeText(item.depot_id) || null,
-      purchase_date: normalizeText(purchaseOrder?.purchase_date) || null,
-      purchase_price: item.unit_price,
-      container_type_code_id: item.container_type_code_id,
-      container_condition_code_id: item.container_condition_code_id,
-      container_size_code_id: item.container_size_code_id,
-    }));
+    const insertPayload = rowsToInsert.map((containerNumber) =>
+      buildOwnedContainerInsertPayload({
+        containerNumber,
+        color: normalizeText(item.color) || null,
+        machineType: normalizeText(item.machine_type) || null,
+        flp: Boolean(item.flp),
+        lbx: Boolean(item.lbx),
+        lockingBarsCount: toInteger(item.locking_bars_count),
+        ventsCount: item.vents_count == null ? null : toInteger(item.vents_count),
+        yom: item.yom ?? null,
+        ownerId: normalizeText(purchaseOrder?.owner_id) || null,
+        depotId: normalizeText(item.depot_id) || null,
+        purchaseDate: normalizeText(purchaseOrder?.purchase_date) || null,
+        purchasePrice: item.unit_price,
+        containerTypeCodeId: item.container_type_code_id,
+        containerConditionCodeId: item.container_condition_code_id,
+        containerSizeCodeId: item.container_size_code_id,
+      })
+    );
 
     const { data: insertedRows, error: insertError } = await supabase
       .from("container")
@@ -2698,6 +2748,40 @@ async function syncSelectedSourceContainerStatuses(
     if (error) {
       throw new Error(error.message);
     }
+  }
+}
+
+async function syncDispatchReleaseMasterContainersToInTransit(
+  transferOrderId: string,
+  selectedContainers: ResolvedSelectedContainer[]
+) {
+  const pickedUpContainerIds = Array.from(
+    new Set(
+      selectedContainers
+        .filter((selected) => Boolean(selected.pickupDate))
+        .map((selected) => normalizeText(selected.containerId))
+        .filter(Boolean)
+    )
+  );
+
+  if (pickedUpContainerIds.length === 0) {
+    return;
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .from("container")
+    .update({
+      lifecycle_stage: "IN_TRANSIT",
+      status: "ONHIRE_IN_TRANSIT",
+      transit_business_type: "ONE_WAY_LEASE",
+      current_transfer_id: transferOrderId,
+      current_depot_id: null,
+    })
+    .in("id", pickedUpContainerIds);
+
+  if (error) {
+    throw new Error(error.message);
   }
 }
 
@@ -3203,12 +3287,20 @@ async function resolveSelectedContainerIdsForUpdate(
             containerId: normalizeText(container?.id),
             containerNumber: normalizeText(container?.container_number),
             pickupDate: formatDate(row.delivery_date),
+            eta: formatDate(row.eta),
             truckingCost: formatMoney(row.trucking_cost),
             truckingCostCurrency: normalizeDispatchReleaseCurrency(row.trucking_cost_currency),
             repairCost: formatMoney(row.repair_cost),
             repairCostCurrency: normalizeDispatchReleaseCurrency(row.repair_cost_currency),
             damageClaim: formatMoney(row.damage_claim),
             damageClaimCurrency: normalizeDispatchReleaseCurrency(row.damage_claim_currency),
+            gateInRef: row.gate_in_ref,
+            returnDepotName: row.return_depot_name,
+            returnDepotAddress: row.return_depot_address,
+            returnDepotTel: row.return_depot_tel,
+            arrangeDate: formatDate(row.arrange_date),
+            customerOrderNum: row.customer_order_num,
+            remark2: row.remark2,
             remark: row.remark,
           },
         ] as const;
@@ -3327,6 +3419,7 @@ async function resolveSelectedContainerIdsForUpdate(
       purchaseOrderId,
       purchaseOrderItemId,
       pickupDate,
+      eta: currentActive?.eta || formatDate(row.eta),
       truckingCost:
         currentActive?.truckingCost ?? formatMoney(row.truckingCost),
       truckingCostCurrency:
@@ -3336,6 +3429,17 @@ async function resolveSelectedContainerIdsForUpdate(
       repairCostCurrency: normalizeDispatchReleaseCurrency(row.repairCostCurrency),
       damageClaim: formatMoney(row.damageClaim),
       damageClaimCurrency: normalizeDispatchReleaseCurrency(row.damageClaimCurrency),
+      gateInRef: currentActive?.gateInRef ?? (normalizeText(row.gateInRef) || null),
+      returnDepotName:
+        currentActive?.returnDepotName ?? (normalizeText(row.returnDepotName) || null),
+      returnDepotAddress:
+        currentActive?.returnDepotAddress ?? (normalizeText(row.returnDepotAddress) || null),
+      returnDepotTel:
+        currentActive?.returnDepotTel ?? (normalizeText(row.returnDepotTel) || null),
+      arrangeDate: currentActive?.arrangeDate || formatDate(row.arrangeDate),
+      customerOrderNum:
+        currentActive?.customerOrderNum ?? (normalizeText(row.customerOrderNum) || null),
+      remark2: currentActive?.remark2 ?? (normalizeText(row.remark2) || null),
       remark: normalizeText(row.remark) || null,
     };
   });
@@ -3466,6 +3570,13 @@ export async function updateDispatchRelease(
   if (unassignedQty < 0) {
     throw new Error("Release Qty cannot be less than the number of specified containers.");
   }
+  const hasPickedUpContainers = selectedContainers.some((row) => Boolean(row.pickupDate));
+  const nextOrderStatus =
+    currentStatus === "ON_HOLD"
+      ? "ON_HOLD"
+      : hasPickedUpContainers
+        ? "IN_TRANSIT"
+        : "CREATED";
 
   const supabase = createServerSupabaseClient();
   const { error: updateOrderError } = await supabase
@@ -3491,6 +3602,7 @@ export async function updateDispatchRelease(
       dispatch_arrange_date: formatDate(input.dispatchArrangeDate),
       self_pickup_depot_id: selfPickupDepotId,
       box_selection_mode: input.containerSelectionMode,
+      status: nextOrderStatus,
       release_qty: input.releaseQty,
       assigned_qty: assignedQty,
       unassigned_qty: unassignedQty,
@@ -3534,12 +3646,20 @@ export async function updateDispatchRelease(
     container_id: string;
     item_status: string;
     delivery_date: string | null;
+    eta: string | null;
     trucking_cost: number;
     trucking_cost_currency: string;
     repair_cost: number;
     repair_cost_currency: string;
     damage_claim: number;
     damage_claim_currency: string;
+    gate_in_ref: string | null;
+    return_depot_name: string | null;
+    return_depot_address: string | null;
+    return_depot_tel: string | null;
+    arrange_date: string | null;
+    customer_order_num: string | null;
+    remark2: string | null;
     remark: string | null;
   }> = [];
 
@@ -3556,12 +3676,20 @@ export async function updateDispatchRelease(
         container_id: selectedContainerId,
         item_status: nextItemStatus,
         delivery_date: selected.pickupDate,
+        eta: selected.eta,
         trucking_cost: selected.truckingCost,
         trucking_cost_currency: normalizeDispatchReleaseCurrency(selected.truckingCostCurrency),
         repair_cost: selected.repairCost,
         repair_cost_currency: normalizeDispatchReleaseCurrency(selected.repairCostCurrency),
         damage_claim: selected.damageClaim,
         damage_claim_currency: normalizeDispatchReleaseCurrency(selected.damageClaimCurrency),
+        gate_in_ref: selected.gateInRef,
+        return_depot_name: selected.returnDepotName,
+        return_depot_address: selected.returnDepotAddress,
+        return_depot_tel: selected.returnDepotTel,
+        arrange_date: selected.arrangeDate,
+        customer_order_num: selected.customerOrderNum,
+        remark2: selected.remark2,
         remark: selected.remark,
       });
       continue;
@@ -3576,12 +3704,20 @@ export async function updateDispatchRelease(
       .update({
         item_status: nextItemStatus,
         delivery_date: nextDeliveryDate,
+        eta: selected.eta,
         trucking_cost: selected.truckingCost,
         trucking_cost_currency: normalizeDispatchReleaseCurrency(selected.truckingCostCurrency),
         repair_cost: selected.repairCost,
         repair_cost_currency: normalizeDispatchReleaseCurrency(selected.repairCostCurrency),
         damage_claim: selected.damageClaim,
         damage_claim_currency: normalizeDispatchReleaseCurrency(selected.damageClaimCurrency),
+        gate_in_ref: selected.gateInRef,
+        return_depot_name: selected.returnDepotName,
+        return_depot_address: selected.returnDepotAddress,
+        return_depot_tel: selected.returnDepotTel,
+        arrange_date: selected.arrangeDate,
+        customer_order_num: selected.customerOrderNum,
+        remark2: selected.remark2,
         remark: selected.remark,
       })
       .eq("id", currentItem.id);
@@ -3594,6 +3730,10 @@ export async function updateDispatchRelease(
   }
 
   await syncSelectedSourceContainerStatuses(selectedContainers);
+  await syncDispatchReleaseMasterContainersToInTransit(
+    transferOrderId,
+    selectedContainers
+  );
 
   if (
     input.releaseSource === "VENDOR_REF" &&
@@ -3810,6 +3950,7 @@ export async function createDispatchRelease(
     input.containerSelectionMode === "UNSPECIFIED"
       ? input.releaseQty
       : Math.max(0, input.releaseQty - selectedContainers.length);
+  const hasPickedUpContainers = selectedContainers.some((row) => Boolean(row.pickupDate));
 
   const supabase = createServerSupabaseClient();
   const orderPayload = {
@@ -3819,7 +3960,7 @@ export async function createDispatchRelease(
     from_depot_id: fromDepotId,
     to_depot_id: null,
     customer_id: null,
-    status: "CREATED",
+    status: hasPickedUpContainers ? "IN_TRANSIT" : "CREATED",
     departure_time: null,
     arrival_time: null,
     total_cost: 0,
@@ -3906,12 +4047,20 @@ export async function createDispatchRelease(
         container_id: row.containerId,
         item_status: row.pickupDate ? "IN_TRANSIT" : "PLANNED",
         delivery_date: row.pickupDate,
+        eta: row.eta,
         trucking_cost: row.truckingCost,
         trucking_cost_currency: normalizeDispatchReleaseCurrency(row.truckingCostCurrency),
         repair_cost: row.repairCost,
         repair_cost_currency: normalizeDispatchReleaseCurrency(row.repairCostCurrency),
         damage_claim: row.damageClaim,
         damage_claim_currency: normalizeDispatchReleaseCurrency(row.damageClaimCurrency),
+        gate_in_ref: row.gateInRef,
+        return_depot_name: row.returnDepotName,
+        return_depot_address: row.returnDepotAddress,
+        return_depot_tel: row.returnDepotTel,
+        arrange_date: row.arrangeDate,
+        customer_order_num: row.customerOrderNum,
+        remark2: row.remark2,
         remark: row.remark,
       }));
           const { data: insertedItems, error: itemError } = await supabase
@@ -3947,6 +4096,10 @@ export async function createDispatchRelease(
     }
 
     await syncSelectedSourceContainerStatuses(selectedContainers);
+    await syncDispatchReleaseMasterContainersToInTransit(
+      transferOrderId,
+      selectedContainers
+    );
 
     if (input.releaseSource === "VENDOR_REF" && normalizeText(input.sourcePurchaseOrderItemId)) {
       await inheritVendorReleaseAttachments(transferOrderId, input.sourcePurchaseOrderItemId);
@@ -4164,12 +4317,20 @@ export async function getDispatchReleaseDetail(
             id,
             item_status,
             delivery_date,
+            eta,
             trucking_cost,
             trucking_cost_currency,
             repair_cost,
             repair_cost_currency,
             damage_claim,
             damage_claim_currency,
+            gate_in_ref,
+            return_depot_name,
+            return_depot_address,
+            return_depot_tel,
+            arrange_date,
+            customer_order_num,
+            remark2,
             remark,
             container:container_id(id, container_number)
           `
@@ -4183,13 +4344,13 @@ export async function getDispatchReleaseDetail(
         .order("created_at", { ascending: true }),
       supabase
         .from("business_cost")
-        .select("id, amount, currency, occur_date, remark, cost_codes:cost_code_id(cost_code)")
+        .select("id, amount, currency, occur_date, remark, container_id, cost_codes:cost_code_id(cost_code)")
         .eq("business_type", "TRANSFER")
         .eq("business_id", transferOrderId)
         .order("occur_date", { ascending: true }),
       supabase
         .from("business_revenue")
-        .select("id, amount, currency, occur_date, remark, revenue_codes:revenue_code_id(revenue_code)")
+        .select("id, amount, currency, occur_date, remark, container_id, revenue_codes:revenue_code_id(revenue_code)")
         .eq("business_type", "TRANSFER")
         .eq("business_id", transferOrderId)
         .order("occur_date", { ascending: true }),
@@ -4303,6 +4464,7 @@ export async function getDispatchReleaseDetail(
     occur_date: string | null;
     remark: string | null;
     currency: string | null;
+    container_id: string | null;
     cost_codes: Array<{ cost_code: string | null }> | { cost_code: string | null } | null;
   }>).map((row) => {
     const costCode = (
@@ -4314,7 +4476,7 @@ export async function getDispatchReleaseDetail(
       id: row.id,
       businessType: "TRANSFER" as const,
       businessId: transferOrderId,
-      containerId: null,
+      containerId: normalizeText(row.container_id) || null,
       costCode,
       amount: formatMoney(row.amount),
       baseCurrencyAmount: formatMoney(row.amount),
@@ -4335,6 +4497,7 @@ export async function getDispatchReleaseDetail(
     occur_date: string | null;
     remark: string | null;
     currency: string | null;
+    container_id: string | null;
     revenue_codes:
       | Array<{ revenue_code: string | null }>
       | { revenue_code: string | null }
@@ -4351,7 +4514,7 @@ export async function getDispatchReleaseDetail(
       id: row.id,
       businessType: "TRANSFER" as const,
       businessId: transferOrderId,
-      containerId: null,
+      containerId: normalizeText(row.container_id) || null,
       revenueCode,
       revenueType: null,
       amount: formatMoney(row.amount),
@@ -4359,7 +4522,12 @@ export async function getDispatchReleaseDetail(
       currency: normalizeDispatchReleaseCurrency(row.currency),
       occurDate: formatDate(row.occur_date) ?? formatDate(orderRow.release_date) ?? "",
       remark: row.remark,
-      sourceField: revenueCode === "RPR" ? ("damage_claim" as const) : ("pickup_charge" as const),
+      sourceField:
+        revenueCode === "RPR"
+          ? ("damage_claim" as const)
+          : revenueCode === "DMR"
+            ? ("daily_rent" as const)
+            : ("pickup_charge" as const),
     };
   });
   const buildInvoiceDraftPackages = <
@@ -4390,6 +4558,56 @@ export async function getDispatchReleaseDetail(
       revenueRows: groupedRows,
     })),
   };
+
+  const costSummaryByContainerId = new Map<
+    string,
+    {
+      handlingFeeAllocated: number;
+      costTotal: number;
+    }
+  >();
+  for (const row of mappedCostRows) {
+    const containerId = normalizeText(row.containerId);
+    if (!containerId) continue;
+    const current = costSummaryByContainerId.get(containerId) ?? {
+      handlingFeeAllocated: 0,
+      costTotal: 0,
+    };
+    if (row.sourceField === "handling_fee") {
+      current.handlingFeeAllocated = formatMoney(current.handlingFeeAllocated + row.amount);
+    }
+    current.costTotal = formatMoney(current.costTotal + row.amount);
+    costSummaryByContainerId.set(containerId, current);
+  }
+
+  const revenueSummaryByContainerId = new Map<
+    string,
+    {
+      pickupChargeRevenue: number;
+      dailyRentRevenue: number;
+      damageRecoveryRevenue: number;
+      revenueTotal: number;
+    }
+  >();
+  for (const row of mappedRevenueRows) {
+    const containerId = normalizeText(row.containerId);
+    if (!containerId) continue;
+    const current = revenueSummaryByContainerId.get(containerId) ?? {
+      pickupChargeRevenue: 0,
+      dailyRentRevenue: 0,
+      damageRecoveryRevenue: 0,
+      revenueTotal: 0,
+    };
+    if (row.sourceField === "pickup_charge") {
+      current.pickupChargeRevenue = formatMoney(current.pickupChargeRevenue + row.amount);
+    } else if (row.sourceField === "daily_rent") {
+      current.dailyRentRevenue = formatMoney(current.dailyRentRevenue + row.amount);
+    } else if (row.sourceField === "damage_claim") {
+      current.damageRecoveryRevenue = formatMoney(current.damageRecoveryRevenue + row.amount);
+    }
+    current.revenueTotal = formatMoney(current.revenueTotal + row.amount);
+    revenueSummaryByContainerId.set(containerId, current);
+  }
 
   return {
     order: {
@@ -4478,12 +4696,20 @@ export async function getDispatchReleaseDetail(
       id: string;
       item_status: string;
       delivery_date: string | null;
+      eta: string | null;
       trucking_cost: number | null;
       trucking_cost_currency: string | null;
       repair_cost: number | null;
       repair_cost_currency: string | null;
       damage_claim: number | null;
       damage_claim_currency: string | null;
+      gate_in_ref: string | null;
+      return_depot_name: string | null;
+      return_depot_address: string | null;
+      return_depot_tel: string | null;
+      arrange_date: string | null;
+      customer_order_num: string | null;
+      remark2: string | null;
       remark: string | null;
       container:
         | Array<{ id: string | null; container_number: string | null }>
@@ -4497,6 +4723,7 @@ export async function getDispatchReleaseDetail(
         ? row.container[0]?.container_number ?? "-"
         : row.container?.container_number ?? "-",
       pickupDate: formatDate(row.delivery_date),
+      eta: formatDate(row.eta),
       pickedUp: pickedUpContainerIds.has(
         Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
       ),
@@ -4506,6 +4733,45 @@ export async function getDispatchReleaseDetail(
       repairCostCurrency: normalizeDispatchReleaseCurrency(row.repair_cost_currency),
       damageClaim: formatMoney(row.damage_claim),
       damageClaimCurrency: normalizeDispatchReleaseCurrency(row.damage_claim_currency),
+      gateInRef: row.gate_in_ref,
+      returnDepotName: row.return_depot_name,
+      returnDepotAddress: row.return_depot_address,
+      returnDepotTel: row.return_depot_tel,
+      arrangeDate: formatDate(row.arrange_date),
+      customerOrderNum: row.customer_order_num,
+      remark2: row.remark2,
+      pickupChargeRevenue:
+        revenueSummaryByContainerId.get(
+          Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+        )?.pickupChargeRevenue ?? 0,
+      dailyRentRevenue:
+        revenueSummaryByContainerId.get(
+          Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+        )?.dailyRentRevenue ?? 0,
+      damageRecoveryRevenue:
+        revenueSummaryByContainerId.get(
+          Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+        )?.damageRecoveryRevenue ?? 0,
+      handlingFeeAllocated:
+        costSummaryByContainerId.get(
+          Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+        )?.handlingFeeAllocated ?? 0,
+      revenueTotal:
+        revenueSummaryByContainerId.get(
+          Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+        )?.revenueTotal ?? 0,
+      costTotal:
+        costSummaryByContainerId.get(
+          Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+        )?.costTotal ?? 0,
+      profitTotal: formatMoney(
+        (revenueSummaryByContainerId.get(
+          Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+        )?.revenueTotal ?? 0) -
+          (costSummaryByContainerId.get(
+            Array.isArray(row.container) ? row.container[0]?.id ?? "" : row.container?.id ?? ""
+          )?.costTotal ?? 0)
+      ),
       remark: row.remark,
     })),
     attachments: ((attachmentRows ?? []) as Array<{

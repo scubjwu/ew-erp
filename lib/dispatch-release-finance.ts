@@ -41,6 +41,10 @@ function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function floorCurrency(value: number) {
+  return Math.floor((value + Number.EPSILON) * 100) / 100;
+}
+
 function normalizeDateInput(value: string | null | undefined) {
   const trimmed = value?.trim();
   if (!trimmed) return null;
@@ -66,6 +70,28 @@ function daysBetween(startDate: string, endDate: string) {
   return Math.floor(diffMs / (24 * 60 * 60 * 1000));
 }
 
+function allocateAmountAcrossContainers(
+  totalAmount: number,
+  transferItems: TransferFinanceItemSnapshot[]
+) {
+  const containerItems = transferItems.filter((item): item is TransferFinanceItemSnapshot & { containerId: string } =>
+    Boolean(item.containerId)
+  );
+
+  if (containerItems.length === 0) {
+    return [];
+  }
+
+  const roundedTotal = roundCurrency(totalAmount);
+  const baseAmount = floorCurrency(roundedTotal / containerItems.length);
+  const remainderCents = Math.round((roundedTotal - baseAmount * containerItems.length) * 100);
+
+  return containerItems.map((item, index) => ({
+    containerId: item.containerId,
+    amount: roundCurrency(baseAmount + (index < remainderCents ? 0.01 : 0)),
+  }));
+}
+
 export function buildTransferBusinessCosts(
   transferOrder: TransferFinanceOrderSnapshot,
   transferItems: TransferFinanceItemSnapshot[]
@@ -79,34 +105,70 @@ export function buildTransferBusinessCosts(
   );
   const legacyHeaderTruckingCost = roundCurrency(toNumber(transferOrder.truckingCost));
   if (legacyHeaderTruckingCost !== 0 && totalItemTruckingCost === 0) {
-    costs.push({
-      businessType: TRANSFER_BUSINESS_TYPE,
-      businessId: transferOrder.id,
-      containerId: null,
-      costCode: "TRU",
-      amount: legacyHeaderTruckingCost,
-      baseCurrencyAmount: 0,
-      currency: defaultItemCurrency,
-      occurDate,
-      remark: "Dispatch release trucking cost",
-      sourceField: "trucking_cost",
-    });
+    const truckingAllocations = allocateAmountAcrossContainers(legacyHeaderTruckingCost, transferItems);
+    if (truckingAllocations.length === 0) {
+      costs.push({
+        businessType: TRANSFER_BUSINESS_TYPE,
+        businessId: transferOrder.id,
+        containerId: null,
+        costCode: "TRU",
+        amount: legacyHeaderTruckingCost,
+        baseCurrencyAmount: 0,
+        currency: defaultItemCurrency,
+        occurDate,
+        remark: "Dispatch release trucking cost",
+        sourceField: "trucking_cost",
+      });
+    } else {
+      for (const allocation of truckingAllocations) {
+        costs.push({
+          businessType: TRANSFER_BUSINESS_TYPE,
+          businessId: transferOrder.id,
+          containerId: allocation.containerId,
+          costCode: "TRU",
+          amount: allocation.amount,
+          baseCurrencyAmount: 0,
+          currency: defaultItemCurrency,
+          occurDate,
+          remark: "Dispatch release trucking cost",
+          sourceField: "trucking_cost",
+        });
+      }
+    }
   }
 
   const handlingFee = roundCurrency(toNumber(transferOrder.handlingFee));
   if (handlingFee !== 0) {
-    costs.push({
-      businessType: TRANSFER_BUSINESS_TYPE,
-      businessId: transferOrder.id,
-      containerId: null,
-      costCode: "HDL",
-      amount: handlingFee,
-      baseCurrencyAmount: 0,
-      currency: defaultItemCurrency,
-      occurDate,
-      remark: "Dispatch release handling fee",
-      sourceField: "handling_fee",
-    });
+    const handlingAllocations = allocateAmountAcrossContainers(handlingFee, transferItems);
+    if (handlingAllocations.length === 0) {
+      costs.push({
+        businessType: TRANSFER_BUSINESS_TYPE,
+        businessId: transferOrder.id,
+        containerId: null,
+        costCode: "HDL",
+        amount: handlingFee,
+        baseCurrencyAmount: 0,
+        currency: defaultItemCurrency,
+        occurDate,
+        remark: "Dispatch release handling fee",
+        sourceField: "handling_fee",
+      });
+    } else {
+      for (const allocation of handlingAllocations) {
+        costs.push({
+          businessType: TRANSFER_BUSINESS_TYPE,
+          businessId: transferOrder.id,
+          containerId: allocation.containerId,
+          costCode: "HDL",
+          amount: allocation.amount,
+          baseCurrencyAmount: 0,
+          currency: defaultItemCurrency,
+          occurDate,
+          remark: "Dispatch release handling fee",
+          sourceField: "handling_fee",
+        });
+      }
+    }
   }
 
   for (const item of transferItems) {
@@ -209,7 +271,26 @@ export function buildTransferBusinessRevenues(
   const revenues: TransferBusinessRevenueDraft[] = [];
 
   const pickupCharge = roundCurrency(toNumber(transferOrder.pickupCharge));
-  if (pickupCharge !== 0) {
+  const pickupChargeItems = transferItems.filter((item): item is TransferFinanceItemSnapshot & { containerId: string } =>
+    Boolean(item.containerId)
+  );
+  if (pickupCharge !== 0 && pickupChargeItems.length > 0) {
+    for (const item of pickupChargeItems) {
+      revenues.push({
+        businessType: TRANSFER_BUSINESS_TYPE,
+        businessId: transferOrder.id,
+        containerId: item.containerId,
+        revenueCode: "PUC",
+        revenueType: null,
+        amount: pickupCharge,
+        baseCurrencyAmount: 0,
+        currency: headerCurrency,
+        occurDate,
+        remark: "Dispatch release pick-up charge",
+        sourceField: "pickup_charge",
+      });
+    }
+  } else if (pickupCharge !== 0) {
     revenues.push({
       businessType: TRANSFER_BUSINESS_TYPE,
       businessId: transferOrder.id,

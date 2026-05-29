@@ -26,7 +26,7 @@ describe("container master payloads", () => {
       container_number: "TGHU1234567",
       yom: 2024,
       manufacture_date: "2024-01-01",
-      vents: true,
+      vents: 4,
       locking_bars: true,
       lifecycle_stage: "IN_YARD",
       status: "AVAILABLE",
@@ -55,8 +55,33 @@ describe("container master payloads", () => {
     ).toMatchObject({
       yom: null,
       manufacture_date: null,
-      vents: false,
+      vents: 0,
       locking_bars: false,
+    });
+  });
+
+  it("keeps vents null when PO did not provide a quantity", () => {
+    expect(
+      buildOwnedContainerInsertPayload({
+        containerNumber: "TGHU1111111",
+        color: null,
+        machineType: null,
+        flp: false,
+        lbx: false,
+        lockingBarsCount: 1,
+        ventsCount: null,
+        yom: null,
+        ownerId: null,
+        depotId: null,
+        purchaseDate: null,
+        purchasePrice: null,
+        containerTypeCodeId: "type-1",
+        containerConditionCodeId: "cond-1",
+        containerSizeCodeId: "size-1",
+      })
+    ).toMatchObject({
+      vents: null,
+      locking_bars: true,
     });
   });
 });

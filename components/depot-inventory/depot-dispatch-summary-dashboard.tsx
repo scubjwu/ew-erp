@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronUp, Download, RotateCcw, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 
 import {
   exportDepotDispatchSummary,
@@ -96,6 +96,11 @@ function buildSourceMixLabel(row: DepotDispatchSummaryRow) {
   if (!row.hasFactoryOrder && row.hasNewOrUsedPurchase) return "Vendor Release Only";
   if (row.hasFactoryOrder && row.hasNewOrUsedPurchase) return "Own Inventory + Vendor Release";
   return "No Source";
+}
+
+function canReleaseSummaryRow(row: DepotDispatchSummaryRow) {
+  const hasSource = row.hasFactoryOrder || row.hasNewOrUsedPurchase;
+  return hasSource && row.totalPlannableQty > 0;
 }
 
 function appliedFilterSummary(filters: DepotDispatchSummaryQuery) {
@@ -262,6 +267,13 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
         description: getErrorMessage(error),
       });
     }
+  }
+
+  function handleConditionEnter(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.stopPropagation();
+    void handleSearch();
   }
 
   async function fetchVendorReleaseRowsForBucket(row: DepotDispatchSummaryRow) {
@@ -503,7 +515,7 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger onKeyDownCapture={handleConditionEnter}>
                       <SelectValue placeholder="Select condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -630,6 +642,7 @@ export function DepotDispatchSummaryDashboard({ initial, filterOptions }: Props)
                             size="sm"
                             variant="outline"
                             className="h-8 px-3 text-sm"
+                            disabled={!canReleaseSummaryRow(row)}
                             onClick={() => handleReleaseClick(row)}
                           >
                             Release

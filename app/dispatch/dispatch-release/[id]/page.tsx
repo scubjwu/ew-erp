@@ -206,13 +206,19 @@ export default async function DispatchReleaseDetailPage({
                 <TableHead>Repair Cost Currency</TableHead>
                 <TableHead className="text-right">Repair Recovery</TableHead>
                 <TableHead>Repair Recovery Currency</TableHead>
+                <TableHead className="text-right">PUC Revenue</TableHead>
+                <TableHead className="text-right">Daily Rent Revenue</TableHead>
+                <TableHead className="text-right">Handling Fee Allocated</TableHead>
+                <TableHead className="text-right">Revenue Total</TableHead>
+                <TableHead className="text-right">Cost Total</TableHead>
+                <TableHead className="text-right">Profit</TableHead>
                 <TableHead>Remark</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {detail.items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-20 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={17} className="h-20 text-center text-sm text-muted-foreground">
                     No specified transfer items were created for this release.
                   </TableCell>
                 </TableRow>
@@ -229,6 +235,12 @@ export default async function DispatchReleaseDetailPage({
                     <TableCell>{displayValue(item.repairCostCurrency)}</TableCell>
                     <TableCell className="text-right">{item.damageClaim.toFixed(2)}</TableCell>
                     <TableCell>{displayValue(item.damageClaimCurrency)}</TableCell>
+                    <TableCell className="text-right">{item.pickupChargeRevenue.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{item.dailyRentRevenue.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{item.handlingFeeAllocated.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{item.revenueTotal.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{item.costTotal.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{item.profitTotal.toFixed(2)}</TableCell>
                     <TableCell>{displayValue(item.remark)}</TableCell>
                   </TableRow>
                 ))
@@ -298,40 +310,6 @@ export default async function DispatchReleaseDetailPage({
         </div>
       </Section>
 
-      <Section title="Finance Summary">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Kind</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Remark</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {detail.finance.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-20 text-center text-sm text-muted-foreground">
-                    No finance lines were generated.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                detail.finance.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.kind}</TableCell>
-                    <TableCell>{row.code}</TableCell>
-                    <TableCell className="text-right">{row.amount.toFixed(2)}</TableCell>
-                    <TableCell>{displayValue(row.occurDate)}</TableCell>
-                    <TableCell>{displayValue(row.remark)}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Section>
     </div>
   );
 }

@@ -3,6 +3,10 @@
 import { headers } from "next/headers";
 import { unstable_noStore as noStore } from "next/cache";
 
+import {
+  buildSummaryBucketPartsFromDispatchSummaryContainerRow,
+  matchesDispatchSummaryBucketFilters,
+} from "@/lib/depot-dispatch-summary";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   DispatchReleaseSelectableContainerQuery,
@@ -232,6 +236,16 @@ function extractCityCode(value?: string | null) {
   const firstSegment = trimmed.split("·")[0]?.trim() ?? "";
   const codeCandidate = firstSegment || trimmed;
   return codeCandidate.split(/\s+/)[0]?.trim().toUpperCase() ?? "";
+}
+
+function extractCityName(value?: string | null) {
+  const trimmed = normalizeText(value);
+  if (!trimmed || trimmed === "-") return "";
+  const segments = trimmed.split("·").map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length >= 2) {
+    return segments.slice(1).join(" ").trim();
+  }
+  return "";
 }
 
 function buildDispatchReleaseNumberPrefix(cityValue?: string | null) {
@@ -846,7 +860,18 @@ function applyDispatchSummaryFilters(
 
   const city = postgrestLikeOperand(filters.city);
   if (city) {
-    query = query.or(`city_code.ilike.${city},city_name.ilike.${city}`, {
+    const cityCode = extractCityCode(filters.city);
+    const cityName = extractCityName(filters.city);
+    const cityOperands = new Set<string>();
+    cityOperands.add(`city_code.ilike.${city}`);
+    cityOperands.add(`city_name.ilike.${city}`);
+    if (cityCode) {
+      cityOperands.add(`city_code.ilike.${postgrestLikeOperand(cityCode)}`);
+    }
+    if (cityName) {
+      cityOperands.add(`city_name.ilike.${postgrestLikeOperand(cityName)}`);
+    }
+    query = query.or(Array.from(cityOperands).join(","), {
       foreignTable: "location",
     });
   }
@@ -1566,51 +1591,6 @@ function buildSummaryBucketPartsFromOneWayPlan(plan: OneWayPlanSummaryRowRaw) {
   });
 }
 
-function matchesDispatchSummaryBucketFilters(
-  bucket: ReturnType<typeof summaryBucketParts>,
-  filters: Pick<
-    DepotDispatchSummaryQuery,
-    "region" | "city" | "depot" | "sizeType" | "condition" | "color" | "machineType"
-  >
-) {
-  const normalizedFilterRegion = normalizedSummaryBucketMatch(filters.region);
-  if (normalizedFilterRegion && bucket.region.toUpperCase() !== normalizedFilterRegion) {
-    return false;
-  }
-
-  const normalizedFilterCity = normalizedSummaryBucketMatch(filters.city);
-  if (normalizedFilterCity && !bucket.city.toUpperCase().includes(normalizedFilterCity)) {
-    return false;
-  }
-
-  const normalizedFilterDepot = normalizedSummaryBucketMatch(filters.depot);
-  if (normalizedFilterDepot && !bucket.depot.toUpperCase().includes(normalizedFilterDepot)) {
-    return false;
-  }
-
-  const normalizedFilterSizeType = normalizedSummaryBucketMatch(filters.sizeType);
-  if (normalizedFilterSizeType && bucket.sizeType.toUpperCase() !== normalizedFilterSizeType) {
-    return false;
-  }
-
-  const normalizedFilterCondition = normalizedSummaryBucketMatch(filters.condition);
-  if (normalizedFilterCondition && bucket.condition.toUpperCase() !== normalizedFilterCondition) {
-    return false;
-  }
-
-  const normalizedFilterColor = normalizedSummaryBucketMatch(filters.color);
-  if (normalizedFilterColor && !bucket.color.toUpperCase().includes(normalizedFilterColor)) {
-    return false;
-  }
-
-  const normalizedFilterMachineType = normalizedSummaryBucketMatch(filters.machineType);
-  if (normalizedFilterMachineType && !bucket.machineType.toUpperCase().includes(normalizedFilterMachineType)) {
-    return false;
-  }
-
-  return true;
-}
-
 function matchesDispatchSummaryItemFilters(
   item: SummaryItemRowRaw,
   filters: Pick<
@@ -2062,25 +2042,11 @@ async function buildDispatchSummaryRows(filters: DepotDispatchSummaryQuery) {
   }
 
   for (const row of containerRows) {
-    const city = resolveLocationLabel({
-      location: row.location ?? null,
-    } as BaseContainerRowRaw);
-    const depot = resolveDepotLabel({
-      depot: row.depot ?? null,
-    } as BaseContainerRowRaw);
-    const sizeType = `${row.size?.size_code ?? ""}${row.type?.type_code ?? ""}` || "-";
-    const condition = row.condition?.condition_code ?? "-";
-    const bucket = upsertBucket(
-      summaryBucketParts({
-        region: row.location?.region,
-        city,
-        depot,
-        sizeType,
-        condition,
-        color: row.color ?? "-",
-        machineType: row.machine_type ?? "-",
-      })
-    );
+    const bucketParts = buildSummaryBucketPartsFromDispatchSummaryContainerRow(row);
+    if (!matchesDispatchSummaryBucketFilters(bucketParts, filters)) {
+      continue;
+    }
+    const bucket = upsertBucket(bucketParts);
 
     const purchaseType = row.purchase_order?.purchase_type ?? "";
     if (purchaseType === "FACTORY_ORDER") {
@@ -2150,7 +2116,11 @@ async function buildDispatchSummaryRows(filters: DepotDispatchSummaryQuery) {
     const remainder = Math.max(0, plannedQty - existingCount);
     if (remainder <= 0) continue;
 
-    const bucket = upsertBucket(buildSummaryBucketPartsFromSummaryItem(item));
+    const bucketParts = buildSummaryBucketPartsFromSummaryItem(item);
+    if (!matchesDispatchSummaryBucketFilters(bucketParts, filters)) {
+      continue;
+    }
+    const bucket = upsertBucket(bucketParts);
 
     if (purchaseType === "NEW_CONTAINER" || purchaseType === "USED_CONTAINER") {
       bucket.hasNewOrUsedPurchase = true;

@@ -3,17 +3,30 @@ export type InventoryRow = {
   unit: string;
   size: string;
   type: string;
+  specs: string;
   condition: string;
   color: string;
-  /** New normalized planning snapshot from DB (snake_case returned as-is). */
+  engine: string;
+  yom: string;
+  vents: string;
+  flp: string;
+  lbx: string;
+  eod: string;
+  flpLbEod: string;
+  status: string;
+  pol: string;
+  pod: string;
+  transitCompany: string;
+  onhire_no: string;
+  onhire_date: string;
+  carrier: string;
+  eta: string;
+
   purchase_date: string;
-  /** Snapshot of planned depot name at planning time (snake_case returned as-is). */
   planned_depot_name: string;
-  /** FK fields from normalized DB schema (snake_case returned as-is). */
   actual_depot_id: string | null;
   pol_id: string | null;
   pod_id: string | null;
-  /** Joined relational objects from FK lookups. */
   actual_depot?:
     | {
         depot_name: string;
@@ -33,49 +46,22 @@ export type InventoryRow = {
         city_code: string;
       }
     | null;
-  /** Legacy field - to be replaced by relational data. */
-  pod?: string;
-  /** Legacy field - to be replaced by relational data. */
-  pol?: string;
-  /** Ocean / line carrier */
-  carrier: string;
-  /** 调运公司 — inland / dispatch transport (distinct from carrier) */
-  transitCompany: string;
-  /** OnHire# (snake_case for finalized column spec) */
-  onhire_no: string;
-  /** OnHireDate (snake_case for finalized column spec) */
-  onhire_date: string;
-  /** Sales Region (snake_case for finalized column spec) */
-  sales_region: string;
-  /** Operational Remark */
-  remark1: string;
-  /** Other Redelivery Instruction */
-  remark2: string;
-
-  /** legacy aliases kept for backward compatibility in filters/actions */
   onhireNum: string;
-  status: string;
-  customerOrderNum: string;
-  salesRep: string;
+  sales_region: string;
   salesRegion: string;
-  specs: string;
-  yom: string;
-  flpLbEod: string;
-  vents?: string;
-  engine: string;
-  eta: string;
+  salesRep: string;
   salesDate: string;
   onHireDate: string;
   customer: string;
+  customerOrderNum: string;
   price: number;
-  /** Legacy field - to be replaced by relational data. */
-  depotName?: string;
-  /** Legacy field - to be replaced by relational data. */
-  depotAddr?: string;
-  /** Legacy field - to be replaced by relational data. */
-  depotTel?: string;
+  depotName: string;
+  depotAddr: string;
+  depotTel: string;
   gateInRef: string;
   cost: number;
+  remark1: string;
+  remark2: string;
 };
 
 export type InventoryDateFilters = {

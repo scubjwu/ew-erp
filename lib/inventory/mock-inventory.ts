@@ -166,6 +166,9 @@ export function buildMockInventoryRows(): InventoryRow[] {
     const depotTel = `+1-555-${String(1000 + i).slice(-4)}`;
     const pol = POLS[i % POLS.length];
     const pod = PODS[i % PODS.length];
+    const flp = i % 3 === 0 ? "FLP" : "-";
+    const lbx = i % 3 === 0 || i % 3 === 1 ? "LBX" : "-";
+    const eod = "EOD";
 
     return {
       id: `inv-${i + 1}`,
@@ -208,7 +211,11 @@ export function buildMockInventoryRows(): InventoryRow[] {
       salesRegion: SALES_REGIONS[i % SALES_REGIONS.length],
       specs: `${size} ${type} ${CONDITIONS[i % CONDITIONS.length]}`,
       yom: String(2014 + (i % 10)),
-      flpLbEod: i % 3 === 0 ? "FLP+LB+EOD" : i % 3 === 1 ? "LB+EOD" : "EOD",
+      vents: String(i % 5),
+      flp,
+      lbx,
+      eod,
+      flpLbEod: `${flp}/${lbx}/${eod}`,
       engine: type === "Reefer" ? "Carrier / TK" : "—",
       eta: etaDate,
       salesDate: i % 5 === 0 ? "" : `2025-${String((i % 9) + 1).padStart(2, "0")}-${String((i % 27) + 1).padStart(2, "0")}`,

@@ -10,15 +10,15 @@ describe("container yom migration contract", () => {
       "db",
       "supabase",
       "migrations",
-      "20260525110000_container_yom_for_in_transit.sql"
+      "20260525203000_container_yom.sql"
     );
     const sql = fs.readFileSync(migrationPath, "utf8");
 
-    expect(sql).toContain('alter table public.container add column if not exists yom integer');
-    expect(sql).toContain("check (yom is null or (yom between 1900 and 2100))");
+    expect(sql).toContain('add column if not exists yom integer');
+    expect(sql).toContain("check (yom is null or yom between 1900 and 2100)");
     expect(sql).toContain("update public.container c");
-    expect(sql).toContain("from public.purchase_order_container poc");
-    expect(sql).toContain("poc.yom is not null");
+    expect(sql).toContain("from ranked_purchase_container_yom");
+    expect(sql).toContain("poc.yom between 1900 and 2100");
     expect(sql).not.toContain("manufacture_date");
   });
 });
