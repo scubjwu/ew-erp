@@ -901,12 +901,12 @@ function EditableAutocompleteCell({
   );
 }
 
-function buildInitialFinanceState(): DraftFormState {
+function buildInitialFinanceState(options: Pick<PurchaseDraftFormOptions, "currentBuyerId">): DraftFormState {
   return {
     purchaseType: "FACTORY_ORDER",
     supplierId: null,
     ownerId: null,
-    buyerId: null,
+    buyerId: options.currentBuyerId,
     purchaseDate: new Date().toISOString().slice(0, 10),
     estimatedOfflineTime: null,
     contractNumber: null,
@@ -1080,7 +1080,7 @@ export function PurchaseOrderCreateForm({
     [editPermissions, initialOrder, isEditMode]
   );
   const [form, setForm] = useState<DraftFormState>(() =>
-    initialOrder ? buildFormStateFromOrder(initialOrder) : buildInitialFinanceState()
+    initialOrder ? buildFormStateFromOrder(initialOrder) : buildInitialFinanceState(options)
   );
   const [supplierInput, setSupplierInput] = useState(() =>
     initialOrder?.supplier

@@ -140,6 +140,7 @@ const options = {
     },
   ],
   buyers: [{ id: "buyer-1", label: "SP0001 · Buyer One" }],
+  currentBuyerId: "buyer-1",
   locations: [{ id: "city-1", code: "ADWEN", name: "Wien" }],
   depots: [{ id: "depot-1", code: "DP01", name: "Main Depot", cityId: "city-1" }],
   sizeCodes: [{ id: "size-1", code: "20" }],
@@ -316,6 +317,12 @@ const initialSubmittedOrder = {
 describe("PurchaseOrderCreateForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("defaults Buyer to the current operator on create", () => {
+    render(<PurchaseOrderCreateForm options={options} />);
+
+    expect(screen.getByText("buyer-1")).toBeInTheDocument();
   });
 
   it("renders factory-order defaults and toggles purchase-type fields", async () => {

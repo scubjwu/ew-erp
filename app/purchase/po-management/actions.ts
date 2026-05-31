@@ -206,6 +206,7 @@ export type PurchaseDraftFormOptions = {
   suppliers: PurchaseDraftSupplierOption[];
   owners: PurchaseDraftOwnerOption[];
   buyers: PurchaseDraftBuyerOption[];
+  currentBuyerId: string | null;
   locations: PurchaseDraftLocationOption[];
   depots: PurchaseDraftDepotOption[];
   sizeCodes: PurchaseDraftSizeCodeOption[];
@@ -2012,6 +2013,7 @@ export async function getPurchaseOrderEditContainersByNumbers(
 export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOptions> {
   noStore();
   const supabase = createServerSupabaseClient();
+  const authUserResult = await supabase.auth.getUser();
   const [
     suppliersResult,
     ownersResult,
@@ -2090,6 +2092,11 @@ export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOp
   if (colorsResult.error) throw new Error(colorsResult.error.message);
   if (materialVendorsResult.error) throw new Error(materialVendorsResult.error.message);
   if (orderNosResult.error) throw new Error(orderNosResult.error.message);
+  if (authUserResult.error && authUserResult.error.message !== "Auth session missing!") {
+    throw new Error(authUserResult.error.message);
+  }
+
+  const currentBuyerId = authUserResult.data.user?.id ?? null;
 
   const suppliers = ((suppliersResult.data ?? []) as Array<{
     id: string;
@@ -2171,6 +2178,7 @@ export async function getPurchaseDraftFormOptions(): Promise<PurchaseDraftFormOp
       id: buyer.id,
       label: [buyer.user_code, buyer.full_name].filter(Boolean).join(" · "),
     })),
+    currentBuyerId,
     locations: ((locationsResult.data ?? []) as Array<{
       id: string;
       city_code: string;
