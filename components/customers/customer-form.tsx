@@ -15,7 +15,6 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -31,7 +30,7 @@ import { toast } from "@/hooks/use-toast";
 import { classifyCustomerSaveError, isOccConflict } from "@/lib/customers/customer-save-errors";
 import { generateCustomerCustomId } from "@/lib/customers/generate-customer-custom-id";
 import { createBrowserClient } from "@/lib/supabase/client";
-import type { Customer, CustomerStatus } from "@/types/customer";
+import type { Customer, CustomerDepotStatus, CustomerStatus } from "@/types/customer";
 
 const CUSTOMER_STATUS_OPTIONS: readonly CustomerStatus[] = [
   "Normal",
@@ -49,6 +48,28 @@ type RegionOption = {
   region_name: string | null;
 };
 
+type CityOption = {
+  city_code: string;
+  city_name: string | null;
+};
+
+type CustomerDepotFormRow = {
+  id?: string;
+  client_id: string;
+  city_code: string;
+  city_name: string;
+  depot_name: string;
+  depot_address: string;
+  depot_contact_person: string;
+  depot_tel: string;
+  contact_email: string;
+  is_default: boolean;
+  status: CustomerDepotStatus;
+  remark: string;
+};
+
+const CUSTOMER_DEPOT_STATUS_OPTIONS: readonly CustomerDepotStatus[] = ["ACTIVE", "INACTIVE"] as const;
+
 function parseEmailList(raw: string) {
   return raw
     .split(/[\n,;]+/)
@@ -64,6 +85,59 @@ function validateEmailList(raw: string, required: boolean, label: string) {
   }
   return null;
 }
+
+function createDepotClientId() {
+  return `depot-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function compareDepotStatus(left: CustomerDepotStatus, right: CustomerDepotStatus) {
+  if (left === right) return 0;
+  if (left === "ACTIVE") return -1;
+  if (right === "ACTIVE") return 1;
+  return 0;
+}
+
+function sortDepotRows(rows: CustomerDepotFormRow[]) {
+  return [...rows].sort((left, right) => {
+    const statusOrder = compareDepotStatus(left.status, right.status);
+    if (statusOrder !== 0) return statusOrder;
+    return left.city_code.localeCompare(right.city_code);
+  });
+}
+
+function createEmptyDepotRow(): CustomerDepotFormRow {
+  return {
+    client_id: createDepotClientId(),
+    city_code: "",
+    city_name: "",
+    depot_name: "",
+    depot_address: "",
+    depot_contact_person: "",
+    depot_tel: "",
+    contact_email: "",
+    is_default: false,
+    status: "ACTIVE",
+    remark: "",
+  };
+}
+
+const customerDepotFormRowSchema = z.object({
+  id: z.string().optional(),
+  client_id: z.string().min(1),
+  city_code: z.string().trim().min(1, "City Code is required"),
+  city_name: z.string(),
+  depot_name: z.string().trim().min(1, "Depot Name is required"),
+  depot_address: z.string().trim().min(1, "Depot Address is required"),
+  depot_contact_person: z.string(),
+  depot_tel: z.string().trim().min(1, "Depot Tel is required"),
+  contact_email: z
+    .string()
+    .trim()
+    .refine((value) => value.length === 0 || emailPattern.test(value), "Invalid contact email"),
+  is_default: z.boolean(),
+  status: z.enum(CUSTOMER_DEPOT_STATUS_OPTIONS as [CustomerDepotStatus, ...CustomerDepotStatus[]]),
+  remark: z.string(),
+});
 
 const customerFormSchema = z.object({
   customer_custom_id: z.string().min(1),
@@ -86,6 +160,37 @@ const customerFormSchema = z.object({
   credit_term_days: z.number().int().min(1, "Credit term (days) is required"),
   assigned_sales: z.string().trim().min(1, "Assigned sales is required"),
   notes: z.string(),
+  customer_depots: z.array(customerDepotFormRowSchema).superRefine((rows, ctx) => {
+    const seenPairs = new Set<string>();
+    let defaultCount = 0;
+
+    rows.forEach((row, index) => {
+      const pairKey = `${row.city_code.trim().toUpperCase()}::${row.depot_name.trim().toUpperCase()}`;
+      if (row.city_code.trim() && row.depot_name.trim()) {
+        if (seenPairs.has(pairKey)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [index, "depot_name"],
+            message: "Duplicate City Code + Depot Name",
+          });
+        } else {
+          seenPairs.add(pairKey);
+        }
+      }
+
+      if (row.is_default) {
+        defaultCount += 1;
+      }
+    });
+
+    if (defaultCount > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: "Only one default depot is allowed",
+      });
+    }
+  }),
   certificate_links: z.array(z.string()),
 });
 
@@ -114,6 +219,22 @@ function mapCustomerToForm(customer: Customer): CustomerFormValues {
     credit_term_days: Number(customer.credit_term_days ?? 3),
     assigned_sales: customer.assigned_sales ?? "",
     notes: customer.notes ?? "",
+    customer_depots: sortDepotRows(
+      (customer.customer_depots ?? []).map((depot) => ({
+        id: depot.id,
+        client_id: depot.id ?? createDepotClientId(),
+        city_code: depot.city_code ?? "",
+        city_name: depot.city_name ?? "",
+        depot_name: depot.depot_name ?? "",
+        depot_address: depot.depot_address ?? "",
+        depot_contact_person: depot.depot_contact_person ?? "",
+        depot_tel: depot.depot_tel ?? "",
+        contact_email: depot.contact_email ?? "",
+        is_default: Boolean(depot.is_default),
+        status: depot.status ?? "ACTIVE",
+        remark: depot.remark ?? "",
+      }))
+    ),
     certificate_links: (customer.certificate_links ?? []).map((item) => item.link_url),
   };
 }
@@ -136,6 +257,7 @@ function defaultValues(): CustomerFormValues {
     credit_term_days: 3,
     assigned_sales: "",
     notes: "",
+    customer_depots: [],
     certificate_links: [""],
   };
 }
@@ -161,14 +283,17 @@ async function isCustomerIdTaken(customerId: string, excludeId?: string) {
 function ReadOnlyInput({
   value,
   placeholder,
+  ariaLabel,
 }: {
   value: string;
   placeholder?: string;
+  ariaLabel?: string;
 }) {
   return (
     <Input
       value={value}
       placeholder={placeholder}
+      aria-label={ariaLabel}
       readOnly
       disabled
       className="cursor-not-allowed bg-muted/50 text-foreground/80"
@@ -201,6 +326,7 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
   const supabase = createBrowserClient();
   const [saving, setSaving] = useState(false);
   const [regionOptions, setRegionOptions] = useState<RegionOption[]>([]);
+  const [cityOptions, setCityOptions] = useState<CityOption[]>([]);
   const occBaselineRef = useRef<string | null>(null);
 
   const form = useForm<CustomerFormValues>({
@@ -215,21 +341,29 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
 
   useEffect(() => {
     void (async () => {
-      const { data, error } = await supabase
-        .from("region_codes")
-        .select("id, region_code, region_name")
-        .order("region_code", { ascending: true });
+      const [{ data: regions, error: regionError }, { data: cities, error: cityError }] =
+        await Promise.all([
+          supabase
+            .from("region_codes")
+            .select("id, region_code, region_name")
+            .order("region_code", { ascending: true }),
+          supabase
+            .from("cities")
+            .select("city_code, city_name")
+            .order("city_code", { ascending: true }),
+        ]);
 
-      if (error) {
+      if (regionError || cityError) {
         toast({
           variant: "destructive",
-          title: "Could not load regions",
-          description: error.message,
+          title: "Could not load customer form options",
+          description: regionError?.message ?? cityError?.message,
         });
         return;
       }
 
-      setRegionOptions((data ?? []) as RegionOption[]);
+      setRegionOptions((regions ?? []) as RegionOption[]);
+      setCityOptions((cities ?? []) as CityOption[]);
     })();
   }, [supabase]);
 
@@ -248,7 +382,36 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
 
   const readOnly = mode === "view";
   const certificateLinks = form.watch("certificate_links");
+  const customerDepots = form.watch("customer_depots");
   const selectedRegion = regionOptions.find((option) => option.id === form.watch("region_id"));
+  const customerDepotErrors = form.formState.errors.customer_depots;
+
+  function setCustomerDepots(nextRows: CustomerDepotFormRow[]) {
+    form.setValue("customer_depots", sortDepotRows(nextRows), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }
+
+  function updateCustomerDepotRow(index: number, patch: Partial<CustomerDepotFormRow>) {
+    const nextRows = [...customerDepots];
+    const currentRow = nextRows[index];
+    if (!currentRow) return;
+    nextRows[index] = { ...currentRow, ...patch };
+    setCustomerDepots(nextRows);
+  }
+
+  function selectDepotAsDefault(index: number, checked: boolean) {
+    const nextRows = customerDepots.map((row, rowIndex) => ({
+      ...row,
+      is_default: checked ? rowIndex === index : rowIndex === index ? false : row.is_default,
+    }));
+    setCustomerDepots(nextRows);
+  }
+
+  function cityNameForCode(cityCode: string) {
+    return cityOptions.find((option) => option.city_code === cityCode)?.city_name ?? "";
+  }
 
   async function onSubmit(values: CustomerFormValues) {
     const primaryEmailError = validateEmailList(
@@ -270,6 +433,18 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
     }
 
     const cleanedLinks = values.certificate_links.map((item) => item.trim()).filter(Boolean);
+    const cleanedCustomerDepots = values.customer_depots.map((row) => ({
+      id: row.id,
+      city_code: row.city_code.trim(),
+      depot_name: row.depot_name.trim(),
+      depot_address: row.depot_address.trim(),
+      depot_contact_person: row.depot_contact_person.trim() || null,
+      depot_tel: row.depot_tel.trim(),
+      contact_email: row.contact_email.trim() || null,
+      is_default: row.is_default,
+      status: row.status,
+      remark: row.remark.trim() || null,
+    }));
     setSaving(true);
 
     try {
@@ -330,6 +505,24 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
           if (linksError) throw linksError;
         }
 
+        if (cleanedCustomerDepots.length > 0) {
+          const { error: depotsError } = await supabase.from("customer_depot").insert(
+            cleanedCustomerDepots.map((row) => ({
+              customer_id: inserted.id,
+              city_code: row.city_code,
+              depot_name: row.depot_name,
+              depot_address: row.depot_address,
+              depot_contact_person: row.depot_contact_person,
+              depot_tel: row.depot_tel,
+              contact_email: row.contact_email,
+              is_default: row.is_default,
+              status: row.status,
+              remark: row.remark,
+            }))
+          );
+          if (depotsError) throw depotsError;
+        }
+
         await revalidateCustomerViews(inserted.id);
         form.reset(defaultValues());
         toast({ title: "Customer created" });
@@ -388,6 +581,47 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
           }))
         );
         if (insertLinksError) throw insertLinksError;
+      }
+
+      const existingDepots = cleanedCustomerDepots.filter((row) => row.id);
+      const newDepots = cleanedCustomerDepots.filter((row) => !row.id);
+
+      for (const row of existingDepots) {
+        const { error: depotUpdateError } = await supabase
+          .from("customer_depot")
+          .update({
+            city_code: row.city_code,
+            depot_name: row.depot_name,
+            depot_address: row.depot_address,
+            depot_contact_person: row.depot_contact_person,
+            depot_tel: row.depot_tel,
+            contact_email: row.contact_email,
+            is_default: row.is_default,
+            status: row.status,
+            remark: row.remark,
+          })
+          .eq("id", row.id as string)
+          .eq("customer_id", initialCustomer.id);
+
+        if (depotUpdateError) throw depotUpdateError;
+      }
+
+      if (newDepots.length > 0) {
+        const { error: insertDepotError } = await supabase.from("customer_depot").insert(
+          newDepots.map((row) => ({
+            customer_id: initialCustomer.id,
+            city_code: row.city_code,
+            depot_name: row.depot_name,
+            depot_address: row.depot_address,
+            depot_contact_person: row.depot_contact_person,
+            depot_tel: row.depot_tel,
+            contact_email: row.contact_email,
+            is_default: row.is_default,
+            status: row.status,
+            remark: row.remark,
+          }))
+        );
+        if (insertDepotError) throw insertDepotError;
       }
 
       await revalidateCustomerViews(initialCustomer.id);
@@ -484,6 +718,7 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
                       <FormControl>
                         <Input
                           {...field}
+                          aria-label="Legal Company Name"
                           readOnly={readOnly}
                           disabled={saving || readOnly}
                           className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
@@ -554,7 +789,7 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
                       ) : (
                         <Select value={field.value} onValueChange={field.onChange} disabled={saving}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger aria-label="Customer Region">
                               <SelectValue placeholder="Select region" />
                             </SelectTrigger>
                           </FormControl>
@@ -582,6 +817,7 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
                       <FormControl>
                         <Input
                           {...field}
+                          aria-label="Primary Contact Email"
                           readOnly={readOnly}
                           disabled={saving || readOnly}
                           className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
@@ -601,6 +837,7 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
                       <FormControl>
                         <Input
                           {...field}
+                          aria-label="Assigned Sales"
                           readOnly={readOnly}
                           disabled={saving || readOnly}
                           className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
@@ -778,6 +1015,286 @@ export function CustomerForm({ mode, initialCustomer }: CustomerFormProps) {
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="rounded-2xl border border-border p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold">Customer Depots</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Maintain the customer's selectable depot list and default depot.
+                  </p>
+                </div>
+                {!readOnly ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setCustomerDepots([...customerDepots, createEmptyDepotRow()])}
+                  >
+                    <Plus className="size-4" />
+                    Add Depot
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="space-y-4">
+                {customerDepots.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No customer depots added.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-border/70">
+                    <table className="min-w-[1640px] w-full table-fixed border-separate border-spacing-0 text-sm">
+                      <thead className="bg-muted/35 text-left">
+                        <tr className="[&>th]:border-b [&>th]:border-r [&>th]:border-border/70">
+                          <th className="w-[120px] px-3 py-2 font-medium">Status</th>
+                          <th className="w-[170px] px-3 py-2 font-medium">City Code *</th>
+                          <th className="w-[180px] px-3 py-2 font-medium">City Name</th>
+                          <th className="w-[180px] px-3 py-2 font-medium">Contact Person</th>
+                          <th className="w-[220px] px-3 py-2 font-medium">Contact Email</th>
+                          <th className="w-[220px] px-3 py-2 font-medium">Depot Name *</th>
+                          <th className="w-[280px] px-3 py-2 font-medium">Depot Address *</th>
+                          <th className="w-[180px] px-3 py-2 font-medium">Depot Tel *</th>
+                          <th className="w-[110px] px-3 py-2 font-medium">Default</th>
+                          <th className="w-[240px] px-3 py-2 font-medium">Remark</th>
+                          {!readOnly ? (
+                            <th className="w-[110px] px-3 py-2 font-medium border-b border-border/70">Action</th>
+                          ) : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customerDepots.map((row, index) => {
+                          const rowErrors = customerDepotErrors?.[index];
+                          const rowKey = row.id ?? row.client_id;
+                          return (
+                            <tr
+                              key={rowKey}
+                              className="[&>td]:align-top [&>td]:border-b [&>td]:border-r [&>td]:border-border/70"
+                            >
+                              <td className="p-2">
+                                {readOnly ? (
+                                  <ReadOnlyInput
+                                    value={row.status === "ACTIVE" ? "Active" : "Inactive"}
+                                    ariaLabel={`Depot ${index + 1} Status`}
+                                  />
+                                ) : (
+                                  <Select
+                                    value={row.status}
+                                    onValueChange={(value) =>
+                                      updateCustomerDepotRow(index, {
+                                        status: value as CustomerDepotStatus,
+                                      })
+                                    }
+                                    disabled={saving}
+                                  >
+                                    <SelectTrigger aria-label={`Depot ${index + 1} Status`}>
+                                      <SelectValue placeholder="Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="ACTIVE">Active</SelectItem>
+                                      <SelectItem value="INACTIVE">Inactive</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <div className="space-y-1">
+                                  {readOnly ? (
+                                    <ReadOnlyInput
+                                      value={row.city_code}
+                                      ariaLabel={`Depot ${index + 1} City Code`}
+                                    />
+                                  ) : (
+                                    <Select
+                                      value={row.city_code}
+                                      onValueChange={(value) =>
+                                        updateCustomerDepotRow(index, {
+                                          city_code: value,
+                                          city_name: cityNameForCode(value),
+                                        })
+                                      }
+                                      disabled={saving}
+                                    >
+                                      <SelectTrigger aria-label={`Depot ${index + 1} City Code`}>
+                                        <SelectValue placeholder="City code" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {cityOptions.map((option) => (
+                                          <SelectItem key={option.city_code} value={option.city_code}>
+                                            {option.city_code}
+                                            {option.city_name ? ` · ${option.city_name}` : ""}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                  {rowErrors?.city_code ? (
+                                    <p className="text-xs text-destructive">{rowErrors.city_code.message}</p>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <ReadOnlyInput
+                                  value={row.city_name}
+                                  ariaLabel={`Depot ${index + 1} City Name`}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <Input
+                                  value={row.depot_contact_person}
+                                  aria-label={`Depot ${index + 1} Contact Person`}
+                                  readOnly={readOnly}
+                                  disabled={saving || readOnly}
+                                  className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
+                                  onChange={(event) =>
+                                    updateCustomerDepotRow(index, {
+                                      depot_contact_person: event.target.value,
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td className="p-2">
+                                <div className="space-y-1">
+                                  <Input
+                                    value={row.contact_email}
+                                    aria-label={`Depot ${index + 1} Contact Email`}
+                                    readOnly={readOnly}
+                                    disabled={saving || readOnly}
+                                    className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
+                                    onChange={(event) =>
+                                      updateCustomerDepotRow(index, {
+                                        contact_email: event.target.value,
+                                      })
+                                    }
+                                  />
+                                  {rowErrors?.contact_email ? (
+                                    <p className="text-xs text-destructive">{rowErrors.contact_email.message}</p>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <div className="space-y-1">
+                                  <Input
+                                    value={row.depot_name}
+                                    aria-label={`Depot ${index + 1} Depot Name`}
+                                    readOnly={readOnly}
+                                    disabled={saving || readOnly}
+                                    className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
+                                    onChange={(event) =>
+                                      updateCustomerDepotRow(index, {
+                                        depot_name: event.target.value,
+                                      })
+                                    }
+                                  />
+                                  {rowErrors?.depot_name ? (
+                                    <p className="text-xs text-destructive">{rowErrors.depot_name.message}</p>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <div className="space-y-1">
+                                  <Input
+                                    value={row.depot_address}
+                                    aria-label={`Depot ${index + 1} Depot Address`}
+                                    readOnly={readOnly}
+                                    disabled={saving || readOnly}
+                                    className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
+                                    onChange={(event) =>
+                                      updateCustomerDepotRow(index, {
+                                        depot_address: event.target.value,
+                                      })
+                                    }
+                                  />
+                                  {rowErrors?.depot_address ? (
+                                    <p className="text-xs text-destructive">{rowErrors.depot_address.message}</p>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <div className="space-y-1">
+                                  <Input
+                                    value={row.depot_tel}
+                                    aria-label={`Depot ${index + 1} Depot Tel`}
+                                    readOnly={readOnly}
+                                    disabled={saving || readOnly}
+                                    className={readOnly ? "cursor-not-allowed bg-muted/50" : ""}
+                                    onChange={(event) =>
+                                      updateCustomerDepotRow(index, {
+                                        depot_tel: event.target.value,
+                                      })
+                                    }
+                                  />
+                                  {rowErrors?.depot_tel ? (
+                                    <p className="text-xs text-destructive">{rowErrors.depot_tel.message}</p>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <label className="flex h-10 items-center justify-center rounded-md border border-input px-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={row.is_default}
+                                    aria-label={`Depot ${index + 1} Default`}
+                                    disabled={saving || readOnly}
+                                    onChange={(event) => selectDepotAsDefault(index, event.target.checked)}
+                                  />
+                                </label>
+                              </td>
+                              <td className="p-2">
+                                <Textarea
+                                  value={row.remark}
+                                  aria-label={`Depot ${index + 1} Remark`}
+                                  rows={1}
+                                  readOnly={readOnly}
+                                  disabled={saving || readOnly}
+                                  className={
+                                    readOnly
+                                      ? "min-h-[40px] cursor-not-allowed resize-none bg-muted/50"
+                                      : "min-h-[40px] resize-y"
+                                  }
+                                  onChange={(event) =>
+                                    updateCustomerDepotRow(index, {
+                                      remark: event.target.value,
+                                    })
+                                  }
+                                />
+                              </td>
+                              {!readOnly ? (
+                                <td className="p-2">
+                                  {!row.id ? (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="gap-2"
+                                      onClick={() =>
+                                        setCustomerDepots(
+                                          customerDepots.filter((_, rowIndex) => rowIndex !== index)
+                                        )
+                                      }
+                                    >
+                                      <Trash2 className="size-4" />
+                                      Remove
+                                    </Button>
+                                  ) : (
+                                    <div className="flex h-10 items-center text-xs text-muted-foreground">
+                                      Set inactive to retire
+                                    </div>
+                                  )}
+                                </td>
+                              ) : null}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {typeof customerDepotErrors?.message === "string" ? (
+                  <p className="text-sm text-destructive">{customerDepotErrors.message}</p>
+                ) : null}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-border p-4">

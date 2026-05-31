@@ -29,6 +29,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     refresh: routerRefresh,
   }),
+  usePathname: () => "/purchase/po-management/po-1/items/item-1/containers",
+  useSearchParams: () => new URLSearchParams("page=1&pageSize=20"),
 }));
 
 vi.mock("@/app/purchase/po-management/actions", () => ({
@@ -44,6 +46,9 @@ vi.mock("lucide-react", () => {
     <span data-testid="lucide-mock-icon" className={props.className} />
   );
   return {
+    Check: Icon,
+    ChevronDown: Icon,
+    ChevronUp: Icon,
     Eye: Icon,
     Pencil: Icon,
   };
@@ -305,6 +310,12 @@ describe("Purchase detail views", () => {
     expect(screen.getByText("Settlement Details")).toBeInTheDocument();
     expect(screen.getByText("Vendor Bank Information")).toBeInTheDocument();
     expect(screen.getByText("A/P Overview")).toBeInTheDocument();
+    expect(screen.getByText("PO Total")).toBeInTheDocument();
+    expect(screen.getByText("Paid Amount")).toBeInTheDocument();
+    expect(screen.getByText("Unpaid Amount")).toBeInTheDocument();
+    expect(screen.queryByText("Grand Total")).not.toBeInTheDocument();
+    expect(screen.queryByText("Amount Paid")).not.toBeInTheDocument();
+    expect(screen.queryByText("Amount Unpaid")).not.toBeInTheDocument();
     expect(screen.queryByText("Cancel Qty")).not.toBeInTheDocument();
     expect(screen.queryByText("Finance Sync")).not.toBeInTheDocument();
     expect(screen.getByText("Finance Status")).toBeInTheDocument();

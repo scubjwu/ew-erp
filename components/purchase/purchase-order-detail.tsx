@@ -414,18 +414,18 @@ export function PurchaseOrderDetailView({ order }: { order: PurchaseOrderDetail 
                 <DetailField label="Payment Account" value={order.paymentAccount ?? "-"} />
                 <DetailField label="Due Date" value={formatDate(order.dueDate)} />
                 <DetailField
-                  label="Grand Total"
+                  label="PO Total"
                   value={formatCurrency(order.grandTotal, order.settlementCurrency ?? "USD")}
                 />
                 <DetailField
-                  label="Amount Paid"
+                  label="Paid Amount"
                   value={formatCurrency(
                     order.totalAmountPaid,
                     order.settlementCurrency ?? "USD"
                   )}
                 />
                 <DetailField
-                  label="Amount Unpaid"
+                  label="Unpaid Amount"
                   value={formatCurrency(
                     order.totalAmountUnpaid,
                     order.settlementCurrency ?? "USD"

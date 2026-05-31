@@ -132,6 +132,7 @@ type TransferItemDetail = {
   returnDepotTel: string | null;
   arrangeDate: string | null;
   customerOrderNum: string | null;
+  remark1: string | null;
   remark2: string | null;
   pickupChargeRevenue: number;
   dailyRentRevenue: number;
@@ -218,6 +219,7 @@ type TransferItemMutationRow = {
   return_depot_tel: string | null;
   arrange_date: string | null;
   customer_order_num: string | null;
+  remark1: string | null;
   remark2: string | null;
   remark: string | null;
   container:
@@ -252,6 +254,7 @@ type ResolvedSelectedContainer = {
   returnDepotTel: string | null;
   arrangeDate: string | null;
   customerOrderNum: string | null;
+  remark1: string | null;
   remark2: string | null;
   remark: string | null;
 };
@@ -1670,6 +1673,7 @@ async function resolveSelectedContainerIds(input: DispatchReleasePersistInput) {
       returnDepotTel: normalizeText(row.returnDepotTel) || null,
       arrangeDate: formatDate(row.arrangeDate),
       customerOrderNum: normalizeText(row.customerOrderNum) || null,
+      remark1: normalizeText(row.remark1) || null,
       remark2: normalizeText(row.remark2) || null,
       remark: normalizeText(row.remark) || null,
     };
@@ -2185,6 +2189,7 @@ async function loadTransferItemsForMutation(transferOrderId: string) {
         return_depot_tel,
         arrange_date,
         customer_order_num,
+        remark1,
         remark2,
         remark,
         container:container_id(id, container_number)
@@ -3300,6 +3305,7 @@ async function resolveSelectedContainerIdsForUpdate(
             returnDepotTel: row.return_depot_tel,
             arrangeDate: formatDate(row.arrange_date),
             customerOrderNum: row.customer_order_num,
+            remark1: row.remark1,
             remark2: row.remark2,
             remark: row.remark,
           },
@@ -3439,6 +3445,7 @@ async function resolveSelectedContainerIdsForUpdate(
       arrangeDate: currentActive?.arrangeDate || formatDate(row.arrangeDate),
       customerOrderNum:
         currentActive?.customerOrderNum ?? (normalizeText(row.customerOrderNum) || null),
+      remark1: currentActive?.remark1 ?? (normalizeText(row.remark1) || null),
       remark2: currentActive?.remark2 ?? (normalizeText(row.remark2) || null),
       remark: normalizeText(row.remark) || null,
     };
@@ -3659,6 +3666,7 @@ export async function updateDispatchRelease(
     return_depot_tel: string | null;
     arrange_date: string | null;
     customer_order_num: string | null;
+    remark1: string | null;
     remark2: string | null;
     remark: string | null;
   }> = [];
@@ -3689,6 +3697,7 @@ export async function updateDispatchRelease(
         return_depot_tel: selected.returnDepotTel,
         arrange_date: selected.arrangeDate,
         customer_order_num: selected.customerOrderNum,
+        remark1: selected.remark1,
         remark2: selected.remark2,
         remark: selected.remark,
       });
@@ -3717,6 +3726,7 @@ export async function updateDispatchRelease(
         return_depot_tel: selected.returnDepotTel,
         arrange_date: selected.arrangeDate,
         customer_order_num: selected.customerOrderNum,
+        remark1: selected.remark1,
         remark2: selected.remark2,
         remark: selected.remark,
       })
@@ -4060,6 +4070,7 @@ export async function createDispatchRelease(
         return_depot_tel: row.returnDepotTel,
         arrange_date: row.arrangeDate,
         customer_order_num: row.customerOrderNum,
+        remark1: row.remark1,
         remark2: row.remark2,
         remark: row.remark,
       }));
@@ -4330,6 +4341,7 @@ export async function getDispatchReleaseDetail(
             return_depot_tel,
             arrange_date,
             customer_order_num,
+            remark1,
             remark2,
             remark,
             container:container_id(id, container_number)
@@ -4710,6 +4722,7 @@ export async function getDispatchReleaseDetail(
       arrange_date: string | null;
       customer_order_num: string | null;
       remark2: string | null;
+      remark1: string | null;
       remark: string | null;
       container:
         | Array<{ id: string | null; container_number: string | null }>
@@ -4739,6 +4752,7 @@ export async function getDispatchReleaseDetail(
       returnDepotTel: row.return_depot_tel,
       arrangeDate: formatDate(row.arrange_date),
       customerOrderNum: row.customer_order_num,
+      remark1: row.remark1,
       remark2: row.remark2,
       pickupChargeRevenue:
         revenueSummaryByContainerId.get(

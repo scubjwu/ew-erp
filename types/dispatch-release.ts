@@ -84,6 +84,7 @@ export type DispatchReleasePersistSelectedContainerInput = {
   returnDepotTel?: string | null;
   arrangeDate?: Date | null;
   customerOrderNum?: string | null;
+  remark1?: string | null;
   remark2?: string | null;
   remark?: string | null;
 };

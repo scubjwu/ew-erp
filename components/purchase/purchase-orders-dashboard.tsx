@@ -29,6 +29,7 @@ import {
   type PurchaseManagementSortDirection,
   type PurchaseOrderManagementResult,
 } from "@/app/purchase/po-management/actions";
+import type { PurchaseOrderExportRow } from "@/lib/purchase-order-export";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchableAutocompleteInput } from "@/components/purchase/searchable-autocomplete-input";
@@ -175,15 +176,24 @@ function appliedFilterSummary(
   return parts.join(" | ");
 }
 
-function downloadCsv(filename: string, rows: PurchaseOrderManagementResult["rows"]) {
+function downloadCsv(filename: string, rows: PurchaseOrderExportRow[]) {
   const columns = [
     "Order Date",
     "PO Number",
     "Vendor",
+    "Supplier Invoice No",
+    "Contract No",
+    "Vendor Release No",
     "Location",
     "Size/Type",
     "Condition",
     "Color",
+    "Quantity",
+    "Item Total",
+    "Free Day",
+    "PO Total",
+    "Paid Amount",
+    "Unpaid Amount",
     "Earliest Est. Offline Date",
     "Earliest Freeday Expiry Date",
     "Planned Qty",
@@ -201,21 +211,30 @@ function downloadCsv(filename: string, rows: PurchaseOrderManagementResult["rows
     columns.join(","),
     ...rows.map((row) =>
       [
-        row.purchaseDate,
+        row.orderDate,
         row.orderNo,
-        row.vendorLabel,
-        row.locationLabel,
-        row.sizeTypeLabel,
-        row.conditionLabel,
-        row.primaryColor,
+        row.vendor,
+        row.supplierInvoiceNo,
+        row.contractNo,
+        row.vendorReleaseNo,
+        row.location,
+        row.sizeType,
+        row.condition,
+        row.color,
+        row.quantity,
+        row.itemTotal,
+        row.freeDay,
+        row.poTotal,
+        row.paidAmount,
+        row.unpaidAmount,
         row.earliestEstimatedOfflineDate,
         row.earliestFreedayExpiryDate,
-        row.totalPlannedQty,
-        row.totalAvailableQty,
+        row.plannedQty,
+        row.availableQty,
         row.remainingQty,
         row.cancelledQty,
         row.prepaidBalance,
-        row.orderStatus,
+        row.status,
       ]
         .map(escape)
         .join(",")

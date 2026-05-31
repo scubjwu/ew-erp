@@ -14,7 +14,26 @@ export interface CustomerCertificateLink {
   updated_at: string;
 }
 
-/** One depot entry in the editor → stored under `depot_info.depots` JSONB. */
+export type CustomerDepotStatus = "ACTIVE" | "INACTIVE";
+
+export interface CustomerDepot {
+  id?: string;
+  customer_id?: string;
+  city_code: string;
+  city_name: string;
+  depot_name: string;
+  depot_address: string;
+  depot_contact_person: string;
+  depot_tel: string;
+  contact_email: string;
+  is_default: boolean;
+  status: CustomerDepotStatus;
+  remark: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Legacy depot_info JSONB editor row. Kept only for old callers not yet migrated. */
 export interface DepotRow {
   city_code: string;
   city_name: string;
@@ -48,6 +67,7 @@ export interface Customer {
   credit_limit: number;
   credit_term_days: number;
   depot_info: Record<string, unknown> | null;
+  customer_depots?: CustomerDepot[];
   certificate_links?: CustomerCertificateLink[];
   created_at: string;
   updated_at: string;

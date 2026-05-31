@@ -215,6 +215,37 @@ function purchaseResult(
   };
 }
 
+function purchaseExportRows() {
+  return [
+    {
+      orderDate: "2026-04-10",
+      orderNo: "PO-001",
+      vendor: "Vendor One",
+      supplierInvoiceNo: "INV-001",
+      contractNo: "CT-001",
+      vendorReleaseNo: "VRN-001",
+      location: "SHA",
+      sizeType: "20DV",
+      condition: "CW",
+      color: "RAL1001",
+      quantity: 2,
+      itemTotal: 1250,
+      freeDay: 7,
+      poTotal: 2500,
+      paidAmount: 0,
+      unpaidAmount: 2500,
+      earliestEstimatedOfflineDate: null,
+      earliestFreedayExpiryDate: null,
+      plannedQty: 2,
+      availableQty: 1,
+      remainingQty: 1,
+      cancelledQty: 0,
+      prepaidBalance: 1200,
+      status: "RELEASED",
+    },
+  ];
+}
+
 const filterOptions = {
   vendors: [
     {
@@ -324,7 +355,7 @@ describe("PurchaseOrdersDashboard", () => {
           },
         })
     );
-    purchaseActions.exportPurchaseOrders.mockResolvedValue(purchaseResult().rows);
+    purchaseActions.exportPurchaseOrders.mockResolvedValue(purchaseExportRows());
   });
 
   afterEach(() => {
@@ -766,29 +797,53 @@ describe("PurchaseOrdersDashboard", () => {
 
   it("exports using the current applied sort", async () => {
     const user = userEvent.setup();
+    const OriginalBlob = globalThis.Blob;
+    function BlobMock(this: { parts: unknown[] }, parts: unknown[]) {
+      this.parts = parts;
+    }
+    globalThis.Blob = BlobMock as unknown as typeof Blob;
+    const createObjectUrlSpy = vi.spyOn(URL, "createObjectURL");
 
-    render(
-      <PurchaseOrdersDashboard
-        initial={purchaseResult()}
-        pageSize={10}
-        filterOptions={filterOptions}
-      />
-    );
+    try {
+      render(
+        <PurchaseOrdersDashboard
+          initial={purchaseResult()}
+          pageSize={10}
+          filterOptions={filterOptions}
+        />
+      );
 
-    await user.click(screen.getByRole("button", { name: "Location" }));
-    await waitFor(() => expect(purchaseActions.getPurchaseOrders).toHaveBeenCalled());
+      await user.click(screen.getByRole("button", { name: "Location" }));
+      await waitFor(() => expect(purchaseActions.getPurchaseOrders).toHaveBeenCalled());
 
-    await user.click(screen.getByRole("button", { name: /Export CSV/i }));
+      await user.click(screen.getByRole("button", { name: /Export CSV/i }));
 
-    await waitFor(() =>
-      expect(purchaseActions.exportPurchaseOrders).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sortBy: "location",
-          sortDirection: "desc",
-        })
-      )
-    );
-    expect(anchorClick).toHaveBeenCalled();
+      await waitFor(() =>
+        expect(purchaseActions.exportPurchaseOrders).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sortBy: "location",
+            sortDirection: "desc",
+          })
+        )
+      );
+      expect(anchorClick).toHaveBeenCalled();
+
+      const blobArg = createObjectUrlSpy.mock.calls.at(-1)?.[0] as { parts?: unknown[] } | undefined;
+      const csvText = String(blobArg?.parts?.[0] ?? "");
+      expect(csvText).toContain("PO Total");
+      expect(csvText).toContain("Item Total");
+      expect(csvText).toContain("Quantity");
+      expect(csvText).toContain("Paid Amount");
+      expect(csvText).toContain("Unpaid Amount");
+      expect(csvText).toContain("Supplier Invoice No");
+      expect(csvText).toContain("Contract No");
+      expect(csvText).toContain("Vendor Release No");
+      expect(csvText).toContain("Free Day");
+      expect(csvText).toContain("VRN-001");
+      expect(csvText).toContain("1250");
+    } finally {
+      globalThis.Blob = OriginalBlob;
+    }
   });
 
   it("renders status in its own column, keeps qty centered, prepaid balance right-aligned, and actions sticky on the right", () => {
@@ -818,6 +873,8 @@ describe("PurchaseOrdersDashboard", () => {
       "1",
       "0",
       "1200.00",
+      "-",
+      "-",
       "RELEASED",
       "ViewEdit",
     ]);
@@ -830,7 +887,7 @@ describe("PurchaseOrdersDashboard", () => {
     expect(dataRow.querySelectorAll("td")[8]).toHaveClass("text-center");
     expect(dataRow.querySelectorAll("td")[9]).toHaveClass("text-center");
     expect(dataRow.querySelectorAll("td")[10]).toHaveClass("text-center");
-    expect(dataRow.querySelectorAll("td")[13]).toHaveClass("sticky", "right-0", "border-l", "bg-card");
+    expect(dataRow.querySelectorAll("td")[15]).toHaveClass("sticky", "right-0", "border-l", "bg-card");
     expect(within(dataRow).getByRole("link", { name: /edit/i })).toHaveAttribute(
       "href",
       "/purchase/po-management/po-1/edit"

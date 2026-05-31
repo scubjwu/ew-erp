@@ -16,6 +16,16 @@ type ContainerSnapshotRow = {
   container_size_code_id: string | null;
   container_type_code_id: string | null;
   container_condition_code_id: string | null;
+  purchase_order_container?:
+    | {
+        purchase_price?: number | null;
+        purchase_order_item_id?: string | null;
+      }
+    | Array<{
+        purchase_price?: number | null;
+        purchase_order_item_id?: string | null;
+      }>
+    | null;
 };
 
 type TransferOrderSnapshotRow = {
@@ -38,7 +48,18 @@ type TransferItemSnapshotRow = {
   return_depot_tel: string | null;
   arrange_date: string | null;
   customer_order_num: string | null;
+  remark1: string | null;
   remark2: string | null;
+};
+
+type TransferBusinessAmountRow = {
+  container_id: string | null;
+  amount: number | null;
+};
+
+type PurchaseOrderItemPriceRow = {
+  id: string;
+  unit_price: number | null;
 };
 
 type SimpleCodeRow = {
@@ -64,6 +85,9 @@ export type InTransitReadModelInput = {
   containers: ContainerSnapshotRow[];
   transferOrders: TransferOrderSnapshotRow[];
   transferItems: TransferItemSnapshotRow[];
+  transferCosts: TransferBusinessAmountRow[];
+  transferRevenues: TransferBusinessAmountRow[];
+  purchaseOrderItems: PurchaseOrderItemPriceRow[];
   sizeCodes: SimpleCodeRow[];
   typeCodes: SimpleCodeRow[];
   conditionCodes: SimpleCodeRow[];
@@ -104,7 +128,12 @@ type TransferItemSnapshot = {
   returnDepotTel: string;
   arrangeDate: string;
   customerOrderNum: string;
+  remark1: string;
   remark2: string;
+};
+
+type PurchasePriceSnapshot = {
+  purchasePrice: number;
 };
 
 function buildTransferItemSnapshotMap(rows: TransferItemSnapshotRow[]) {
@@ -125,12 +154,54 @@ function buildTransferItemSnapshotMap(rows: TransferItemSnapshotRow[]) {
       returnDepotTel: normalizeText(row.return_depot_tel),
       arrangeDate: formatDateForGrid(row.arrange_date),
       customerOrderNum: normalizeText(row.customer_order_num),
+      remark1: normalizeText(row.remark1),
       remark2: normalizeText(row.remark2),
     };
     const current = map.get(key);
     if (!current || (current.deliveryDate === "-" && snapshot.deliveryDate !== "-")) {
       map.set(key, snapshot);
     }
+  }
+
+  return map;
+}
+
+function buildTransferAmountMap(rows: TransferBusinessAmountRow[]) {
+  const map = new Map<string, number>();
+
+  for (const row of rows) {
+    const containerId = normalizeText(row.container_id);
+    if (!containerId) continue;
+    map.set(containerId, (map.get(containerId) ?? 0) + (row.amount ?? 0));
+  }
+
+  return map;
+}
+
+function buildPurchasePriceMap(
+  containers: ContainerSnapshotRow[],
+  purchaseOrderItems: PurchaseOrderItemPriceRow[]
+) {
+  const purchaseOrderItemById = buildLookupMap(purchaseOrderItems);
+  const map = new Map<string, PurchasePriceSnapshot>();
+
+  for (const container of containers) {
+    const containerId = normalizeText(container.id);
+    if (!containerId) continue;
+
+    const purchaseOrderContainer = Array.isArray(container.purchase_order_container)
+      ? container.purchase_order_container[0]
+      : container.purchase_order_container;
+    if (!purchaseOrderContainer) continue;
+
+    const purchaseOrderItemId = normalizeText(purchaseOrderContainer.purchase_order_item_id);
+    const fallbackItem = purchaseOrderItemId
+      ? purchaseOrderItemById.get(purchaseOrderItemId)
+      : undefined;
+
+    map.set(containerId, {
+      purchasePrice: purchaseOrderContainer.purchase_price ?? fallbackItem?.unit_price ?? 0,
+    });
   }
 
   return map;
@@ -144,6 +215,26 @@ function formatTransitCompany(lessee: LesseeRow | undefined): string {
     normalizeText(lessee.lessee_code) ||
     "-"
   );
+}
+
+function formatInTransitStatusLabel(value: string | null | undefined): string {
+  const normalized = normalizeText(value).toUpperCase();
+  if (!normalized) return "-";
+
+  switch (normalized) {
+    case "ONHIRE_IN_TRANSIT":
+      return "Unsold";
+    case "GATEBUY_PENDING":
+      return "Gatebuy";
+    case "EW_DEPOT_PENDING":
+      return "EW Depot";
+    case "MISUSE":
+      return "Misuse";
+    case "THIRD_PARTY_TRANSIT":
+      return "3rd Party Transit";
+    default:
+      return normalizeText(value) || "-";
+  }
 }
 
 function matchesText(haystack: string, needle: string): boolean {
@@ -165,6 +256,12 @@ export function mapInTransitInventoryRows(input: InTransitReadModelInput): Inven
   const cityById = buildLookupMap(input.cities);
   const lesseeById = buildLookupMap(input.lessees);
   const transferItemSnapshotByKey = buildTransferItemSnapshotMap(input.transferItems);
+  const transferCostByContainerId = buildTransferAmountMap(input.transferCosts);
+  const transferRevenueByContainerId = buildTransferAmountMap(input.transferRevenues);
+  const purchasePriceByContainerId = buildPurchasePriceMap(
+    input.containers,
+    input.purchaseOrderItems
+  );
 
   return input.containers.reduce<InventoryRow[]>((rows, container) => {
     if (normalizeText(container.lifecycle_stage).toUpperCase() !== "IN_TRANSIT") {
@@ -188,6 +285,9 @@ export function mapInTransitInventoryRows(input: InTransitReadModelInput): Inven
       const transferItemSnapshot =
         transferItemSnapshotByKey.get(`${transferOrderId}::${container.id}`) ?? null;
       const onhireDate = transferItemSnapshot?.deliveryDate ?? "-";
+      const purchasePrice = purchasePriceByContainerId.get(container.id)?.purchasePrice ?? 0;
+      const cumulativeTransferCost = transferCostByContainerId.get(container.id) ?? 0;
+      const cumulativeTransferRevenue = transferRevenueByContainerId.get(container.id) ?? 0;
 
       const flp = container.flp ? "FLP" : "-";
       const lbx = container.lbx ? "LBX" : "-";
@@ -208,7 +308,7 @@ export function mapInTransitInventoryRows(input: InTransitReadModelInput): Inven
         lbx,
         eod,
         flpLbEod: `${flp}/${lbx}/${eod}`,
-        status: normalizeText(container.status) || "-",
+        status: formatInTransitStatusLabel(container.status),
         pol:
           normalizeText(cityById.get(normalizeText(transferOrder.pol_city_id))?.city_code) || "-",
         pod:
@@ -233,8 +333,8 @@ export function mapInTransitInventoryRows(input: InTransitReadModelInput): Inven
         depotAddr: transferItemSnapshot?.returnDepotAddress ?? "",
         depotTel: transferItemSnapshot?.returnDepotTel ?? "",
         gateInRef: transferItemSnapshot?.gateInRef ?? "",
-        cost: 0,
-        remark1: "",
+        cost: purchasePrice + cumulativeTransferCost - cumulativeTransferRevenue,
+        remark1: transferItemSnapshot?.remark1 ?? "",
         remark2: transferItemSnapshot?.remark2 ?? "",
         purchase_date: "",
         planned_depot_name: "",

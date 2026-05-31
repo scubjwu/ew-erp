@@ -3,6 +3,7 @@
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { buildPurchaseOrderExportRows, type PurchaseOrderExportRow } from "@/lib/purchase-order-export";
 import { getPurchaseOrderEditPermissions } from "@/types/purchase";
 import type {
   PurchaseBankInformationSnapshot,
@@ -276,6 +277,7 @@ type PurchaseOrderRowRaw = {
 type PurchaseItemRowRaw = {
   purchase_order_id: string;
   line_no: number;
+  vendor_release_number: string | null;
   color: string | null;
   location_city_id: string | null;
   container_size_code_id: string | null;
@@ -283,6 +285,8 @@ type PurchaseItemRowRaw = {
   container_condition_code_id: string | null;
   estimated_offline_date: string | null;
   offline_date: string | null;
+  planned_qty: number | null;
+  line_amount: number | null;
   location_code?: string | null;
   location_name?: string | null;
   size_code?: string | null;
@@ -969,6 +973,7 @@ async function loadPurchaseItems(orderIds: string[]) {
       `
         purchase_order_id,
         line_no,
+        vendor_release_number,
         color,
         location_city_id,
         container_size_code_id,
@@ -976,6 +981,8 @@ async function loadPurchaseItems(orderIds: string[]) {
         container_condition_code_id,
         estimated_offline_date,
         offline_date,
+        planned_qty,
+        line_amount,
         location:cities(id, city_code, city_name),
         size:container_size_codes(id, size_code, size_name),
         type:container_type_codes(id, type_code, type_description),
@@ -1421,14 +1428,22 @@ export async function getPurchaseOrders(
 
 export async function exportPurchaseOrders(
   params: Omit<PurchaseOrderManagementQuery, "page" | "pageSize">
-): Promise<PurchaseOrderManagementRow[]> {
+): Promise<PurchaseOrderExportRow[]> {
   noStore();
   const result = await getPurchaseOrders({
     ...params,
     page: 1,
     pageSize: 10000,
   });
-  return result.rows;
+  const orderIds = result.rows.map((row) => row.id);
+  const items = await loadPurchaseItems(orderIds);
+  const itemsByOrder = new Map<string, PurchaseItemRowRaw[]>();
+  for (const item of items) {
+    const current = itemsByOrder.get(item.purchase_order_id) ?? [];
+    current.push(item);
+    itemsByOrder.set(item.purchase_order_id, current);
+  }
+  return buildPurchaseOrderExportRows(result.rows, itemsByOrder);
 }
 
 export async function getPurchaseFilterOptions(): Promise<PurchaseFilterOptions> {

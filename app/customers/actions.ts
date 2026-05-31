@@ -11,7 +11,7 @@ import {
   type CustomerSortDirection,
 } from "@/app/customers/query-helpers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Customer, CustomerCertificateLink } from "@/types/customer";
+import type { Customer, CustomerCertificateLink, CustomerDepot } from "@/types/customer";
 
 export type CustomerAutocompleteOption = {
   value: string;
@@ -48,6 +48,64 @@ export type CustomersPageResult = {
     sortDirection: CustomerSortDirection;
   };
 };
+
+type CustomerDepotQueryRow = {
+  id: string;
+  customer_id: string;
+  city_code: string;
+  depot_name: string;
+  depot_address: string | null;
+  depot_contact_person: string | null;
+  depot_tel: string | null;
+  contact_email: string | null;
+  is_default: boolean | null;
+  status: "ACTIVE" | "INACTIVE";
+  remark: string | null;
+  created_at: string;
+  updated_at: string;
+  city?: {
+    city_code: string | null;
+    city_name: string | null;
+  } | Array<{
+    city_code: string | null;
+    city_name: string | null;
+  }> | null;
+};
+
+function compareCustomerDepotStatus(a: string, b: string) {
+  if (a === b) return 0;
+  if (a === "ACTIVE") return -1;
+  if (b === "ACTIVE") return 1;
+  return a.localeCompare(b);
+}
+
+function mapCustomerDepotRows(rows: CustomerDepotQueryRow[]): CustomerDepot[] {
+  return rows
+    .map((row) => {
+      const cityRecord = Array.isArray(row.city) ? row.city[0] : row.city;
+      return {
+        id: row.id,
+        customer_id: row.customer_id,
+        city_code: row.city_code,
+        city_name: cityRecord?.city_name ?? "",
+        depot_name: row.depot_name,
+        depot_address: row.depot_address ?? "",
+        depot_contact_person: row.depot_contact_person ?? "",
+        depot_tel: row.depot_tel ?? "",
+        contact_email: row.contact_email ?? "",
+        is_default: Boolean(row.is_default),
+        status: row.status,
+        remark: row.remark ?? "",
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    })
+    .sort((left, right) => {
+      const statusOrder = compareCustomerDepotStatus(left.status, right.status);
+      if (statusOrder !== 0) return statusOrder;
+      return left.city_code.localeCompare(right.city_code);
+    });
+}
 
 function applyCustomerFilters(
   query: any,
@@ -253,8 +311,33 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
 
   if (certError) throw new Error(certError.message);
 
+  const { data: depots, error: depotError } = await supabase
+    .from("customer_depot")
+    .select(
+      `
+        id,
+        customer_id,
+        city_code,
+        depot_name,
+        depot_address,
+        depot_contact_person,
+        depot_tel,
+        contact_email,
+        is_default,
+        status,
+        remark,
+        created_at,
+        updated_at,
+        city:cities(city_code, city_name)
+      `
+    )
+    .eq("customer_id", id);
+
+  if (depotError) throw new Error(depotError.message);
+
   return {
     ...((data as unknown) as Customer),
+    customer_depots: mapCustomerDepotRows((depots ?? []) as CustomerDepotQueryRow[]),
     certificate_links: (certs ?? []) as CustomerCertificateLink[],
   };
 }

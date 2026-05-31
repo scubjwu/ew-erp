@@ -28,6 +28,10 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
+import {
+  recomputeOneWayPlanImportPreviewRow,
+  summarizeOneWayPlanImportRows,
+} from "@/lib/one-way-plan-import-preview";
 import type { OneWayPlanImportPreviewResult } from "@/types/one-way-planning";
 
 function displayValue(value: string | number | null | undefined) {
@@ -49,49 +53,24 @@ export function OneWayPlanImportDashboard() {
     return "";
   }
 
-  function buildValidationResult(row: OneWayPlanImportPreviewResult["rows"][number], depotSelected: boolean) {
-    const depotMessage = row.canChooseDepot
-      ? depotSelected
-        ? "Valid"
-        : "Select depot if available"
-      : row.depotCandidates.length === 0 && row.pol
-        ? "Depot can be assigned later"
-        : "Valid";
-    if (row.errors.length > 0) {
-      return `${row.errors.join(" | ")} | ${depotMessage}`;
-    }
-    if (row.skipReason) {
-      return `${row.skipReason} | ${depotMessage}`;
-    }
-    return depotMessage;
-  }
-
   function handleDepotSelection(rowIndex: number, depotId: string) {
     setPreview((current) => {
       if (!current) return current;
       const rows = current.rows.map((row, index) => {
         if (index !== rowIndex) return row;
         const selected = row.depotCandidates.find((candidate) => candidate.id === depotId) ?? null;
-        return {
+        return recomputeOneWayPlanImportPreviewRow({
           ...row,
           depotCode: selected?.code ?? "",
           selectedDepotId: selected?.id ?? null,
           selectedDepotCode: selected?.code ?? null,
-          validationResult: buildValidationResult(row, Boolean(selected)),
-          prepared: row.prepared
-            ? {
-                ...row.prepared,
-                depotId: selected?.id ?? null,
-              }
-            : null,
-        };
+        });
       });
-      const validRows = rows.filter((row) => row.isValid).length;
+      const summary = summarizeOneWayPlanImportRows(rows);
       return {
         ...current,
         rows,
-        validRows,
-        invalidRows: rows.length - validRows,
+        ...summary,
       };
     });
   }
@@ -112,7 +91,9 @@ export function OneWayPlanImportDashboard() {
             ? result.duplicateRows > 0
               ? `${result.importableRows} new rows are ready to import. ${result.duplicateRows} duplicate rows will be skipped automatically.`
               : `${result.importableRows} rows are ready to import.`
-            : `${result.invalidRows} rows need fixes before import.`,
+            : result.importableRows > 0
+              ? `${result.importableRows} valid rows can be imported now. ${result.invalidRows} rows still need fixes and will be skipped.`
+              : `${result.invalidRows} rows have blocking issues. Check the Fix Needed and Depot columns to resolve them.`,
       });
     } catch (error) {
       setPreview(null);
@@ -143,7 +124,7 @@ export function OneWayPlanImportDashboard() {
         title: "CMA report imported",
         description:
           result.skippedCount > 0
-            ? `${result.insertedCount} one way plans were created, ${result.skippedCount} duplicate rows were skipped.`
+            ? `${result.insertedCount} one way plans were created, ${result.skippedCount} rows were skipped.`
             : `${result.insertedCount} one way plans were created.`,
       });
       handleReupload();
@@ -165,7 +146,7 @@ export function OneWayPlanImportDashboard() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Import CMA Report</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload a CMA Excel report, review validation results, and import all valid rows in one batch.
+          Upload a CMA Excel report, review validation results, and import valid rows in one batch.
         </p>
       </div>
 
@@ -235,8 +216,16 @@ export function OneWayPlanImportDashboard() {
               ? preview.duplicateRows > 0
                 ? `Validation passed. ${preview.importableRows} new rows will be imported and ${preview.duplicateRows} duplicate rows will be skipped automatically.`
                 : "All rows passed validation. You can import the whole workbook now."
-              : "At least one row failed validation. Import stays blocked until every row is valid."
+              : preview.importableRows > 0
+                ? `${preview.importableRows} valid rows can be imported now. ${preview.invalidRows} rows still need fixes and will be skipped.`
+                : "No rows are currently importable. Fix the blocking issues below to continue."
             : "Upload a workbook to preview row-level validation results."}
+          {preview?.invalidRows ? (
+            <div className="mt-2 text-sm">
+              Rows highlighted in red contain blocking errors. Fix Needed shows exactly what must be
+              corrected before import, while valid rows can still be imported immediately.
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -249,7 +238,9 @@ export function OneWayPlanImportDashboard() {
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[80px]">Row No</TableHead>
-                <TableHead className="min-w-[140px]">Status</TableHead>
+                <TableHead className="min-w-[130px]">Import Status</TableHead>
+                <TableHead className="min-w-[240px]">Fix Needed</TableHead>
+                <TableHead className="min-w-[140px]">Offer Status</TableHead>
                 <TableHead className="min-w-[120px]">Offer ID</TableHead>
                 <TableHead className="min-w-[120px]">Status Date</TableHead>
                 <TableHead className="min-w-[120px]">Apply Date</TableHead>
@@ -274,19 +265,19 @@ export function OneWayPlanImportDashboard() {
                 <TableHead className="min-w-[140px]">Shipper Request ID</TableHead>
                 <TableHead className="min-w-[140px]">Onhire No</TableHead>
                 <TableHead className="min-w-[180px]">Remarks</TableHead>
-                <TableHead className="min-w-[320px]">Validation Result</TableHead>
+                <TableHead className="min-w-[320px]">Notes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {!preview ? (
                 <TableRow>
-                  <TableCell colSpan={27} className="h-24 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={29} className="h-24 text-center text-sm text-muted-foreground">
                     {loadingPreview ? "Building preview..." : "Upload a workbook to see preview rows."}
                   </TableCell>
                 </TableRow>
               ) : preview.rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={27} className="h-24 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={29} className="h-24 text-center text-sm text-muted-foreground">
                     No importable rows were found in this workbook.
                   </TableCell>
                 </TableRow>
@@ -294,6 +285,28 @@ export function OneWayPlanImportDashboard() {
                 preview.rows.map((row, index) => (
                   <TableRow key={`${row.sheetName}-${row.rowNo}`} className={rowClassName(row)}>
                     <TableCell>{row.rowNo}</TableCell>
+                    <TableCell>
+                      {row.skipReason ? "Will Skip" : row.isValid ? "Ready" : "Needs Fix"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {row.blockingErrors.map((message) => (
+                          <div key={message} className="text-xs font-medium text-destructive">
+                            {message}
+                          </div>
+                        ))}
+                        {row.fixHints.map((message) => (
+                          <div key={message} className="text-xs text-amber-700">
+                            {message}
+                          </div>
+                        ))}
+                        {row.blockingErrors.length === 0 && row.fixHints.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">
+                            {row.skipReason ? "No fix needed; duplicate row will be skipped." : "Valid"}
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell>{displayValue(row.status)}</TableCell>
                     <TableCell>{displayValue(row.offerId)}</TableCell>
                     <TableCell>{displayValue(row.statusDate)}</TableCell>
@@ -303,16 +316,13 @@ export function OneWayPlanImportDashboard() {
                     <TableCell>
                       {row.canChooseDepot ? (
                         <Select
-                          value={row.selectedDepotId ?? "__EMPTY__"}
-                          onValueChange={(value) =>
-                            handleDepotSelection(index, value === "__EMPTY__" ? "" : value)
-                          }
+                          value={row.selectedDepotId ?? ""}
+                          onValueChange={(value) => handleDepotSelection(index, value)}
                         >
                           <SelectTrigger className="min-w-[170px]">
                             <SelectValue placeholder="Select depot" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__EMPTY__">Leave empty for now</SelectItem>
                             {row.depotCandidates.map((candidate) => (
                               <SelectItem key={candidate.id} value={candidate.id}>
                                 {candidate.code}
@@ -320,6 +330,8 @@ export function OneWayPlanImportDashboard() {
                             ))}
                           </SelectContent>
                         </Select>
+                      ) : row.depotSelectionBlockedReason ? (
+                        <div className="text-xs text-destructive">{row.depotSelectionBlockedReason}</div>
                       ) : (
                         displayValue(row.depotCode)
                       )}
@@ -365,7 +377,7 @@ export function OneWayPlanImportDashboard() {
         </Button>
         <Button
           type="button"
-          disabled={!preview || preview.invalidRows > 0 || loadingPreview || importing}
+          disabled={!preview || preview.importableRows === 0 || loadingPreview || importing}
           onClick={() => void handleImport()}
         >
           {importing

@@ -8,6 +8,10 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { getDispatchReleaseSelectableContainers } from "@/app/depot-inventory/actions";
+import {
+  getImportableOneWayPlanImportRows,
+  recomputeOneWayPlanImportPreviewRow,
+} from "@/lib/one-way-plan-import-preview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   OneWayPlanAutocompleteOption,
@@ -20,6 +24,7 @@ import type {
   OneWayPlanFilterOptions,
   OneWayPlanFormOptions,
   OneWayPlanImportPreviewRawRow,
+  OneWayPlanImportPreparedRow,
   OneWayPlanImportPreviewResult,
   OneWayPlanImportPreviewRow,
   OneWayPlanImportResult,
@@ -344,6 +349,21 @@ function normalizePodCodes(
   return uniqueCodes.join(" / ");
 }
 
+function normalizePolCode(value: string | null | undefined) {
+  const raw = normalizeText(value).toUpperCase();
+  if (!raw) {
+    return { code: "", error: "POL is required" };
+  }
+
+  const matches = raw.match(/[A-Z]{5}/g) ?? [];
+  const uniqueCodes = Array.from(new Set(matches));
+  if (uniqueCodes.length > 1) {
+    return { code: "", error: `POL must contain a single City Code: ${raw}` };
+  }
+
+  return { code: raw, error: null };
+}
+
 function resolveImportPythonExecutable() {
   const bundled = path.join(
     os.homedir(),
@@ -570,19 +590,20 @@ function buildImportPreviewRow(
   const lessee = lookups.defaultCmaLessee;
   if (!lessee) errors.push("Default CMA lessee not found in system master.");
 
-  const polCode = normalizeText(raw.pol).toUpperCase();
+  const normalizedPol = normalizePolCode(raw.pol);
+  if (normalizedPol.error) errors.push(normalizedPol.error);
+  const polCode = normalizedPol.code;
   const pol = lookups.cityByCode.get(polCode);
-  if (!pol) errors.push(`POL not found: ${raw.pol || "-"}`);
+  if (polCode && !pol) errors.push(`POL not found: ${raw.pol || "-"}`);
 
   let depot: { id: string; code: string } | null = null;
   let depotCandidates: Array<{ id: string; code: string }> = [];
   let canChooseDepot = false;
   if (pol) {
     depotCandidates = lookups.depotsByCityId.get(pol.id) ?? [];
+    canChooseDepot = depotCandidates.length > 0;
     if (depotCandidates.length === 1) {
       depot = depotCandidates[0];
-    } else if (depotCandidates.length > 1) {
-      canChooseDepot = true;
     }
   }
 
@@ -606,13 +627,13 @@ function buildImportPreviewRow(
     ["Remaining Qty", raw.remainingQty],
     ["Picked Up Qty", raw.pickedUpQty],
     ["Non Picked Up Qty", raw.nonPickedUpQty],
-    ["Pick-up Charge", raw.pickupCharge],
     ["Free Days", raw.freeDays],
     ["Per Diem", raw.perDiem],
     ["DPP", raw.dpp],
   ] as const) {
     if (!Number.isFinite(value) || value < 0) errors.push(`${label} must be 0 or greater`);
   }
+  if (!Number.isFinite(raw.pickupCharge)) errors.push("Pick-up Charge must be a valid number");
 
   let willImport = true;
   let skipReason: string | null = null;
@@ -628,19 +649,42 @@ function buildImportPreviewRow(
     }
   }
 
-  const depotMessage = canChooseDepot
-    ? "Select depot if available"
-    : pol && depotCandidates.length === 0
-      ? "Depot can be assigned later"
+  const prepared: OneWayPlanImportPreparedRow | null =
+    errors.length === 0 && status && lessee && pol && sizeType && condition
+      ? {
+          status,
+          applyDate: raw.applyDate || raw.statusDate,
+          availabilityDate: raw.availabilityDate,
+          lesseeId: lessee.id,
+          depotId: depot?.id ?? null,
+          polCityId: pol.id,
+          pod: normalizedPod,
+          sizeCodeId: sizeType.sizeCodeId,
+          typeCodeId: sizeType.typeCodeId,
+          conditionCodeId: condition.id,
+          color: normalizedColor || null,
+          machineType: normalizeText(raw.machineType) || null,
+          quantity: raw.quantity,
+          authorizedQty: raw.authorizedQty,
+          remainingQty: raw.remainingQty,
+          pickedUpQty: raw.pickedUpQty,
+          nonPickedUpQty: raw.nonPickedUpQty,
+          pickupCharge: raw.pickupCharge,
+          freeDays: raw.freeDays,
+          perDiem: raw.perDiem,
+          dpp: raw.dpp,
+          carrier: "CMA",
+          currency: "USD",
+          rv: 0,
+          shipperRequestId: normalizedOfferId,
+          onhireNo: raw.onhireNo,
+          remarks: raw.remarks,
+          sourceSheetName: raw.sheetName,
+          sourceRowNumber: raw.rowNo,
+        }
       : null;
-  const validationResult =
-    errors.length > 0
-      ? `${errors.join(" | ")}${depotMessage ? ` | ${depotMessage}` : ""}`
-      : skipReason
-        ? `${skipReason}${depotMessage ? ` | ${depotMessage}` : ""}`
-        : depotMessage ?? "Valid";
 
-  return {
+  return recomputeOneWayPlanImportPreviewRow({
     rowNo: raw.rowNo,
     sheetName: raw.sheetName,
     status: raw.status,
@@ -672,46 +716,17 @@ function buildImportPreviewRow(
     shipperRequestId: normalizedOfferId,
     onhireNo: raw.onhireNo,
     remarks: raw.remarks,
-    validationResult,
-    isValid: errors.length === 0,
+    validationResult: "",
+    blockingErrors: [],
+    fixHints: [],
+    needsDepotSelection: false,
+    depotSelectionBlockedReason: null,
+    isValid: false,
     willImport,
     skipReason,
     errors,
-    prepared:
-      errors.length === 0 && status && lessee && pol && sizeType && condition
-        ? {
-            status,
-            applyDate: raw.applyDate || raw.statusDate,
-            availabilityDate: raw.availabilityDate,
-            lesseeId: lessee.id,
-            depotId: depot?.id ?? null,
-            polCityId: pol.id,
-            pod: normalizedPod,
-            sizeCodeId: sizeType.sizeCodeId,
-            typeCodeId: sizeType.typeCodeId,
-            conditionCodeId: condition.id,
-            color: normalizedColor || null,
-            machineType: normalizeText(raw.machineType) || null,
-            quantity: raw.quantity,
-            authorizedQty: raw.authorizedQty,
-            remainingQty: raw.remainingQty,
-            pickedUpQty: raw.pickedUpQty,
-            nonPickedUpQty: raw.nonPickedUpQty,
-            pickupCharge: raw.pickupCharge,
-            freeDays: raw.freeDays,
-            perDiem: raw.perDiem,
-            dpp: raw.dpp,
-            carrier: "CMA",
-            currency: "USD",
-            rv: 0,
-            shipperRequestId: normalizedOfferId,
-            onhireNo: raw.onhireNo,
-            remarks: raw.remarks,
-            sourceSheetName: raw.sheetName,
-            sourceRowNumber: raw.rowNo,
-          }
-        : null,
-  };
+    prepared,
+  });
 }
 
 function first<T>(value: T | T[] | null | undefined): T | null {
@@ -2038,12 +2053,12 @@ export async function importOneWayPlanRows(
   rows: OneWayPlanImportPreviewRow[]
 ): Promise<OneWayPlanImportResult> {
   if (!rows.length) throw new Error("No preview rows to import.");
-  if (rows.some((row) => !row.isValid || !row.prepared)) {
-    throw new Error("Import is blocked until all preview rows are valid.");
-  }
 
   const supabase = createServerSupabaseClient();
-  const importableRows = rows.filter((row) => row.willImport);
+  const importableRows = getImportableOneWayPlanImportRows(rows);
+  if (!importableRows.length) {
+    throw new Error("There are no valid rows ready to import.");
+  }
   const existingOfferIds = await getExistingOneWayPlanLesseeRequestIds(
     importableRows.map((row) => row.prepared?.shipperRequestId ?? "")
   );

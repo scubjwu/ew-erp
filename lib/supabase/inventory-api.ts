@@ -319,7 +319,7 @@ export async function fetchInventoryData(
   const { data: containerData, error: containerError } = await supabase
     .from("container")
     .select(
-      "id, container_number, color, machine_type, yom, vents, flp, lbx, locking_bars, status, lifecycle_stage, current_transfer_id, container_size_code_id, container_type_code_id, container_condition_code_id"
+      "id, container_number, color, machine_type, yom, vents, flp, lbx, locking_bars, status, lifecycle_stage, current_transfer_id, container_size_code_id, container_type_code_id, container_condition_code_id, purchase_order_container(purchase_price, purchase_order_item_id)"
     )
     .eq("lifecycle_stage", "IN_TRANSIT");
 
@@ -341,11 +341,22 @@ export async function fetchInventoryData(
     container_size_code_id: string | null;
     container_type_code_id: string | null;
     container_condition_code_id: string | null;
+    purchase_order_container:
+      | Array<{
+          purchase_price: number | null;
+          purchase_order_item_id: string | null;
+        }>
+      | {
+          purchase_price: number | null;
+          purchase_order_item_id: string | null;
+        }
+      | null;
   }>;
 
   const transferOrderIds = Array.from(
     new Set(containers.map((row) => row.current_transfer_id).filter(Boolean))
   ) as string[];
+  const containerIds = Array.from(new Set(containers.map((row) => row.id).filter(Boolean))) as string[];
   const sizeCodeIds = Array.from(
     new Set(containers.map((row) => row.container_size_code_id).filter(Boolean))
   ) as string[];
@@ -359,6 +370,8 @@ export async function fetchInventoryData(
   const [
     transferOrderResult,
     transferItemResult,
+    transferCostResult,
+    transferRevenueResult,
     sizeCodeResult,
     typeCodeResult,
     conditionCodeResult,
@@ -373,9 +386,23 @@ export async function fetchInventoryData(
       ? supabase
           .from("transfer_item")
           .select(
-            "transfer_order_id, container_id, delivery_date, eta, gate_in_ref, return_depot_name, return_depot_address, return_depot_tel, arrange_date, customer_order_num, remark2"
+            "transfer_order_id, container_id, delivery_date, eta, gate_in_ref, return_depot_name, return_depot_address, return_depot_tel, arrange_date, customer_order_num, remark1, remark2"
           )
           .in("transfer_order_id", transferOrderIds)
+      : Promise.resolve({ data: [], error: null }),
+    containerIds.length > 0
+      ? supabase
+          .from("business_cost")
+          .select("container_id, amount")
+          .eq("business_type", "TRANSFER")
+          .in("container_id", containerIds)
+      : Promise.resolve({ data: [], error: null }),
+    containerIds.length > 0
+      ? supabase
+          .from("business_revenue")
+          .select("container_id, amount")
+          .eq("business_type", "TRANSFER")
+          .in("container_id", containerIds)
       : Promise.resolve({ data: [], error: null }),
     sizeCodeIds.length > 0
       ? supabase.from("container_size_codes").select("id, size_code").in("id", sizeCodeIds)
@@ -393,6 +420,8 @@ export async function fetchInventoryData(
 
   if (transferOrderResult.error) throw transferOrderResult.error;
   if (transferItemResult.error) throw transferItemResult.error;
+  if (transferCostResult.error) throw transferCostResult.error;
+  if (transferRevenueResult.error) throw transferRevenueResult.error;
   if (sizeCodeResult.error) throw sizeCodeResult.error;
   if (typeCodeResult.error) throw typeCodeResult.error;
   if (conditionCodeResult.error) throw conditionCodeResult.error;
@@ -405,6 +434,20 @@ export async function fetchInventoryData(
     onhire_no: string | null;
     carrier: string | null;
   }>;
+  const purchaseOrderItemIds = Array.from(
+    new Set(
+      containers
+        .flatMap((row) =>
+          (Array.isArray(row.purchase_order_container)
+            ? row.purchase_order_container
+            : row.purchase_order_container
+              ? [row.purchase_order_container]
+              : []
+          ).map((purchaseOrderContainer) => purchaseOrderContainer.purchase_order_item_id)
+        )
+        .filter(Boolean)
+    )
+  ) as string[];
 
   const cityIds = Array.from(
     new Set(
@@ -415,7 +458,7 @@ export async function fetchInventoryData(
     new Set(transferOrders.map((row) => row.dispatch_vendor_id).filter(Boolean))
   ) as string[];
 
-  const [cityResult, lesseeResult] = await Promise.all([
+  const [cityResult, lesseeResult, purchaseOrderItemResult] = await Promise.all([
     cityIds.length > 0
       ? supabase.from("cities").select("id, city_code").in("id", cityIds)
       : Promise.resolve({ data: [], error: null }),
@@ -425,10 +468,14 @@ export async function fetchInventoryData(
           .select("id, company_name, legal_company_name, lessee_code")
           .in("id", lesseeIds)
       : Promise.resolve({ data: [], error: null }),
+    purchaseOrderItemIds.length > 0
+      ? supabase.from("purchase_order_item").select("id, unit_price").in("id", purchaseOrderItemIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (cityResult.error) throw cityResult.error;
   if (lesseeResult.error) throw lesseeResult.error;
+  if (purchaseOrderItemResult.error) throw purchaseOrderItemResult.error;
 
   const rows = mapInTransitInventoryRows({
     containers,
@@ -444,7 +491,20 @@ export async function fetchInventoryData(
       return_depot_tel: string | null;
       arrange_date: string | null;
       customer_order_num: string | null;
+      remark1: string | null;
       remark2: string | null;
+    }>,
+    transferCosts: (transferCostResult.data ?? []) as Array<{
+      container_id: string | null;
+      amount: number | null;
+    }>,
+    transferRevenues: (transferRevenueResult.data ?? []) as Array<{
+      container_id: string | null;
+      amount: number | null;
+    }>,
+    purchaseOrderItems: (purchaseOrderItemResult.data ?? []) as Array<{
+      id: string;
+      unit_price: number | null;
     }>,
     sizeCodes: (sizeCodeResult.data ?? []) as Array<{ id: string; size_code: string | null }>,
     typeCodes: (typeCodeResult.data ?? []) as Array<{ id: string; type_code: string | null }>,
